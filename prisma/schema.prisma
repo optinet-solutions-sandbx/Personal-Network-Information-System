@@ -1,0 +1,52 @@
+// Networky.ai (PNIS) — Phase 1 schema.
+// SQLite for local-first development. Swappable to Supabase Postgres later
+// by changing the datasource provider + url and re-running migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  title     String?
+  location  String?
+  tags      String? // comma-separated (SQLite has no native arrays)
+  howWeMet  String? // context: where/how the connection was made
+
+  // AI-assisted profile
+  profile          String?
+  profileModel     String?
+  profileUpdatedAt DateTime?
+
+  notes Note[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([company])
+}
+
+model Note {
+  id        String  @id @default(cuid())
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  content String
+  source  String @default("manual") // "manual" | "voice"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contactId])
+}

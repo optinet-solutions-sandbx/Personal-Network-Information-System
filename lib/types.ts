@@ -1,0 +1,42 @@
+// Client-facing shapes. Dates are serialized to ISO strings over the wire.
+
+export type NoteSource = "manual" | "voice";
+
+export type Note = {
+  id: string;
+  contactId: string;
+  content: string;
+  source: NoteSource;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Contact = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  title: string | null;
+  location: string | null;
+  tags: string | null;
+  howWeMet: string | null;
+  profile: string | null;
+  profileModel: string | null;
+  profileUpdatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  notes?: Note[];
+  _count?: { notes: number };
+};
+
+export type ContactInput = {
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  title?: string;
+  location?: string;
+  tags?: string;
+  howWeMet?: string;
+};
