@@ -2,10 +2,36 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
+type ExtractNote = { text: string; tone: "ok" | "warn" };
+
+// Fields a merge can copy from the new form into an existing contact.
+const MERGEABLE: (keyof ContactInput)[] = [
+  "email",
+  "phone",
+  "company",
+  "title",
+  "location",
+  "tags",
+  "howWeMet",
+];
+
+const EMPTY: ContactInput = {
+  name: "",
+  title: "",
+  company: "",
+  email: "",
+  phone: "",
+  location: "",
+  tags: "",
+  howWeMet: "",
+};
+
 export default function HomePage() {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -16,10 +42,13 @@ export default function HomePage() {
 
   const [story, setStory] = useState("");
   const [extracting, setExtracting] = useState(false);
-  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractNote, setExtractNote] = useState<ExtractNote | null>(null);
   const { listening, supported, toggle } = useSpeechRecognition({
     onResult: (text) => setStory((t) => (t ? `${t} ${text}` : text)),
   });
+
+  // Possible-duplicate prompt: contacts matching the one being saved.
+  const [dupes, setDupes] = useState<Contact[] | null>(null);
 
   async function handleExtract() {
     if (!story.trim()) return;
@@ -32,7 +61,10 @@ export default function HomePage() {
         body: JSON.stringify({ text: story }),
       });
       if (!res.ok) {
-        setExtractError("Couldn't extract details — try rephrasing or extracting again.");
+        setExtractNote({
+          text: "AI extraction failed. No problem — fill the form in manually below.",
+          tone: "warn",
+        });
         return;
       }
       const { fields } = (await res.json()) as { fields: ContactInput };
@@ -47,17 +79,45 @@ export default function HomePage() {
         tags: fields.tags ? String(fields.tags) : undefined,
         howWeMet: fields.howWeMet ? String(fields.howWeMet) : undefined,
       };
-      setExtracted(safe);
-      setExtractError(null);
+      // Merge extracted values over the empty form, keeping anything truthy.
+      setForm({ ...EMPTY, ...fields });
+
+      // If the extractor came back with nothing usable, say so plainly and
+      // hand off to manual entry rather than leaving a blank-looking form.
+      const gotSomething = Object.values(fields).some(
+        (v) => typeof v === "string" && v.trim()
+      );
+      if (!gotSomething) {
+        setExtractNote({
+          text: "AI couldn't pull any details from that. Try adding more, or just fill the form in manually below.",
+          tone: "warn",
+        });
+        return;
+      }
+
+      setExtractNote({
+        text:
+          model === "fallback"
+            ? "Extracted locally (no AI key set). Review and complete below."
+            : "Extracted with AI. Review and edit below before saving.",
+        tone: "ok",
+      });
+    } catch {
+      // Network / unexpected failure — keep the typed text, guide to manual.
+      setExtractNote({
+        text: "Couldn't reach the AI service. Your text is kept — fill the form in manually below.",
+        tone: "warn",
+      });
     } finally {
       setExtracting(false);
     }
   }
 
   function resetForm() {
-    setStory("");
-    setExtracted(null);
-    setExtractError(null);
+    setForm(EMPTY);
+    setAiText("");
+    setExtractNote(null);
+    setDupes(null);
   }
 
   const load = useCallback(async (q: string) => {
@@ -79,8 +139,8 @@ export default function HomePage() {
     };
   }, [query, load]);
 
-  async function handleSave() {
-    if (!extracted?.name?.trim()) return;
+  // Persist the form as a brand-new contact.
+  async function saveNew() {
     setSaving(true);
     try {
       const res = await fetch("/api/contacts", {
@@ -103,6 +163,59 @@ export default function HomePage() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+
+    // Check for an existing contact with the same name/email before saving,
+    // so fast (especially voice) capture doesn't quietly create duplicates.
+    setSaving(true);
+    try {
+      const params = new URLSearchParams({ name: form.name.trim() });
+      if (form.email?.trim()) params.set("email", form.email.trim());
+      const res = await fetch(`/api/contacts/check?${params}`);
+      const matches: Contact[] = res.ok ? await res.json() : [];
+      if (matches.length > 0) {
+        setSaving(false);
+        setDupes(matches);
+        return;
+      }
+    } catch {
+      // If the check itself fails, don't block the user — fall through to save.
+    }
+    setSaving(false);
+    await saveNew();
+  }
+
+  // Merge the form into an existing contact: fill only the fields that are
+  // currently empty on that contact, and append "how we met" if both differ.
+  async function mergeInto(target: Contact) {
+    const patch: Record<string, string> = {};
+    for (const key of MERGEABLE) {
+      const incoming = form[key]?.trim();
+      if (!incoming) continue;
+      const existing = (target[key] ?? "").trim();
+      if (!existing) {
+        patch[key] = incoming;
+      } else if (key === "howWeMet" && !existing.includes(incoming)) {
+        patch[key] = `${existing}; ${incoming}`;
+      }
+    }
+
+    setSaving(true);
+    const res = await fetch(`/api/contacts/${target.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    setSaving(false);
+    if (res.ok) {
+      resetForm();
+      setShowForm(false);
+      router.push(`/contacts/${target.id}`);
     }
   }
 
@@ -158,8 +271,7 @@ export default function HomePage() {
             rows={5}
             className="input w-full resize-y"
           />
-
-          <div className="flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={handleExtract}
@@ -168,8 +280,26 @@ export default function HomePage() {
             >
               {extracting ? "Extracting…" : extracted ? "Re-extract" : "Extract"}
             </button>
-            {extracting && (
-              <span className="text-xs text-indigo-700">Analysing story…</span>
+            {(aiText.trim() || extractNote || form.name.trim()) && (
+              <button
+                type="button"
+                onClick={resetForm}
+                disabled={extracting}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Clear / start over
+              </button>
+            )}
+            {extractNote && (
+              <span
+                className={`text-xs ${
+                  extractNote.tone === "warn"
+                    ? "text-amber-700"
+                    : "text-indigo-700"
+                }`}
+              >
+                {extractNote.text}
+              </span>
             )}
           </div>
           {extractError && (
@@ -190,6 +320,64 @@ export default function HomePage() {
               {saving ? "Saving…" : "Save contact"}
             </button>
           )}
+        </div>
+      )}
+
+      {dupes && dupes.length > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5">
+          <h2 className="text-sm font-semibold text-amber-900">
+            Possible duplicate{dupes.length === 1 ? "" : "s"} found
+          </h2>
+          <p className="mt-1 text-xs text-amber-800/90">
+            You already have {dupes.length === 1 ? "a contact" : "contacts"} that
+            match “{form.name.trim()}”. Merge the new details into an existing
+            one, or save this as a separate contact.
+          </p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {dupes.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{d.name}</p>
+                  <p className="truncate text-xs text-zinc-500">
+                    {[d.title, d.company, d.email].filter(Boolean).join(" · ") ||
+                      "—"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => mergeInto(d)}
+                  disabled={saving}
+                  className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
+                >
+                  Merge into this
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setDupes(null);
+                saveNew();
+              }}
+              disabled={saving}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save as new anyway"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDupes(null)}
+              disabled={saving}
+              className="text-sm font-medium text-zinc-500 hover:text-zinc-700 disabled:opacity-50"
+            >
+              Keep editing
+            </button>
+          </div>
         </div>
       )}
 
