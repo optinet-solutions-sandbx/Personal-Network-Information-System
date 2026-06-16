@@ -16,6 +16,7 @@ export default function HomePage() {
 
   const [story, setStory] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
   const { listening, supported, toggle } = useSpeechRecognition({
     onResult: (text) => setStory((t) => (t ? `${t} ${text}` : text)),
   });
@@ -23,16 +24,31 @@ export default function HomePage() {
   async function handleExtract() {
     if (!story.trim()) return;
     setExtracting(true);
-    setExtracted(null);
+    setExtractError(null);
     try {
       const res = await fetch("/api/contacts/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: story }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setExtractError("Couldn't extract details — try rephrasing or extracting again.");
+        return;
+      }
       const { fields } = (await res.json()) as { fields: ContactInput };
-      setExtracted(fields);
+      // Normalise all field values to strings to guard against LLM returning arrays/numbers
+      const safe: ContactInput = {
+        name: String(fields.name ?? ""),
+        title: fields.title ? String(fields.title) : undefined,
+        company: fields.company ? String(fields.company) : undefined,
+        email: fields.email ? String(fields.email) : undefined,
+        phone: fields.phone ? String(fields.phone) : undefined,
+        location: fields.location ? String(fields.location) : undefined,
+        tags: fields.tags ? String(fields.tags) : undefined,
+        howWeMet: fields.howWeMet ? String(fields.howWeMet) : undefined,
+      };
+      setExtracted(safe);
+      setExtractError(null);
     } finally {
       setExtracting(false);
     }
@@ -41,14 +57,18 @@ export default function HomePage() {
   function resetForm() {
     setStory("");
     setExtracted(null);
+    setExtractError(null);
   }
 
   const load = useCallback(async (q: string) => {
     setLoading(true);
-    const res = await fetch(`/api/contacts?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    setContacts(data);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/contacts?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setContacts(data);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -62,26 +82,28 @@ export default function HomePage() {
   async function handleSave() {
     if (!extracted?.name?.trim()) return;
     setSaving(true);
-    const res = await fetch("/api/contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(extracted),
-    });
-    if (res.ok) {
-      const contact = (await res.json()) as { id: string };
-      if (story.trim()) {
-        await fetch(`/api/contacts/${contact.id}/notes`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: story, source: "story" }),
-        });
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(extracted),
+      });
+      if (res.ok) {
+        const contact = (await res.json()) as { id: string };
+        if (story.trim()) {
+          await fetch(`/api/contacts/${contact.id}/notes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: story, source: "story" }),
+          });
+        }
+        resetForm();
+        setShowForm(false);
+        setQuery("");
       }
-      resetForm();
-      setShowForm(false);
-      setQuery("");
-      load("");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   return (
@@ -150,6 +172,9 @@ export default function HomePage() {
               <span className="text-xs text-indigo-700">Analysing story…</span>
             )}
           </div>
+          {extractError && (
+            <p className="text-xs text-red-600">{extractError}</p>
+          )}
 
           {extracted && (
             <ExtractedCard extracted={extracted} onUpdate={setExtracted} />
@@ -336,11 +361,15 @@ function FieldRow({
   onCommit: (value: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
+  const escapedRef = useRef(false);
   useEffect(() => setDraft(value), [value]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !multiline) onCommit(draft);
-    if (e.key === "Escape") onCommit(value);
+    if (e.key === "Escape") {
+      escapedRef.current = true;
+      onCommit(value);
+    }
   }
 
   return (
@@ -354,7 +383,7 @@ function FieldRow({
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => onCommit(draft)}
+            onBlur={() => { if (!escapedRef.current) onCommit(draft); escapedRef.current = false; }}
             onKeyDown={handleKeyDown}
             rows={2}
             className="input mt-1 w-full resize-y"
@@ -364,7 +393,7 @@ function FieldRow({
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => onCommit(draft)}
+            onBlur={() => { if (!escapedRef.current) onCommit(draft); escapedRef.current = false; }}
             onKeyDown={handleKeyDown}
             className="input mt-1 w-full"
           />
