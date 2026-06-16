@@ -340,10 +340,16 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
               className={`rounded-full px-1.5 py-0.5 ${
                 note.source === "voice"
                   ? "bg-emerald-50 text-emerald-600"
+                  : note.source === "story"
+                  ? "bg-indigo-50 text-indigo-600"
                   : "bg-zinc-100 text-zinc-500"
               }`}
             >
-              {note.source === "voice" ? "🎤 voice" : "manual"}
+              {note.source === "voice"
+                ? "🎤 voice"
+                : note.source === "story"
+                ? "📖 story"
+                : "manual"}
             </span>
             <span>{new Date(note.createdAt).toLocaleString()}</span>
             <button
