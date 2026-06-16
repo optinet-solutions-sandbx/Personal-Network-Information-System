@@ -355,6 +355,7 @@ function FieldRow({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => onCommit(draft)}
+            onKeyDown={handleKeyDown}
             rows={2}
             className="input mt-1 w-full resize-y"
           />
