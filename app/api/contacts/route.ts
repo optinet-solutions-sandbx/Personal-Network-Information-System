@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+
+// Case-insensitive substring search (Postgres ILIKE under the hood).
+const insensitive = (q: string) => ({ contains: q, mode: Prisma.QueryMode.insensitive });
 
 // GET /api/contacts?q=search
 export async function GET(req: NextRequest) {
@@ -8,12 +12,12 @@ export async function GET(req: NextRequest) {
   const where = q
     ? {
         OR: [
-          { name: { contains: q } },
-          { email: { contains: q } },
-          { company: { contains: q } },
-          { title: { contains: q } },
-          { tags: { contains: q } },
-          { location: { contains: q } },
+          { name: insensitive(q) },
+          { email: insensitive(q) },
+          { company: insensitive(q) },
+          { title: insensitive(q) },
+          { tags: insensitive(q) },
+          { location: insensitive(q) },
         ],
       }
     : undefined;
