@@ -7,7 +7,10 @@
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",
+    "deploy": "vercel deploy --prod --yes",
+    "deploy:preview": "vercel deploy --yes",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "node prisma/seed.mjs",
     "db:reset": "node prisma/reset.mjs",
     "db:studio": "prisma studio"
