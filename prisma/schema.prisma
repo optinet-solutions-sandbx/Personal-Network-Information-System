@@ -43,7 +43,7 @@ model Note {
   contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   content String
-  source  String @default("manual") // "manual" | "voice"
+  source  String @default("manual") // "manual" | "voice" | "story"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

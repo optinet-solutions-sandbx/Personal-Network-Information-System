@@ -1,6 +1,6 @@
 // Client-facing shapes. Dates are serialized to ISO strings over the wire.
 
-export type NoteSource = "manual" | "voice";
+export type NoteSource = "manual" | "voice" | "story";
 
 export type Note = {
   id: string;

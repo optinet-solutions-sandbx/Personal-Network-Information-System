@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { NoteSource } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,7 +27,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "contact not found" }, { status: 404 });
   }
 
-  const source = body.source === "voice" ? "voice" : "manual";
+  const source: NoteSource =
+    body.source === "voice" ? "voice" : body.source === "story" ? "story" : "manual";
   const note = await prisma.note.create({
     data: { contactId: id, content: body.content.trim(), source },
   });
