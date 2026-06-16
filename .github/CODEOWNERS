@@ -1,0 +1,6 @@
+# Code owners for this repository.
+# These users/teams are automatically requested for review on every pull request.
+# Docs: https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repo:
+*       @jose-innovationhub
