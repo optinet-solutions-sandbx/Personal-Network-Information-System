@@ -39,8 +39,8 @@ DYNAMIC FIELDS — add a "customFields" key for ALL notable personal details fou
 Be thorough — the more context captured, the better. Categories to look for:
 
 BIOGRAPHICAL
-- "Age": their age if stated (e.g. "25")
-- "Birth Year": calculate from age + current year if age is known (e.g. age 25 in ${currentYear} → "${currentYear - 25}")
+- "Age": ONLY if an age is explicitly stated (e.g. "she is 25"). Never estimate.
+- "Birth Year": ONLY when an explicit age (or birth year) is stated — then compute from age + current year (e.g. age 25 in ${currentYear} → "${currentYear - 25}"). Do NOT infer a birth year from graduation year, years of experience, school start, or any other proxy. If no age/birth year is stated, OMIT both "Age" and "Birth Year".
 
 ACADEMIC / RESEARCH
 - "Research": any research topic, theory, or hypothesis they are investigating
@@ -64,7 +64,7 @@ RELATIONSHIP
 - "Mutual Connection": shared acquaintances or context
 
 RULES:
-- Include both explicitly stated AND directly inferable facts (e.g. age + current year → birth year)
+- Include explicitly stated facts. The ONLY inference allowed is a stated age → birth year. Do NOT guess ages, birth years, or other dates from indirect clues (e.g. graduation year).
 - Use clean, short label names (capitalize first letter)
 - Omit "customFields" entirely if nothing extra is mentioned
 ${
