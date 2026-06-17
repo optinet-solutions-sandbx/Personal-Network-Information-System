@@ -63,26 +63,6 @@ export default function ContactsSidebar() {
     if (pathname === `/contacts/${contact.id}`) router.push("/");
   }
 
-  async function handleDelete(e: React.MouseEvent, contact: Contact) {
-    e.preventDefault();
-    e.stopPropagation();
-    const result = await Swal.fire({
-      title: "Delete Contact?",
-      html: `<p style="font-size:0.875rem;color:#6b7280">Are you sure you want to delete <strong>${contact.name}</strong>? This cannot be undone.</p>`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Delete",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#6b7280",
-      reverseButtons: true,
-    });
-    if (!result.isConfirmed) return;
-    await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
-    setContacts((prev) => prev.filter((c) => c.id !== contact.id));
-    if (pathname === `/contacts/${contact.id}`) router.push("/");
-  }
-
   useEffect(() => {
     fetch("/api/contacts")
       .then((r) => r.json())
