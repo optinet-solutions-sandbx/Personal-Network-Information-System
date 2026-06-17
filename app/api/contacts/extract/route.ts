@@ -9,7 +9,15 @@ export async function POST(req: NextRequest) {
   if (!text) {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
+  const enrich = body?.enrich === true;
 
-  const { fields, model } = await extractContact(text);
-  return NextResponse.json({ fields, model });
+  const { fields, model, enriched, enrichedContact, sources } =
+    await extractContact(text, { enrich });
+  return NextResponse.json({
+    fields,
+    model,
+    enriched,
+    enrichedContact,
+    sources,
+  });
 }
