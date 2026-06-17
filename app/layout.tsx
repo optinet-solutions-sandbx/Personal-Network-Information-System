@@ -30,7 +30,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex h-full flex-col bg-zinc-50 text-zinc-900">
+      <body className="flex h-full flex-col bg-zinc-50 text-zinc-900" suppressHydrationWarning>
         <header className="border-b border-zinc-200 bg-white">
           <div className="flex items-center justify-between px-6 py-3">
             <Link href="/" className="flex items-center gap-2">

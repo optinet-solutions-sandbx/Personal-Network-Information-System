@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import Swal from "sweetalert2";
 import type { Contact } from "@/lib/types";
 
 const AVATAR_COLORS = [
@@ -24,6 +25,7 @@ const COLLAPSE_KEY = "networky:sidebar-collapsed";
 
 export default function ContactsSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState(false);
@@ -39,6 +41,26 @@ export default function ContactsSidebar() {
       localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
       return next;
     });
+  }
+
+  async function handleDelete(e: React.MouseEvent, contact: Contact) {
+    e.preventDefault();
+    e.stopPropagation();
+    const result = await Swal.fire({
+      title: "Delete Contact?",
+      html: `<p style="font-size:0.875rem;color:#6b7280">Are you sure you want to delete <strong>${contact.name}</strong>? This cannot be undone.</p>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
+    await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
+    setContacts((prev) => prev.filter((c) => c.id !== contact.id));
+    if (pathname === `/contacts/${contact.id}`) router.push("/");
   }
 
   useEffect(() => {
@@ -169,35 +191,45 @@ export default function ContactsSidebar() {
           const active = pathname === `/contacts/${c.id}`;
           const initial = (c.name?.[0] ?? "?").toUpperCase();
           return (
-            <Link
-              key={c.id}
-              href={`/contacts/${c.id}`}
-              className={`flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors ${
-                active
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-zinc-700 hover:bg-zinc-50"
-              }`}
-            >
-              <span
-                className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${avatarColor(
-                  c.name ?? ""
-                )}`}
+            <div key={c.id} className="group relative">
+              <Link
+                href={`/contacts/${c.id}`}
+                className={`flex items-center gap-2.5 rounded-md px-2 py-2 pr-7 transition-colors ${
+                  active
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "text-zinc-700 hover:bg-zinc-50"
+                }`}
               >
-                {initial}
-              </span>
-              <span className="min-w-0">
                 <span
-                  className={`block truncate text-xs font-medium ${
-                    active ? "text-indigo-700" : "text-zinc-800"
-                  }`}
+                  className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${avatarColor(
+                    c.name ?? ""
+                  )}`}
                 >
-                  {c.name}
+                  {initial}
                 </span>
-                <span className="block truncate text-[10px] text-zinc-400">
-                  {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
+                <span className="min-w-0">
+                  <span
+                    className={`block truncate text-xs font-medium ${
+                      active ? "text-indigo-700" : "text-zinc-800"
+                    }`}
+                  >
+                    {c.name}
+                  </span>
+                  <span className="block truncate text-[10px] text-zinc-400">
+                    {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
+                  </span>
                 </span>
-              </span>
-            </Link>
+              </Link>
+              <button
+                onClick={(e) => handleDelete(e, c)}
+                title="Delete contact"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+              </button>
+            </div>
           );
         })}
 
