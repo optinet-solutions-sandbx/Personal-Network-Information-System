@@ -18,6 +18,10 @@ export default function HomePage() {
   const [story, setStory] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [enrich, setEnrich] = useState(true);
+  const [enrichedKeys, setEnrichedKeys] = useState<string[]>([]);
+  const [enrichedContact, setEnrichedContact] = useState<string[]>([]);
+  const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
   const [showReExtractConfirm, setShowReExtractConfirm] = useState(false);
   const [showExtractToast, setShowExtractToast] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,13 +61,23 @@ export default function HomePage() {
       const res = await fetch("/api/contacts/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: story }),
+        body: JSON.stringify({ text: story, enrich }),
       });
       if (!res.ok) {
         setExtractError("Couldn't extract details — try rephrasing or extracting again.");
         return;
       }
-      const { fields } = (await res.json()) as { fields: ContactInput };
+      const {
+        fields,
+        enriched,
+        enrichedContact: enrichedC,
+        sources: srcs,
+      } = (await res.json()) as {
+        fields: ContactInput;
+        enriched?: string[];
+        enrichedContact?: string[];
+        sources?: { title: string; url: string }[];
+      };
       // Normalise all field values to strings to guard against LLM returning arrays/numbers
       const safe: ContactInput = {
         name: String(fields.name ?? ""),
@@ -74,8 +88,19 @@ export default function HomePage() {
         location: fields.location ? String(fields.location) : undefined,
         tags: fields.tags ? String(fields.tags) : undefined,
         howWeMet: fields.howWeMet ? String(fields.howWeMet) : undefined,
+        customFields:
+          fields.customFields && Object.keys(fields.customFields).length > 0
+            ? fields.customFields
+            : undefined,
       };
       setExtracted(safe);
+      setEnrichedKeys(
+        Array.isArray(enriched)
+          ? enriched.filter((k) => k in (safe.customFields ?? {}))
+          : []
+      );
+      setEnrichedContact(Array.isArray(enrichedC) ? enrichedC : []);
+      setSources(Array.isArray(srcs) ? srcs : []);
       setExtractError(null);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       setShowExtractToast(true);
@@ -90,6 +115,9 @@ export default function HomePage() {
     setStory("");
     setExtracted(null);
     setExtractError(null);
+    setEnrichedKeys([]);
+    setEnrichedContact([]);
+    setSources([]);
   }
 
   const load = useCallback(async (q: string) => {
@@ -251,12 +279,39 @@ export default function HomePage() {
               {extracting ? "Extracting…" : extracted ? "Re-extract" : "Extract"}
             </button>
           </div>
+
+          <label className="flex items-start gap-2 text-xs text-zinc-600">
+            <input
+              type="checkbox"
+              checked={enrich}
+              onChange={(e) => setEnrich(e.target.checked)}
+              className="mt-0.5 accent-indigo-600"
+            />
+            <span>
+              <span className="font-medium text-zinc-700">
+                🌐 Enrich from the web
+              </span>
+              <span className="block text-zinc-400">
+                Searches the public web for this person (works for anyone with a
+                public footprint) and adds cited details — role, bio, interests.
+                May be outdated; verify before trusting. Never collects private
+                email, phone, or home address.
+              </span>
+            </span>
+          </label>
+
           {extractError && (
             <p className="text-xs text-red-600">{extractError}</p>
           )}
 
           {extracted && (
-            <ExtractedCard extracted={extracted} onUpdate={setExtracted} />
+            <ExtractedCard
+              extracted={extracted}
+              enrichedKeys={enrichedKeys}
+              enrichedContact={enrichedContact}
+              sources={sources}
+              onUpdate={setExtracted}
+            />
           )}
 
           {extracted && (
@@ -435,21 +490,71 @@ const FIELD_DEFS: {
 
 function ExtractedCard({
   extracted,
+  enrichedKeys = [],
+  enrichedContact = [],
+  sources = [],
   onUpdate,
 }: {
   extracted: ContactInput;
+  enrichedKeys?: string[];
+  enrichedContact?: string[];
+  sources?: { title: string; url: string }[];
   onUpdate: (updated: ContactInput) => void;
 }) {
-  const [editingField, setEditingField] = useState<keyof ContactInput | null>(
-    null
-  );
+  const [editingField, setEditingField] = useState<string | null>(null);
   const [showMissing, setShowMissing] = useState(false);
 
   function updateField(key: keyof ContactInput, value: string) {
     onUpdate({ ...extracted, [key]: value });
   }
 
+  function updateCustomField(key: string, value: string) {
+    onUpdate({
+      ...extracted,
+      customFields: { ...(extracted.customFields ?? {}), [key]: value },
+    });
+  }
+
+  function removeCustomField(key: string) {
+    const next = { ...(extracted.customFields ?? {}) };
+    delete next[key];
+    onUpdate({
+      ...extracted,
+      customFields: Object.keys(next).length > 0 ? next : undefined,
+    });
+  }
+
   const missingFields = FIELD_DEFS.filter((f) => !extracted[f.key]);
+  const customEntries = Object.entries(extracted.customFields ?? {});
+  const enrichedSet = new Set(enrichedKeys);
+  const detectedEntries = customEntries.filter(([k]) => !enrichedSet.has(k));
+  const enrichedEntries = customEntries.filter(([k]) => enrichedSet.has(k));
+
+  const renderCustomRow = ([key, value]: [string, string]) => (
+    <div key={key} className="flex items-start gap-1.5">
+      <div className="flex-1">
+        <FieldRow
+          label={key}
+          value={value}
+          isEditing={editingField === `custom:${key}`}
+          multiline={value.length > 60}
+          onStartEdit={() => setEditingField(`custom:${key}`)}
+          onCommit={(v) => {
+            updateCustomField(key, v);
+            setEditingField(null);
+          }}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => removeCustomField(key)}
+        title="Remove this field"
+        className="mt-5 shrink-0 text-zinc-300 hover:text-red-400 transition-colors text-xs leading-none px-1"
+      >
+        ✕
+      </button>
+    </div>
+  );
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
@@ -476,6 +581,7 @@ function ExtractedCard({
             isEditing={editingField === f.key}
             multiline={f.multiline}
             isTags={f.isTags}
+            fromWeb={enrichedContact.includes(f.key)}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
               updateField(f.key, v);
@@ -496,6 +602,52 @@ function ExtractedCard({
             : `+ Add missing fields (${missingFields.length})`}
         </button>
       )}
+
+      {detectedEntries.length > 0 && (
+        <div className="pt-3 border-t border-zinc-100 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
+            ✦ AI-detected
+          </p>
+          {detectedEntries.map(renderCustomRow)}
+        </div>
+      )}
+
+      {enrichedEntries.length > 0 && (
+        <div className="pt-3 border-t border-amber-100 space-y-3 -mx-4 -mb-4 mt-3 rounded-b-lg bg-amber-50/60 px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+              🌐 Enriched from public knowledge
+            </p>
+            <p className="mt-0.5 text-[11px] text-amber-700/80">
+              Pulled from the public web — may be outdated or wrong. Verify
+              before saving; remove any you don&apos;t want.
+            </p>
+          </div>
+          {enrichedEntries.map(renderCustomRow)}
+
+          {sources.length > 0 && (
+            <div className="pt-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600/80">
+                Sources
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {sources.map((s) => (
+                  <li key={s.url} className="truncate text-[11px]">
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-700 underline hover:text-amber-900"
+                    >
+                      {s.title || s.url}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -507,6 +659,7 @@ function FieldRow({
   isEditing,
   multiline,
   isTags,
+  fromWeb,
   onStartEdit,
   onCommit,
 }: {
@@ -516,6 +669,7 @@ function FieldRow({
   isEditing: boolean;
   multiline?: boolean;
   isTags?: boolean;
+  fromWeb?: boolean;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
 }) {
@@ -533,8 +687,13 @@ function FieldRow({
 
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
         {label}
+        {fromWeb && (
+          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+            🌐 web · verify
+          </span>
+        )}
       </dt>
       {isEditing ? (
         multiline ? (
