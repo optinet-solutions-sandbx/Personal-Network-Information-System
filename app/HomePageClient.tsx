@@ -8,6 +8,10 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 export default function HomePageClient() {
   const router = useRouter();
   const [extracted, setExtracted] = useState<ContactInput | null>(null);
+  const [enrichedKeys, setEnrichedKeys] = useState<string[]>([]);
+  const [enrichedContact, setEnrichedContact] = useState<string[]>([]);
+  const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
+  const [enrich, setEnrich] = useState(true);
   const [saving, setSaving] = useState(false);
   const [story, setStory] = useState("");
   const [extracting, setExtracting] = useState(false);
@@ -24,13 +28,23 @@ export default function HomePageClient() {
       const res = await fetch("/api/contacts/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: story }),
+        body: JSON.stringify({ text: story, enrich }),
       });
       if (!res.ok) {
         setExtractError("Couldn't extract details — try rephrasing or extracting again.");
         return;
       }
-      const { fields } = (await res.json()) as { fields: ContactInput };
+      const {
+        fields,
+        enriched,
+        enrichedContact: enrichedC,
+        sources: srcs,
+      } = (await res.json()) as {
+        fields: ContactInput;
+        enriched?: string[];
+        enrichedContact?: string[];
+        sources?: { title: string; url: string }[];
+      };
       const safe: ContactInput = {
         name: String(fields.name ?? ""),
         title: fields.title ? String(fields.title) : undefined,
@@ -46,6 +60,11 @@ export default function HomePageClient() {
             : undefined,
       };
       setExtracted(safe);
+      setEnrichedKeys(
+        Array.isArray(enriched) ? enriched.filter((k) => k in (safe.customFields ?? {})) : []
+      );
+      setEnrichedContact(Array.isArray(enrichedC) ? enrichedC : []);
+      setSources(Array.isArray(srcs) ? srcs : []);
       setExtractError(null);
     } finally {
       setExtracting(false);
@@ -55,6 +74,9 @@ export default function HomePageClient() {
   function resetForm() {
     setStory("");
     setExtracted(null);
+    setEnrichedKeys([]);
+    setEnrichedContact([]);
+    setSources([]);
     setExtractError(null);
   }
 
@@ -152,6 +174,26 @@ export default function HomePageClient() {
           )}
         </div>
 
+        <label className="flex items-start gap-2 text-xs text-zinc-600">
+          <input
+            type="checkbox"
+            checked={enrich}
+            onChange={(e) => setEnrich(e.target.checked)}
+            className="mt-0.5 accent-indigo-600"
+          />
+          <span>
+            <span className="font-medium text-zinc-700">
+              🌐 Enrich from the web
+            </span>
+            <span className="block text-zinc-400">
+              Searches the public web for this person (works for anyone with a
+              public footprint) and adds cited details — role, bio, interests.
+              May be outdated; verify before trusting. Never collects private
+              email, phone, or home address.
+            </span>
+          </span>
+        </label>
+
         {extractError && (
           <p className="text-xs text-red-600">{extractError}</p>
         )}
@@ -159,6 +201,9 @@ export default function HomePageClient() {
         {extracted && (
           <ReviewCard
             extracted={extracted}
+            enrichedKeys={enrichedKeys}
+            enrichedContact={enrichedContact}
+            sources={sources}
             onUpdate={setExtracted}
             onSave={handleSave}
             saving={saving}
@@ -188,11 +233,17 @@ const STANDARD_FIELDS: {
 
 function ReviewCard({
   extracted,
+  enrichedKeys = [],
+  enrichedContact = [],
+  sources = [],
   onUpdate,
   onSave,
   saving,
 }: {
   extracted: ContactInput;
+  enrichedKeys?: string[];
+  enrichedContact?: string[];
+  sources?: { title: string; url: string }[];
   onUpdate: (updated: ContactInput) => void;
   onSave: () => void;
   saving: boolean;
@@ -227,7 +278,36 @@ function ReviewCard({
   const filledStandard = STANDARD_FIELDS.filter((f) => Boolean(extracted[f.key]));
   const missingStandard = STANDARD_FIELDS.filter((f) => !extracted[f.key]);
   const customEntries = Object.entries(extracted.customFields ?? {});
+  const enrichedSet = new Set(enrichedKeys);
+  const detectedEntries = customEntries.filter(([k]) => !enrichedSet.has(k));
+  const enrichedEntries = customEntries.filter(([k]) => enrichedSet.has(k));
   const totalFields = 1 + filledStandard.length + customEntries.length;
+
+  const renderCustomRow = ([key, value]: [string, string]) => (
+    <div key={key} className="flex items-start gap-1.5">
+      <div className="flex-1">
+        <FieldRow
+          label={key}
+          value={value}
+          isEditing={editingField === `custom:${key}`}
+          multiline={value.length > 60}
+          onStartEdit={() => setEditingField(`custom:${key}`)}
+          onCommit={(v) => {
+            updateCustomField(key, v);
+            setEditingField(null);
+          }}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => removeCustomField(key)}
+        title="Remove this field"
+        className="mt-5 shrink-0 text-zinc-300 hover:text-red-400 transition-colors text-xs leading-none px-1"
+      >
+        ✕
+      </button>
+    </div>
+  );
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
@@ -272,6 +352,7 @@ function ReviewCard({
             isEditing={editingField === f.key}
             multiline={f.multiline}
             isTags={f.isTags}
+            fromWeb={enrichedContact.includes(f.key)}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
               updateStandardField(f.key, v);
@@ -309,36 +390,49 @@ function ReviewCard({
           </button>
         )}
 
-        {customEntries.length > 0 && (
+        {detectedEntries.length > 0 && (
           <div className="pt-3 border-t border-zinc-100 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
               ✦ AI-detected
             </p>
-            {customEntries.map(([key, value]) => (
-              <div key={key} className="flex items-start gap-1.5">
-                <div className="flex-1">
-                  <FieldRow
-                    label={key}
-                    value={value}
-                    isEditing={editingField === `custom:${key}`}
-                    multiline={value.length > 60}
-                    onStartEdit={() => setEditingField(`custom:${key}`)}
-                    onCommit={(v) => {
-                      updateCustomField(key, v);
-                      setEditingField(null);
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeCustomField(key)}
-                  title="Remove this field"
-                  className="mt-5 shrink-0 text-zinc-300 hover:text-red-400 transition-colors text-xs leading-none px-1"
-                >
-                  ✕
-                </button>
+            {detectedEntries.map(renderCustomRow)}
+          </div>
+        )}
+
+        {enrichedEntries.length > 0 && (
+          <div className="pt-3 border-t border-amber-100 space-y-3 -mx-4 -mb-4 mt-3 rounded-b-xl bg-amber-50/60 px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                🌐 Enriched from public knowledge
+              </p>
+              <p className="mt-0.5 text-[11px] text-amber-700/80">
+                Pulled from the public web — may be outdated or wrong. Verify
+                before saving; remove any you don't want.
+              </p>
+            </div>
+            {enrichedEntries.map(renderCustomRow)}
+
+            {sources.length > 0 && (
+              <div className="pt-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600/80">
+                  Sources
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {sources.map((s) => (
+                    <li key={s.url} className="truncate text-[11px]">
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-700 underline hover:text-amber-900"
+                      >
+                        {s.title || s.url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -369,6 +463,7 @@ function FieldRow({
   isEditing,
   multiline,
   isTags,
+  fromWeb,
   onStartEdit,
   onCommit,
 }: {
@@ -378,6 +473,7 @@ function FieldRow({
   isEditing: boolean;
   multiline?: boolean;
   isTags?: boolean;
+  fromWeb?: boolean;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
 }) {
@@ -395,8 +491,13 @@ function FieldRow({
 
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
         {label}
+        {fromWeb && (
+          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+            🌐 web · verify
+          </span>
+        )}
       </dt>
       {isEditing ? (
         multiline ? (
