@@ -1,0 +1,160 @@
+<h2>Sidebar design — persistent nav across all pages</h2>
+<p class="subtitle">Two states: homepage (no contact selected) and contact detail view</p>
+
+<div class="split">
+
+  <!-- State 1: Homepage -->
+  <div class="mockup">
+    <div class="mockup-header">Homepage — no contact selected</div>
+    <div class="mockup-body" style="padding:0;">
+      <div style="font-family:sans-serif;font-size:11px;background:#f9fafb;height:340px;display:flex;flex-direction:column;">
+        <!-- top header -->
+        <div style="background:#fff;border-bottom:1px solid #e4e4e7;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <span style="font-weight:700;color:#4f46e5;font-size:13px;">Networky<span style="color:#6b7280;">.ai</span></span>
+          <span style="background:#f3f4f6;padding:2px 7px;border-radius:20px;color:#9ca3af;font-size:9px;">Phase 1 · MVP</span>
+        </div>
+        <!-- two-column body -->
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <!-- SIDEBAR -->
+          <div style="width:160px;background:#fff;border-right:1px solid #e4e4e7;display:flex;flex-direction:column;flex-shrink:0;">
+            <div style="padding:10px 10px 6px;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:10px;font-weight:600;color:#111827;">Contacts</span>
+              <div style="background:#4f46e5;color:#fff;border-radius:4px;padding:2px 6px;font-size:9px;font-weight:600;cursor:pointer;">+ Add</div>
+            </div>
+            <div style="padding:0 8px 6px;">
+              <div style="background:#f3f4f6;border:1px solid #e4e4e7;border-radius:5px;padding:4px 7px;display:flex;align-items:center;gap:4px;">
+                <span style="color:#9ca3af;font-size:10px;">🔍</span>
+                <span style="color:#9ca3af;font-size:10px;">Search…</span>
+              </div>
+            </div>
+            <div style="overflow-y:auto;flex:1;padding:0 6px 8px;">
+              <!-- contact items -->
+              <div style="border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#6366f1;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">A</div>
+                <div>
+                  <div style="font-size:10px;font-weight:500;">Alice Chen</div>
+                  <div style="font-size:9px;color:#9ca3af;">VP Eng · Acme</div>
+                </div>
+              </div>
+              <div style="border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">B</div>
+                <div>
+                  <div style="font-size:10px;font-weight:500;">Bob Martinez</div>
+                  <div style="font-size:9px;color:#9ca3af;">Designer · Flux</div>
+                </div>
+              </div>
+              <div style="border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#f59e0b;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">C</div>
+                <div>
+                  <div style="font-size:10px;font-weight:500;">Carol White</div>
+                  <div style="font-size:9px;color:#9ca3af;">CTO · Spark</div>
+                </div>
+              </div>
+              <div style="border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#ef4444;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">D</div>
+                <div>
+                  <div style="font-size:10px;font-weight:500;">David Kim</div>
+                  <div style="font-size:9px;color:#9ca3af;">PM · Zeta</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- MAIN: homepage prompt -->
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;color:#9ca3af;flex-direction:column;gap:6px;">
+            <div style="font-size:28px;">🤝</div>
+            <div style="font-size:11px;font-weight:500;color:#6b7280;">Your professional network</div>
+            <div style="font-size:10px;color:#9ca3af;">Select a contact or add a new one</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 2: Contact detail -->
+  <div class="mockup">
+    <div class="mockup-header">Contact detail — Alice selected</div>
+    <div class="mockup-body" style="padding:0;">
+      <div style="font-family:sans-serif;font-size:11px;background:#f9fafb;height:340px;display:flex;flex-direction:column;">
+        <!-- top header -->
+        <div style="background:#fff;border-bottom:1px solid #e4e4e7;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <span style="font-weight:700;color:#4f46e5;font-size:13px;">Networky<span style="color:#6b7280;">.ai</span></span>
+          <span style="background:#f3f4f6;padding:2px 7px;border-radius:20px;color:#9ca3af;font-size:9px;">Phase 1 · MVP</span>
+        </div>
+        <!-- two-column body -->
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <!-- SIDEBAR — Alice highlighted -->
+          <div style="width:160px;background:#fff;border-right:1px solid #e4e4e7;display:flex;flex-direction:column;flex-shrink:0;">
+            <div style="padding:10px 10px 6px;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:10px;font-weight:600;color:#111827;">Contacts</span>
+              <div style="background:#4f46e5;color:#fff;border-radius:4px;padding:2px 6px;font-size:9px;font-weight:600;">+ Add</div>
+            </div>
+            <div style="padding:0 8px 6px;">
+              <div style="background:#f3f4f6;border:1px solid #e4e4e7;border-radius:5px;padding:4px 7px;display:flex;align-items:center;gap:4px;">
+                <span style="color:#9ca3af;font-size:10px;">🔍</span>
+                <span style="color:#9ca3af;font-size:10px;">Search…</span>
+              </div>
+            </div>
+            <div style="overflow-y:auto;flex:1;padding:0 6px 8px;">
+              <!-- Alice: ACTIVE -->
+              <div style="background:#eef2ff;border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#6366f1;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">A</div>
+                <div>
+                  <div style="font-size:10px;font-weight:600;color:#4f46e5;">Alice Chen</div>
+                  <div style="font-size:9px;color:#818cf8;">VP Eng · Acme</div>
+                </div>
+              </div>
+              <div style="border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">B</div>
+                <div>
+                  <div style="font-size:10px;font-weight:500;">Bob Martinez</div>
+                  <div style="font-size:9px;color:#9ca3af;">Designer · Flux</div>
+                </div>
+              </div>
+              <div style="border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#f59e0b;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">C</div>
+                <div>
+                  <div style="font-size:10px;font-weight:500;">Carol White</div>
+                  <div style="font-size:9px;color:#9ca3af;">CTO · Spark</div>
+                </div>
+              </div>
+              <div style="border-radius:5px;padding:5px 6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+                <div style="width:20px;height:20px;border-radius:50%;background:#ef4444;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">D</div>
+                <div>
+                  <div style="font-size:10px;font-weight:500;">David Kim</div>
+                  <div style="font-size:9px;color:#9ca3af;">PM · Zeta</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- MAIN: contact detail -->
+          <div style="flex:1;padding:10px;overflow:hidden;">
+            <div style="background:#fff;border:1px solid #e4e4e7;border-radius:6px;padding:8px;margin-bottom:6px;">
+              <div style="font-size:13px;font-weight:700;color:#111827;">Alice Chen</div>
+              <div style="font-size:9px;color:#6b7280;margin-bottom:6px;">VP of Engineering · Acme Corp</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px;">
+                <div><span style="color:#9ca3af;">Email</span><br>alice@acme.com</div>
+                <div><span style="color:#9ca3af;">Location</span><br>San Francisco</div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #e4e4e7;border-radius:6px;padding:8px;">
+              <div style="font-size:10px;font-weight:600;margin-bottom:4px;">Notes</div>
+              <div style="background:#f9fafb;border-radius:4px;padding:5px;font-size:9px;color:#6b7280;margin-bottom:3px;">Met at SaaStr 2025 — she's hiring backend engineers.</div>
+              <div style="background:#f9fafb;border-radius:4px;padding:5px;font-size:9px;color:#6b7280;">Follow up about the open source collab.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#166534;">
+  <strong>What changes:</strong>
+  <ul style="margin:6px 0 0;padding-left:16px;line-height:1.8;">
+    <li><code>layout.tsx</code> — two-column flex layout (sidebar + main)</li>
+    <li>New <code>ContactsSidebar</code> client component — fetches contacts, search, active highlight</li>
+    <li>Homepage — simplified to a welcome state (the sidebar is the contact list now)</li>
+    <li>Contact detail page — "← Back" link removed (use sidebar instead)</li>
+  </ul>
+</div>
