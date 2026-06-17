@@ -1,33 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveOwner, ownerWhere } from "@/lib/auth";
+import { validateNoteContent } from "@/lib/validation";
 
 type Params = { params: Promise<{ id: string }> };
 
+// Scope a note to the owner via its parent contact.
+function ownedNoteWhere(id: string, userId: string | null) {
+  return userId ? { id, contact: { userId } } : { id };
+}
+
 // PATCH /api/notes/:id
 export async function PATCH(req: NextRequest, { params }: Params) {
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
+
   const { id } = await params;
   const body = await req.json().catch(() => null);
-  if (!body || typeof body.content !== "string" || !body.content.trim()) {
-    return NextResponse.json({ error: "content is required" }, { status: 400 });
+
+  const valid = validateNoteContent(body?.content);
+  if (!valid.ok) {
+    return NextResponse.json({ error: valid.error }, { status: 400 });
   }
-  try {
-    const note = await prisma.note.update({
-      where: { id },
-      data: { content: body.content.trim() },
-    });
-    return NextResponse.json(note);
-  } catch {
+
+  const result = await prisma.note.updateMany({
+    where: ownedNoteWhere(id, owner.userId),
+    data: { content: valid.data },
+  });
+  if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  const note = await prisma.note.findUnique({ where: { id } });
+  return NextResponse.json(note);
 }
 
 // DELETE /api/notes/:id
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
+
   const { id } = await params;
-  try {
-    await prisma.note.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch {
+  const result = await prisma.note.deleteMany({
+    where: ownedNoteWhere(id, owner.userId),
+  });
+  if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  return NextResponse.json({ ok: true });
 }

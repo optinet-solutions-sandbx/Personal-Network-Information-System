@@ -14,6 +14,9 @@ datasource db {
 
 model Contact {
   id        String   @id @default(cuid())
+  // Supabase auth user id (auth.users.id) of the owner. Nullable so existing
+  // rows stay valid and the app runs in open/shared mode until auth is enabled.
+  userId    String?
   name      String
   email     String?
   phone     String?
@@ -36,6 +39,7 @@ model Contact {
 
   @@index([name])
   @@index([company])
+  @@index([userId])
 }
 
 model Note {

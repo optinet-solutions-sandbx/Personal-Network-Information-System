@@ -10,6 +10,9 @@ export default function HomePage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [extracted, setExtracted] = useState<ContactInput | null>(null);
   const [saving, setSaving] = useState(false);
@@ -120,16 +123,50 @@ export default function HomePage() {
     setSources([]);
   }
 
-  const load = useCallback(async (q: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/contacts?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      setContacts(data);
-    } finally {
-      setLoading(false);
-    }
+  // One page of the grid. Search runs server-side via `q`; results are paged.
+  const PAGE_SIZE = 24;
+
+  const fetchPage = useCallback(async (q: string, offset: number) => {
+    const res = await fetch(
+      `/api/contacts?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${offset}`
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as Contact[];
+    const more = res.headers.get("X-Has-More") === "true";
+    return { data, more };
   }, []);
+
+  const load = useCallback(
+    async (q: string) => {
+      setLoading(true);
+      setLoadError(false);
+      try {
+        const { data, more } = await fetchPage(q, 0);
+        setContacts(data);
+        setHasMore(more);
+      } catch {
+        setContacts([]);
+        setHasMore(false);
+        setLoadError(true);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchPage]
+  );
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const { data, more } = await fetchPage(query, contacts.length);
+      setContacts((prev) => [...prev, ...data]);
+      setHasMore(more);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [fetchPage, query, contacts.length]);
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
@@ -336,6 +373,18 @@ export default function HomePage() {
 
       {loading ? (
         <p className="py-12 text-center text-sm text-zinc-400">Loading…</p>
+      ) : loadError && contacts.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-sm text-red-600">
+            Couldn&apos;t load contacts — check your connection.
+          </p>
+          <button
+            onClick={() => load(query)}
+            className="mt-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+          >
+            Retry
+          </button>
+        </div>
       ) : contacts.length === 0 ? (
         <p className="py-12 text-center text-sm text-zinc-400">
           {query
@@ -386,6 +435,18 @@ export default function HomePage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {!loading && hasMore && (
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        </div>
       )}
 
       {/* Extraction success toast */}

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveOwner, ownerWhere } from "@/lib/auth";
+import { validateContact } from "@/lib/validation";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,9 +18,12 @@ function parseCustomFields(c: Record<string, unknown>) {
 
 // GET /api/contacts/:id  (with notes)
 export async function GET(_req: NextRequest, { params }: Params) {
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
+
   const { id } = await params;
-  const contact = await prisma.contact.findUnique({
-    where: { id },
+  const contact = await prisma.contact.findFirst({
+    where: { id, ...ownerWhere(owner.userId) },
     include: { notes: { orderBy: { createdAt: "desc" } } },
   });
   if (!contact) {
@@ -29,66 +34,58 @@ export async function GET(_req: NextRequest, { params }: Params) {
   );
 }
 
-const EDITABLE = [
-  "name",
-  "email",
-  "phone",
-  "company",
-  "title",
-  "location",
-  "tags",
-  "howWeMet",
-] as const;
-
 // PATCH /api/contacts/:id
 export async function PATCH(req: NextRequest, { params }: Params) {
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
+
   const { id } = await params;
   const body = await req.json().catch(() => null);
-  if (!body) {
-    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+
+  const valid = validateContact(body, { partial: true });
+  if (!valid.ok) {
+    return NextResponse.json({ error: valid.error }, { status: 400 });
   }
 
   const data: Record<string, string | null> = {};
-  for (const key of EDITABLE) {
-    if (key in body) {
-      const v = typeof body[key] === "string" ? body[key].trim() : body[key];
-      data[key] = v || null;
-    }
-  }
-  if ("name" in data && !data.name) {
-    return NextResponse.json({ error: "name cannot be empty" }, { status: 400 });
-  }
-
-  // customFields is a JSON object, not a plain string — handle separately
-  if ("customFields" in body) {
-    if (
-      body.customFields &&
-      typeof body.customFields === "object" &&
-      Object.keys(body.customFields).length > 0
-    ) {
-      data.customFields = JSON.stringify(body.customFields);
+  for (const [key, value] of Object.entries(valid.data)) {
+    if (key === "customFields") {
+      data.customFields = value ? JSON.stringify(value) : null;
     } else {
-      data.customFields = null;
+      data[key] = (value as string | null) ?? null;
     }
   }
 
-  try {
-    const contact = await prisma.contact.update({ where: { id }, data });
-    return NextResponse.json(
-      parseCustomFields(contact as unknown as Record<string, unknown>)
-    );
-  } catch {
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "no fields to update" }, { status: 400 });
+  }
+
+  // Scope the update to the owner so users can't modify others' contacts.
+  const result = await prisma.contact.updateMany({
+    where: { id, ...ownerWhere(owner.userId) },
+    data,
+  });
+  if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+
+  const contact = await prisma.contact.findUnique({ where: { id } });
+  return NextResponse.json(
+    parseCustomFields(contact as unknown as Record<string, unknown>)
+  );
 }
 
 // DELETE /api/contacts/:id
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
+
   const { id } = await params;
-  try {
-    await prisma.contact.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch {
+  const result = await prisma.contact.deleteMany({
+    where: { id, ...ownerWhere(owner.userId) },
+  });
+  if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  return NextResponse.json({ ok: true });
 }

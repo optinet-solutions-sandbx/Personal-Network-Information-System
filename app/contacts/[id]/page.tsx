@@ -18,16 +18,24 @@ export default function ContactDetailPage({
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/contacts/${id}`);
-    if (res.status === 404) {
-      setNotFound(true);
+    try {
+      const res = await fetch(`/api/contacts/${id}`);
+      if (res.status === 404) {
+        setNotFound(true);
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setContact(await res.json());
+      setLoadError(false);
+    } catch {
+      // network failure or unexpected server error
+      setLoadError(true);
+    } finally {
       setLoading(false);
-      return;
     }
-    setContact(await res.json());
-    setLoading(false);
   }, [id]);
 
   useEffect(() => {
@@ -35,6 +43,23 @@ export default function ContactDetailPage({
   }, [load]);
 
   if (loading) return <p className="text-sm text-zinc-400">Loading…</p>;
+  if (loadError && !contact)
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-red-600">
+          Couldn&apos;t load this contact — check your connection and try again.
+        </p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            load();
+          }}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+        >
+          Retry
+        </button>
+      </div>
+    );
   if (notFound || !contact)
     return (
       <div>
@@ -108,24 +133,42 @@ function DetailsCard({
 
   async function save() {
     setSaving(true);
-    await fetch(`/api/contacts/${contact.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        title: form.title,
-        company: form.company,
-        email: form.email,
-        phone: form.phone,
-        location: form.location,
-        tags: form.tags,
-        howWeMet: form.howWeMet,
-        customFields: form.customFields,
-      }),
-    });
-    setSaving(false);
-    setEditing(false);
-    onSaved();
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          title: form.title,
+          company: form.company,
+          email: form.email,
+          phone: form.phone,
+          location: form.location,
+          tags: form.tags,
+          howWeMet: form.howWeMet,
+          customFields: form.customFields,
+        }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Couldn't save changes",
+          text: error || "Please check the fields and try again.",
+        });
+        return;
+      }
+      setEditing(false);
+      onSaved();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't save changes",
+        text: "Please check your connection and try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const set = (k: keyof Contact) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -286,17 +329,35 @@ function NotesSection({
   async function addNote() {
     if (!draft.trim()) return;
     setSaving(true);
-    await fetch(`/api/contacts/${contact.id}/notes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: draft,
-        source: listening ? "voice" : "manual",
-      }),
-    });
-    setSaving(false);
-    setDraft("");
-    onChange();
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: draft,
+          source: listening ? "voice" : "manual",
+        }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Couldn't save note",
+          text: error || "Please check your connection and try again.",
+        });
+        return;
+      }
+      setDraft("");
+      onChange();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't save note",
+        text: "Please check your connection and try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -356,13 +417,30 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
   const [text, setText] = useState(note.content);
 
   async function save() {
-    await fetch(`/api/notes/${note.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text }),
-    });
-    setEditing(false);
-    onChange();
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Couldn't update note",
+          text: error || "Please try again.",
+        });
+        return;
+      }
+      setEditing(false);
+      onChange();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't update note",
+        text: "Please check your connection and try again.",
+      });
+    }
   }
   async function remove() {
     const result = await Swal.fire({
@@ -377,8 +455,17 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
       reverseButtons: true,
     });
     if (!result.isConfirmed) return;
-    await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
-    onChange();
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onChange();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't delete note",
+        text: "Please check your connection and try again.",
+      });
+    }
   }
 
   return (
@@ -480,10 +567,33 @@ function ProfileCard({
       showConfirmButton: false,
       didOpen: () => Swal.showLoading(),
     });
-    await fetch(`/api/contacts/${contact.id}/profile`, { method: "POST" });
-    setGenerating(false);
-    Swal.close();
-    onChange();
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/profile`, {
+        method: "POST",
+      });
+      Swal.close();
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Profile generation failed",
+          text:
+            error ||
+            "The AI service may be unavailable. Please try again in a moment.",
+        });
+        return;
+      }
+      onChange();
+    } catch {
+      Swal.close();
+      await Swal.fire({
+        icon: "error",
+        title: "Profile generation failed",
+        text: "Please check your connection and try again.",
+      });
+    } finally {
+      setGenerating(false);
+    }
   }
 
   return (
