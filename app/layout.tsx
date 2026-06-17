@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import ContactsSidebar from "@/components/ContactsSidebar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,9 +30,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
+      <body className="flex h-full flex-col bg-zinc-50 text-zinc-900">
         <header className="border-b border-zinc-200 bg-white">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+          <div className="flex items-center justify-between px-6 py-3">
             <Link href="/" className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
                 N
@@ -45,9 +46,12 @@ export default function RootLayout({
             </span>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">
-          {children}
-        </main>
+        <div className="flex flex-1 overflow-hidden">
+          <ContactsSidebar />
+          <main className="flex-1 overflow-y-auto px-6 py-8">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );

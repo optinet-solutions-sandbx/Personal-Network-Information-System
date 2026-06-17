@@ -21,7 +21,8 @@ model Contact {
   title     String?
   location  String?
   tags      String? // comma-separated (SQLite has no native arrays)
-  howWeMet  String? // context: where/how the connection was made
+  howWeMet     String?  // context: where/how the connection was made
+  customFields String?  // JSON: AI-detected extra fields {"Interests": "...", "Hobbies": "..."}
 
   // AI-assisted profile
   profile          String?

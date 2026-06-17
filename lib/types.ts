@@ -21,6 +21,7 @@ export type Contact = {
   location: string | null;
   tags: string | null;
   howWeMet: string | null;
+  customFields: Record<string, string> | null;
   profile: string | null;
   profileModel: string | null;
   profileUpdatedAt: string | null;
@@ -39,4 +40,5 @@ export type ContactInput = {
   location?: string;
   tags?: string;
   howWeMet?: string;
+  customFields?: Record<string, string>;
 };

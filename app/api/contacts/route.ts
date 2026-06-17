@@ -5,6 +5,17 @@ import { prisma } from "@/lib/prisma";
 // Case-insensitive substring search (Postgres ILIKE under the hood).
 const insensitive = (q: string) => ({ contains: q, mode: Prisma.QueryMode.insensitive });
 
+function parseCustomFields(c: Record<string, unknown>) {
+  const raw = c.customFields;
+  return {
+    ...c,
+    customFields:
+      typeof raw === "string" && raw
+        ? (JSON.parse(raw) as Record<string, string>)
+        : null,
+  };
+}
+
 // GET /api/contacts?q=search
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim();
@@ -28,7 +39,9 @@ export async function GET(req: NextRequest) {
     include: { _count: { select: { notes: true } } },
   });
 
-  return NextResponse.json(contacts);
+  return NextResponse.json(
+    contacts.map((c) => parseCustomFields(c as unknown as Record<string, unknown>))
+  );
 }
 
 // POST /api/contacts
@@ -48,8 +61,17 @@ export async function POST(req: NextRequest) {
       location: body.location?.trim() || null,
       tags: body.tags?.trim() || null,
       howWeMet: body.howWeMet?.trim() || null,
+      customFields:
+        body.customFields &&
+        typeof body.customFields === "object" &&
+        Object.keys(body.customFields).length > 0
+          ? JSON.stringify(body.customFields)
+          : null,
     },
   });
 
-  return NextResponse.json(contact, { status: 201 });
+  return NextResponse.json(
+    parseCustomFields(contact as unknown as Record<string, unknown>),
+    { status: 201 }
+  );
 }

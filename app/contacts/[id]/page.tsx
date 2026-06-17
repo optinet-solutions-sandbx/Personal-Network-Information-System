@@ -97,6 +97,7 @@ function DetailsCard({
         location: form.location,
         tags: form.tags,
         howWeMet: form.howWeMet,
+        customFields: form.customFields,
       }),
     });
     setSaving(false);
@@ -196,6 +197,53 @@ function DetailsCard({
           </div>
         ))}
       </dl>
+
+      {/* AI-detected custom fields */}
+      {((editing ? form : contact).customFields) &&
+        Object.keys((editing ? form : contact).customFields!).length > 0 && (
+          <div className="mt-5 pt-4 border-t border-zinc-100">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-400">
+              ✦ AI-detected
+            </p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              {Object.entries((editing ? form : contact).customFields!).map(
+                ([key, value]) => (
+                  <div
+                    key={key}
+                    className={
+                      (value as string).length > 60 ? "col-span-2" : ""
+                    }
+                  >
+                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                      {key}
+                    </dt>
+                    {editing ? (
+                      <input
+                        className="input mt-1 w-full"
+                        value={
+                          (form.customFields as Record<string, string>)?.[
+                            key
+                          ] ?? ""
+                        }
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            customFields: {
+                              ...(form.customFields as Record<string, string>),
+                              [key]: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    ) : (
+                      <dd className="text-zinc-700">{(value as string) || "—"}</dd>
+                    )}
+                  </div>
+                )
+              )}
+            </dl>
+          </div>
+        )}
     </div>
   );
 }
