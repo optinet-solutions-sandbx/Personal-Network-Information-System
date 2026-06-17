@@ -80,6 +80,17 @@ export default function ContactDetailPage({
 
 /* ---------------- Details (view + edit) ---------------- */
 
+// Standard contact columns, rendered dynamically like the AI-detected fields.
+const STANDARD_FIELDS: [keyof Contact, string][] = [
+  ["title", "Title"],
+  ["company", "Company"],
+  ["email", "Email"],
+  ["phone", "Phone"],
+  ["location", "Location"],
+  ["tags", "Tags"],
+  ["howWeMet", "How we met"],
+];
+
 function DetailsCard({
   contact,
   onSaved,
@@ -180,34 +191,28 @@ function DetailsCard({
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        {(
-          [
-            ["title", "Title"],
-            ["company", "Company"],
-            ["email", "Email"],
-            ["phone", "Phone"],
-            ["location", "Location"],
-            ["tags", "Tags"],
-            ["howWeMet", "How we met"],
-          ] as [keyof Contact, string][]
-        ).map(([key, label]) => (
-          <div key={key} className={key === "howWeMet" ? "col-span-2" : ""}>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-              {label}
-            </dt>
-            {editing ? (
-              <input
-                className="input mt-1 w-full"
-                value={(form[key] as string) ?? ""}
-                onChange={set(key)}
-              />
-            ) : (
-              <dd className="text-zinc-700">
-                {(contact[key] as string) || "—"}
-              </dd>
-            )}
-          </div>
-        ))}
+        {STANDARD_FIELDS
+          // In view mode only show fields the AI/user populated — same as the
+          // AI-detected section. In edit mode show all so they can be filled in.
+          .filter(([key]) => editing || (contact[key] as string)?.trim())
+          .map(([key, label]) => (
+            <div key={key} className={key === "howWeMet" ? "col-span-2" : ""}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                {label}
+              </dt>
+              {editing ? (
+                <input
+                  className="input mt-1 w-full"
+                  value={(form[key] as string) ?? ""}
+                  onChange={set(key)}
+                />
+              ) : (
+                <dd className="text-zinc-700">
+                  {(contact[key] as string) || "—"}
+                </dd>
+              )}
+            </div>
+          ))}
       </dl>
 
       {/* AI-detected custom fields */}
