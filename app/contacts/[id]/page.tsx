@@ -452,9 +452,32 @@ function ProfileCard({
   const [generating, setGenerating] = useState(false);
 
   async function generate() {
+    if (contact.profile) {
+      const result = await Swal.fire({
+        title: "Profile Already Generated",
+        html: `<p style="font-size:0.875rem;color:#6b7280">An AI profile for <strong>${contact.name}</strong> already exists. Do you want to regenerate it? This will overwrite the current profile.</p>`,
+        icon: "info",
+        showCancelButton: true,
+        confirmButtonText: "Regenerate",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#4f46e5",
+        cancelButtonColor: "#6b7280",
+        reverseButtons: true,
+      });
+      if (!result.isConfirmed) return;
+    }
     setGenerating(true);
+    Swal.fire({
+      title: "Generating AI Profile...",
+      html: `<p style="font-size:0.875rem;color:#6b7280">Analysing details and notes for <strong>${contact.name}</strong></p>`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
     await fetch(`/api/contacts/${contact.id}/profile`, { method: "POST" });
     setGenerating(false);
+    Swal.close();
     onChange();
   }
 
