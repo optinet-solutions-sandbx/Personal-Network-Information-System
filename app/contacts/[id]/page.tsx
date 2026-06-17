@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Swal from "sweetalert2";
 import type { Contact, Note } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
@@ -45,7 +46,18 @@ export default function ContactDetailPage({
     );
 
   async function handleDelete() {
-    if (!confirm(`Delete ${contact!.name}? This cannot be undone.`)) return;
+    const result = await Swal.fire({
+      title: "Delete Contact?",
+      html: `<p style="font-size:0.875rem;color:#6b7280">Are you sure you want to delete <strong>${contact!.name}</strong>? This cannot be undone.</p>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
     router.push("/");
   }
@@ -348,6 +360,18 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
     onChange();
   }
   async function remove() {
+    const result = await Swal.fire({
+      title: "Delete Note?",
+      html: '<p style="font-size:0.875rem;color:#6b7280">Are you sure you want to delete this note? This cannot be undone.</p>',
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
     await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
     onChange();
   }
