@@ -2,8 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ContactInput } from "@/lib/types";
+import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+
+// A possible duplicate returned by /api/contacts/check (name or email match).
+type MatchContact = {
+  id: string;
+  name: string;
+  email: string | null;
+  company: string | null;
+  title: string | null;
+  _count?: { notes: number };
+};
 
 export default function HomePageClient() {
   const router = useRouter();
@@ -13,6 +23,7 @@ export default function HomePageClient() {
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
   const [enrich, setEnrich] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [duplicates, setDuplicates] = useState<MatchContact[]>([]);
   const [story, setStory] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
@@ -78,12 +89,41 @@ export default function HomePageClient() {
     setEnrichedContact([]);
     setSources([]);
     setExtractError(null);
+    setDuplicates([]);
   }
 
-  async function handleSave() {
+  // Attach the original story (if any) as a note, then go to the contact.
+  async function attachStoryAndGo(contactId: string) {
+    if (story.trim()) {
+      await fetch(`/api/contacts/${contactId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: story, source: "story" }),
+      });
+    }
+    router.push(`/contacts/${contactId}`);
+  }
+
+  // Save flow. Unless `force` is set, first checks for an existing contact with
+  // the same name or email and surfaces a merge / save-anyway prompt instead.
+  async function handleSave(force = false) {
     if (!extracted?.name?.trim()) return;
     setSaving(true);
     try {
+      if (!force) {
+        const params = new URLSearchParams();
+        params.set("name", extracted.name.trim());
+        if (extracted.email?.trim()) params.set("email", extracted.email.trim());
+        const dupRes = await fetch(`/api/contacts/check?${params.toString()}`);
+        if (dupRes.ok) {
+          const matches = (await dupRes.json()) as MatchContact[];
+          if (matches.length > 0) {
+            setDuplicates(matches);
+            return; // wait for the user to choose merge / save anyway
+          }
+        }
+      }
+
       const res = await fetch("/api/contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,15 +131,49 @@ export default function HomePageClient() {
       });
       if (res.ok) {
         const contact = (await res.json()) as { id: string };
-        if (story.trim()) {
-          await fetch(`/api/contacts/${contact.id}/notes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content: story, source: "story" }),
-          });
-        }
-        router.push(`/contacts/${contact.id}`);
+        await attachStoryAndGo(contact.id);
       }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Merge the extracted details into an existing contact: gap-fill empty
+  // standard fields, union tags, add new custom fields (never overwriting
+  // existing values), then attach the story note.
+  async function handleMerge(target: MatchContact) {
+    if (!extracted) return;
+    setSaving(true);
+    try {
+      const existingRes = await fetch(`/api/contacts/${target.id}`);
+      const existing = existingRes.ok ? ((await existingRes.json()) as Contact) : null;
+
+      const patch: Record<string, unknown> = {};
+      const gapFields = ["email", "phone", "company", "title", "location", "howWeMet"] as const;
+      for (const f of gapFields) {
+        const incoming = extracted[f]?.trim();
+        if (incoming && !existing?.[f]) patch[f] = incoming;
+      }
+
+      const tags = unionTags(existing?.tags ?? null, extracted.tags);
+      if (tags && tags !== (existing?.tags ?? null)) patch.tags = tags;
+
+      // Existing values win on key conflicts — extracted only fills gaps.
+      const mergedCustom = {
+        ...(extracted.customFields ?? {}),
+        ...(existing?.customFields ?? {}),
+      };
+      if (Object.keys(mergedCustom).length > 0) patch.customFields = mergedCustom;
+
+      if (Object.keys(patch).length > 0) {
+        await fetch(`/api/contacts/${target.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+      }
+
+      await attachStoryAndGo(target.id);
     } finally {
       setSaving(false);
     }
@@ -205,10 +279,134 @@ export default function HomePageClient() {
             enrichedContact={enrichedContact}
             sources={sources}
             onUpdate={setExtracted}
-            onSave={handleSave}
+            onSave={() => handleSave()}
             saving={saving}
           />
         )}
+      </div>
+
+      {duplicates.length > 0 && (
+        <DuplicatePrompt
+          duplicates={duplicates}
+          saving={saving}
+          onMerge={handleMerge}
+          onSaveAnyway={() => handleSave(true)}
+          onCancel={() => setDuplicates([])}
+        />
+      )}
+    </div>
+  );
+}
+
+// Union two comma-separated tag strings, case-insensitively de-duped, keeping
+// the existing order first. Returns null when both are empty.
+function unionTags(existing: string | null, incoming?: string): string | null {
+  const split = (s?: string | null) =>
+    (s ?? "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of [...split(existing), ...split(incoming)]) {
+    const key = t.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(t);
+    }
+  }
+  return out.length > 0 ? out.join(", ") : null;
+}
+
+// ── Duplicate prompt ──────────────────────────────────────────────────────────
+
+function DuplicatePrompt({
+  duplicates,
+  saving,
+  onMerge,
+  onSaveAnyway,
+  onCancel,
+}: {
+  duplicates: MatchContact[];
+  saving: boolean;
+  onMerge: (target: MatchContact) => void;
+  onSaveAnyway: () => void;
+  onCancel: () => void;
+}) {
+  const plural = duplicates.length > 1;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-zinc-100 px-5 py-4">
+          <h2 className="text-base font-semibold text-zinc-900">
+            Possible duplicate{plural ? "s" : ""} found
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            {plural
+              ? "These contacts share this name or email. Merge into one to keep things tidy, or save as a new contact anyway."
+              : "A contact with this name or email already exists. Merge into it to keep things tidy, or save as a new contact anyway."}
+          </p>
+        </div>
+
+        <ul className="max-h-72 divide-y divide-zinc-100 overflow-y-auto px-5">
+          {duplicates.map((d) => {
+            const subtitle = [d.title, d.company].filter(Boolean).join(" · ");
+            return (
+              <li key={d.id} className="flex items-center gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-zinc-800">{d.name}</p>
+                  {(subtitle || d.email) && (
+                    <p className="truncate text-xs text-zinc-500">
+                      {subtitle}
+                      {subtitle && d.email ? " · " : ""}
+                      {d.email}
+                    </p>
+                  )}
+                  {d._count && (
+                    <p className="text-[11px] text-zinc-400">
+                      {d._count.notes} note{d._count.notes !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onMerge(d)}
+                  disabled={saving}
+                  className="shrink-0 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:opacity-50"
+                >
+                  Merge here
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="flex items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSaveAnyway}
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save as new anyway"}
+          </button>
+        </div>
       </div>
     </div>
   );
