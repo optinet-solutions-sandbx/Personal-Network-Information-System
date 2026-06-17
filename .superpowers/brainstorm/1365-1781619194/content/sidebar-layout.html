@@ -1,0 +1,123 @@
+<h2>How should the sidebar work?</h2>
+<p class="subtitle">Three approaches — each affects where and how the contact list appears</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family:sans-serif;font-size:11px;background:#f9fafb;border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;height:180px;display:flex;flex-direction:column;">
+        <!-- header -->
+        <div style="background:#fff;border-bottom:1px solid #e4e4e7;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <span style="font-weight:700;color:#4f46e5;">Networky<span style="color:#6b7280;">.ai</span></span>
+          <span style="background:#f3f4f6;padding:2px 6px;border-radius:20px;color:#9ca3af;font-size:9px;">Phase 1 · MVP</span>
+        </div>
+        <!-- body: sidebar + main -->
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <!-- sidebar -->
+          <div style="width:140px;background:#fff;border-right:1px solid #e4e4e7;padding:8px;flex-shrink:0;overflow:hidden;">
+            <div style="font-size:9px;font-weight:600;color:#6b7280;margin-bottom:6px;text-transform:uppercase;">Contacts</div>
+            <div style="background:#eef2ff;border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#4f46e5;font-weight:600;">Alice Chen</div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#374151;">Bob Martinez</div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#374151;">Carol White</div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#374151;">David Kim</div>
+            <div style="border-radius:4px;padding:4px 6px;color:#374151;">Eve Johnson</div>
+          </div>
+          <!-- main: contact detail -->
+          <div style="flex:1;padding:10px;overflow:hidden;">
+            <div style="font-weight:600;font-size:13px;">Alice Chen</div>
+            <div style="color:#6b7280;font-size:10px;margin-bottom:8px;">VP of Engineering · Acme Corp</div>
+            <div style="background:#f9fafb;border:1px solid #e4e4e7;border-radius:4px;padding:6px;font-size:10px;color:#374151;">
+              <div>📧 alice@acme.com</div>
+              <div>📍 San Francisco, CA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — App-wide split view</h3>
+      <p>Sidebar persists on every page. Clicking a contact loads the detail in the right panel — no navigation, no "back" button.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family:sans-serif;font-size:11px;background:#f9fafb;border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;height:180px;display:flex;flex-direction:column;">
+        <!-- header -->
+        <div style="background:#fff;border-bottom:1px solid #e4e4e7;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <span style="font-weight:700;color:#4f46e5;">Networky<span style="color:#6b7280;">.ai</span></span>
+          <span style="background:#f3f4f6;padding:2px 6px;border-radius:20px;color:#9ca3af;font-size:9px;">Phase 1 · MVP</span>
+        </div>
+        <!-- body: sidebar + main -->
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <!-- sidebar -->
+          <div style="width:140px;background:#fff;border-right:1px solid #e4e4e7;padding:8px;flex-shrink:0;overflow:hidden;">
+            <div style="font-size:9px;font-weight:600;color:#6b7280;margin-bottom:6px;text-transform:uppercase;">Contacts</div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#374151;">Alice Chen</div>
+            <div style="background:#eef2ff;border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#4f46e5;font-weight:600;">Bob Martinez</div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#374151;">Carol White</div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:4px;color:#374151;">David Kim</div>
+            <div style="border-radius:4px;padding:4px 6px;color:#374151;">Eve Johnson</div>
+          </div>
+          <!-- main: home page content -->
+          <div style="flex:1;padding:10px;overflow:hidden;">
+            <div style="font-weight:600;font-size:12px;margin-bottom:6px;">Contacts</div>
+            <div style="display:flex;background:#fff;border:1px solid #e4e4e7;border-radius:4px;padding:4px 8px;margin-bottom:6px;color:#9ca3af;font-size:10px;">Search by name, company…</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+              <div style="background:#fff;border:1px solid #e4e4e7;border-radius:4px;padding:4px 6px;font-size:10px;">Alice Chen<br><span style="color:#9ca3af;">VP Eng · Acme</span></div>
+              <div style="background:#fff;border:1px solid #e4e4e7;border-radius:4px;padding:4px 6px;font-size:10px;">Bob Martinez<br><span style="color:#9ca3af;">Designer · Flux</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Sidebar + existing grid</h3>
+      <p>Sidebar sits beside the current homepage layout. The grid of contacts remains. Clicking in sidebar navigates to the contact detail page.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family:sans-serif;font-size:11px;background:#f9fafb;border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;height:180px;display:flex;flex-direction:column;">
+        <!-- header -->
+        <div style="background:#fff;border-bottom:1px solid #e4e4e7;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <span style="font-weight:700;color:#4f46e5;">Networky<span style="color:#6b7280;">.ai</span></span>
+          <span style="background:#f3f4f6;padding:2px 6px;border-radius:20px;color:#9ca3af;font-size:9px;">Phase 1 · MVP</span>
+        </div>
+        <!-- body: sidebar + main -->
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <!-- sidebar -->
+          <div style="width:140px;background:#fff;border-right:1px solid #e4e4e7;padding:8px;flex-shrink:0;overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:9px;font-weight:600;color:#6b7280;text-transform:uppercase;">Contacts</span>
+              <span style="background:#4f46e5;color:#fff;border-radius:3px;padding:1px 4px;font-size:9px;">+</span>
+            </div>
+            <div style="background:#f3f4f6;border:1px solid #e4e4e7;border-radius:3px;padding:3px 5px;margin-bottom:5px;color:#9ca3af;font-size:9px;">🔍 Search…</div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:3px;color:#374151;display:flex;align-items:center;gap:4px;">
+              <div style="width:14px;height:14px;border-radius:50%;background:#6366f1;color:#fff;font-size:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">A</div>Alice Chen
+            </div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:3px;color:#374151;display:flex;align-items:center;gap:4px;">
+              <div style="width:14px;height:14px;border-radius:50%;background:#10b981;color:#fff;font-size:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">B</div>Bob Martinez
+            </div>
+            <div style="border-radius:4px;padding:4px 6px;margin-bottom:3px;color:#374151;display:flex;align-items:center;gap:4px;">
+              <div style="width:14px;height:14px;border-radius:50%;background:#f59e0b;color:#fff;font-size:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">C</div>Carol White
+            </div>
+          </div>
+          <!-- main: empty state with prompt -->
+          <div style="flex:1;padding:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+            <div style="text-align:center;color:#9ca3af;font-size:10px;">
+              <div style="font-size:20px;margin-bottom:4px;">👈</div>
+              Select a contact<br>to view their profile
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Sidebar replaces grid</h3>
+      <p>Sidebar with search + initials avatars is the primary navigation. The old contacts grid disappears. Homepage becomes a "select a contact" prompt.</p>
+    </div>
+  </div>
+
+</div>
