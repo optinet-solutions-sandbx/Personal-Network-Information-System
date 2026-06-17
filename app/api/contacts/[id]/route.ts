@@ -3,6 +3,17 @@ import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
 
+function parseCustomFields(c: Record<string, unknown>) {
+  const raw = c.customFields;
+  return {
+    ...c,
+    customFields:
+      typeof raw === "string" && raw
+        ? (JSON.parse(raw) as Record<string, string>)
+        : null,
+  };
+}
+
 // GET /api/contacts/:id  (with notes)
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
@@ -13,7 +24,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!contact) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
-  return NextResponse.json(contact);
+  return NextResponse.json(
+    parseCustomFields(contact as unknown as Record<string, unknown>)
+  );
 }
 
 const EDITABLE = [
@@ -46,9 +59,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "name cannot be empty" }, { status: 400 });
   }
 
+  // customFields is a JSON object, not a plain string — handle separately
+  if ("customFields" in body) {
+    if (
+      body.customFields &&
+      typeof body.customFields === "object" &&
+      Object.keys(body.customFields).length > 0
+    ) {
+      data.customFields = JSON.stringify(body.customFields);
+    } else {
+      data.customFields = null;
+    }
+  }
+
   try {
     const contact = await prisma.contact.update({ where: { id }, data });
-    return NextResponse.json(contact);
+    return NextResponse.json(
+      parseCustomFields(contact as unknown as Record<string, unknown>)
+    );
   } catch {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
