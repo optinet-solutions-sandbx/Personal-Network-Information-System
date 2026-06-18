@@ -75,7 +75,7 @@ export default function ContactDetailPage({
     return (
       <div>
         <p className="text-sm text-zinc-500">Contact not found.</p>
-        <Link href="/" className="text-sm text-indigo-600">
+        <Link href="/contacts" className="text-sm text-indigo-600">
           ← Back to contacts
         </Link>
       </div>
@@ -95,13 +95,13 @@ export default function ContactDetailPage({
     });
     if (!result.isConfirmed) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
-    router.push("/");
+    router.push("/contacts");
   }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
       <div className="lg:col-span-3">
-        <Link href="/" className="text-sm text-indigo-600">
+        <Link href="/contacts" className="text-sm text-indigo-600">
           ← Back to contacts
         </Link>
         <DetailsCard contact={contact} onSaved={load} onDelete={handleDelete} />

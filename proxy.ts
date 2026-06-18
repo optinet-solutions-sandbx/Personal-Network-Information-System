@@ -43,7 +43,7 @@ export default async function proxy(req: NextRequest) {
   }
   // Signed-in users shouldn't see the login page.
   if (user && path === "/login") {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   return res;

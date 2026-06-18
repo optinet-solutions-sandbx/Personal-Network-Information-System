@@ -65,7 +65,7 @@ export default function ContactsSidebar() {
     if (!result.isConfirmed) return;
     await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
     setContacts((prev) => prev.filter((c) => c.id !== contact.id));
-    if (pathname === `/contacts/${contact.id}`) router.push("/");
+    if (pathname === `/contacts/${contact.id}`) router.push("/contacts");
   }
 
   const fetchPage = useCallback(async (q: string, offset: number) => {
@@ -141,7 +141,7 @@ export default function ContactsSidebar() {
         </Link>
 
         <Link
-          href="/"
+          href="/contacts"
           title="Add contact"
           className="mt-2 flex h-8 w-8 items-center justify-center rounded-md bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700"
         >
@@ -202,9 +202,18 @@ export default function ContactsSidebar() {
       </div>
 
       <div className="mt-1 flex items-center justify-between border-t border-zinc-100 px-4 py-3">
-        <span className="text-sm font-semibold text-zinc-900">Contacts</span>
         <Link
-          href="/"
+          href="/contacts"
+          className={`rounded-md px-1.5 py-0.5 text-sm font-semibold transition-colors ${
+            pathname === "/contacts"
+              ? "text-indigo-700"
+              : "text-zinc-900 hover:text-indigo-700"
+          }`}
+        >
+          Contacts
+        </Link>
+        <Link
+          href="/contacts"
           className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
         >
           + Add

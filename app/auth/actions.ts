@@ -40,7 +40,7 @@ export async function authenticate(
   }
 
   // redirect() throws internally — keep it outside any try/catch.
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function signout() {

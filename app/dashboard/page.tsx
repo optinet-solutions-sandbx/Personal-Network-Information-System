@@ -188,7 +188,7 @@ export default function DashboardPage() {
           {recent.length === 0 ? (
             <p className="text-sm text-zinc-400">
               No contacts yet.{" "}
-              <Link href="/" className="text-indigo-600 hover:underline">
+              <Link href="/contacts" className="text-indigo-600 hover:underline">
                 Add your first one →
               </Link>
             </p>
@@ -237,7 +237,7 @@ export default function DashboardPage() {
                 {stats.topCompanies.map(([company, count]) => (
                   <li key={company}>
                     <Link
-                      href={`/?q=${encodeURIComponent(company)}`}
+                      href={`/contacts?q=${encodeURIComponent(company)}`}
                       className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-zinc-50"
                     >
                       <span className="truncate text-zinc-700">{company}</span>
@@ -260,7 +260,7 @@ export default function DashboardPage() {
                 {stats.topTags.map(([tag, count]) => (
                   <Link
                     key={tag}
-                    href={`/?q=${encodeURIComponent(tag)}`}
+                    href={`/contacts?q=${encodeURIComponent(tag)}`}
                     className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
                   >
                     {tag} · {count}
