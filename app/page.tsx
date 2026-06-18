@@ -315,6 +315,16 @@ export default function HomePage() {
             >
               {extracting ? "Extracting…" : extracted ? "Re-extract" : "Extract"}
             </button>
+            {(story.trim() || extracted) && (
+              <button
+                type="button"
+                onClick={resetForm}
+                disabled={extracting}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Clear
+              </button>
+            )}
           </div>
 
           <label className="flex items-start gap-2 text-xs text-zinc-600">
