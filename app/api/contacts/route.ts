@@ -66,23 +66,43 @@ export async function GET(req: NextRequest) {
     findArgs.take = limit;
   }
 
-  // Only pay for a count() when paginating.
-  const [contacts, total] = await Promise.all([
-    prisma.contact.findMany(findArgs),
-    limit != null ? prisma.contact.count({ where }) : Promise.resolve(0),
-  ]);
+  try {
+    // Only pay for a count() when paginating.
+    const [contacts, total] = await Promise.all([
+      prisma.contact.findMany(findArgs),
+      limit != null ? prisma.contact.count({ where }) : Promise.resolve(0),
+    ]);
 
-  const body = contacts.map((c) =>
-    parseCustomFields(c as unknown as Record<string, unknown>)
-  );
+    const body = contacts.map((c) =>
+      parseCustomFields(c as unknown as Record<string, unknown>)
+    );
 
-  const headers: Record<string, string> = {};
-  if (limit != null) {
-    headers["X-Total-Count"] = String(total);
-    headers["X-Has-More"] = String(offset + contacts.length < total);
+    const headers: Record<string, string> = {};
+    if (limit != null) {
+      headers["X-Total-Count"] = String(total);
+      headers["X-Has-More"] = String(offset + contacts.length < total);
+    }
+
+    return NextResponse.json(body, { headers });
+  } catch (err) {
+    // Surface the underlying cause (e.g. DB unreachable / schema drift) instead
+    // of a bare 500 with an empty body, which is undebuggable in production.
+    const code =
+      err instanceof Prisma.PrismaClientKnownRequestError
+        ? err.code
+        : err instanceof Prisma.PrismaClientInitializationError
+        ? err.errorCode ?? "init"
+        : "unknown";
+    console.error(`GET /api/contacts failed [${code}]:`, err);
+    return NextResponse.json(
+      {
+        error: "Could not load contacts.",
+        code,
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(body, { headers });
 }
 
 // POST /api/contacts
