@@ -40,6 +40,7 @@ export default function HomePageClient() {
         location: fields.location ? String(fields.location) : undefined,
         tags: fields.tags ? String(fields.tags) : undefined,
         howWeMet: fields.howWeMet ? String(fields.howWeMet) : undefined,
+        birthday: fields.birthday ? String(fields.birthday) : undefined,
         customFields:
           fields.customFields && Object.keys(fields.customFields).length > 0
             ? fields.customFields
@@ -176,6 +177,7 @@ const STANDARD_FIELDS: {
   label: string;
   multiline?: boolean;
   isTags?: boolean;
+  placeholder?: string;
 }[] = [
   { key: "title", label: "Title" },
   { key: "company", label: "Company" },
@@ -184,6 +186,7 @@ const STANDARD_FIELDS: {
   { key: "location", label: "Location" },
   { key: "tags", label: "Tags", isTags: true },
   { key: "howWeMet", label: "How we met", multiline: true },
+  { key: "birthday", label: "Birthday", placeholder: "MM-DD or MM-DD-YYYY" },
 ];
 
 function ReviewCard({
@@ -272,6 +275,7 @@ function ReviewCard({
             isEditing={editingField === f.key}
             multiline={f.multiline}
             isTags={f.isTags}
+            placeholder={f.placeholder}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
               updateStandardField(f.key, v);
@@ -289,6 +293,7 @@ function ReviewCard({
               isEditing={editingField === f.key}
               multiline={f.multiline}
               isTags={f.isTags}
+              placeholder={f.placeholder}
               onStartEdit={() => setEditingField(f.key)}
               onCommit={(v) => {
                 updateStandardField(f.key, v);
@@ -369,6 +374,7 @@ function FieldRow({
   isEditing,
   multiline,
   isTags,
+  placeholder,
   onStartEdit,
   onCommit,
 }: {
@@ -378,6 +384,7 @@ function FieldRow({
   isEditing: boolean;
   multiline?: boolean;
   isTags?: boolean;
+  placeholder?: string;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
 }) {
@@ -422,6 +429,7 @@ function FieldRow({
               escapedRef.current = false;
             }}
             onKeyDown={handleKeyDown}
+            placeholder={placeholder}
             className="input mt-1 w-full"
           />
         )
