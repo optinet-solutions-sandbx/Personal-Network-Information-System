@@ -192,6 +192,14 @@ function DetailsCard({
       }
       setEditing(false);
       onSaved();
+      Swal.fire({
+        title: "Saved!",
+        text: `${form.name} has been updated.`,
+        icon: "success",
+        timer: 1800,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
     } catch {
       await Swal.fire({
         icon: "error",
@@ -669,8 +677,11 @@ function ProfileCard({
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: "" }));
         await Swal.fire({
-          icon: "error",
-          title: "Profile generation failed",
+          icon: res.status === 429 ? "warning" : "error",
+          title:
+            res.status === 429
+              ? "Slow down a moment"
+              : "Profile generation failed",
           text:
             error ||
             "The AI service may be unavailable. Please try again in a moment.",
