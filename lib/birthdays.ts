@@ -196,3 +196,17 @@ export function computeUpcomingBirthdays(
     )
     .sort((a, b) => a.daysUntil - b.daysUntil);
 }
+
+export function daysUntilBirthday(stored: string, now: Date = new Date()): number | null {
+  const bday = parseStoredBirthday(stored);
+  if (!bday) return null;
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  let next = new Date(today.getFullYear(), bday.month, bday.day);
+  next.setHours(0, 0, 0, 0);
+  if (next.getTime() < today.getTime()) {
+    next = new Date(today.getFullYear() + 1, bday.month, bday.day);
+    next.setHours(0, 0, 0, 0);
+  }
+  return Math.round((next.getTime() - today.getTime()) / MS_PER_DAY);
+}

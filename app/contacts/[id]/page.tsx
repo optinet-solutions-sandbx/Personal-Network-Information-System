@@ -6,10 +6,9 @@ import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
-import { formatBirthday } from "@/lib/birthdays";
+import { formatBirthday, normalizeBirthday, daysUntilBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
-import { daysUntilBirthday } from "@/lib/birthday";
 import GiftSuggestions from "./GiftSuggestions";
 
 export default function ContactDetailPage({
@@ -311,8 +310,12 @@ function DetailsCard({
               <input
                 className="input mt-1 w-full"
                 value={birthdayInput}
-                placeholder="e.g. May 14 or 1990-05-14"
+                placeholder="e.g. May 14 or March 15, 1990"
                 onChange={(e) => setBirthdayInput(e.target.value)}
+                onBlur={() => {
+                  const normalized = normalizeBirthday(birthdayInput);
+                  if (normalized) setBirthdayInput(formatBirthday(normalized));
+                }}
               />
             ) : (
               <dd className="text-zinc-700">
