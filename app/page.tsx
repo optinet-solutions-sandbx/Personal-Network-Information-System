@@ -4,7 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, ContactInput } from "@/lib/types";
+import { formatBirthday, daysUntilBirthday } from "@/lib/birthday";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+
+const TIER_DOT: Record<string, string> = {
+  Strong: "bg-green-500",
+  Active: "bg-blue-500",
+  Fading: "bg-amber-500",
+  Dormant: "bg-gray-400",
+};
 
 export default function HomePage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -74,6 +82,7 @@ export default function HomePage() {
         location: fields.location ? String(fields.location) : undefined,
         tags: fields.tags ? String(fields.tags) : undefined,
         howWeMet: fields.howWeMet ? String(fields.howWeMet) : undefined,
+        birthday: fields.birthday ? String(fields.birthday) : undefined,
       };
       setExtracted(safe);
       setExtractError(null);
@@ -272,6 +281,8 @@ export default function HomePage() {
         </div>
       )}
 
+      <UpcomingBirthdays contacts={contacts} />
+
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -327,6 +338,15 @@ export default function HomePage() {
                     </span>
                   )}
                 </div>
+                {c.healthScore != null && c.healthTier && (
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`}
+                    />
+                    <span className="font-medium">{c.healthTier}</span>
+                    <span className="text-gray-400">({c.healthScore})</span>
+                  </span>
+                )}
               </Link>
             </li>
           ))}
@@ -423,6 +443,7 @@ const FIELD_DEFS: {
   label: string;
   multiline?: boolean;
   isTags?: boolean;
+  placeholder?: string;
 }[] = [
   { key: "title", label: "Title" },
   { key: "company", label: "Company" },
@@ -431,6 +452,7 @@ const FIELD_DEFS: {
   { key: "location", label: "Location" },
   { key: "tags", label: "Tags", isTags: true },
   { key: "howWeMet", label: "How we met", multiline: true },
+  { key: "birthday", label: "Birthday", placeholder: "MM-DD or MM-DD-YYYY" },
 ];
 
 function ExtractedCard({
@@ -476,6 +498,7 @@ function ExtractedCard({
             isEditing={editingField === f.key}
             multiline={f.multiline}
             isTags={f.isTags}
+            placeholder={f.placeholder}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
               updateField(f.key, v);
@@ -500,6 +523,47 @@ function ExtractedCard({
   );
 }
 
+function UpcomingBirthdays({ contacts }: { contacts: Contact[] }) {
+  const upcoming = contacts
+    .filter((c) => c.birthday)
+    .map((c) => ({ contact: c, days: daysUntilBirthday(c.birthday!) }))
+    .filter((item): item is { contact: Contact; days: number } =>
+      item.days !== null && item.days <= 30
+    )
+    .sort((a, b) => a.days - b.days);
+
+  if (upcoming.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+      <h2 className="mb-3 text-sm font-semibold text-amber-900">
+        🎂 Upcoming birthdays
+      </h2>
+      <ul className="space-y-2">
+        {upcoming.map(({ contact, days }) => (
+          <li key={contact.id} className="flex items-center justify-between gap-2">
+            <Link
+              href={`/contacts/${contact.id}`}
+              className="text-sm font-medium text-zinc-700 hover:text-indigo-600 truncate"
+            >
+              {contact.name}
+            </Link>
+            <span className="shrink-0 text-xs text-amber-700">
+              {days === 0
+                ? "Today 🎉"
+                : days === 1
+                ? "Tomorrow"
+                : `in ${days} days`}
+              {" · "}
+              {formatBirthday(contact.birthday!)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function FieldRow({
   label,
   value,
@@ -507,6 +571,7 @@ function FieldRow({
   isEditing,
   multiline,
   isTags,
+  placeholder,
   onStartEdit,
   onCommit,
 }: {
@@ -516,6 +581,7 @@ function FieldRow({
   isEditing: boolean;
   multiline?: boolean;
   isTags?: boolean;
+  placeholder?: string;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
 }) {
@@ -554,6 +620,7 @@ function FieldRow({
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => { if (!escapedRef.current) onCommit(draft); escapedRef.current = false; }}
             onKeyDown={handleKeyDown}
+            placeholder={placeholder}
             className="input mt-1 w-full"
           />
         )
