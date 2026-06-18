@@ -300,6 +300,10 @@ function NotesSection({
   const notes = contact.notes ?? [];
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 5;
+  const totalPages = Math.max(1, Math.ceil(notes.length / PAGE_SIZE));
+  const visibleNotes = notes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const { listening, supported, toggle } = useSpeechRecognition({
     onResult: (text) =>
@@ -367,10 +371,45 @@ function NotesSection({
         {notes.length === 0 && (
           <li className="text-sm text-zinc-400">No notes yet.</li>
         )}
-        {notes.map((n) => (
-          <NoteItem key={n.id} note={n} onChange={onChange} />
+        {visibleNotes.map((n) => (
+          <NoteItem key={n.id} note={n} onChange={() => { onChange(); setPage(1); }} />
         ))}
       </ul>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
+          <span>{notes.length} notes · page {page} of {totalPages}</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
+            >
+              ← Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`rounded-md border px-2.5 py-1 ${
+                  p === page
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold"
+                    : "border-zinc-200 hover:bg-zinc-50"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
