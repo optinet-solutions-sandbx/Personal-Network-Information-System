@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ContactsSidebar from "@/components/ContactsSidebar";
+import HeaderActions from "@/components/HeaderActions";
 import { signout } from "@/app/auth/actions";
 
 const authEnabled = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
@@ -31,6 +32,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
           <div className="flex items-center gap-3">
+            <HeaderActions />
             <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500">
               Phase 1 · MVP
             </span>
