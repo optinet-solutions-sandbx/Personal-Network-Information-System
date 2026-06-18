@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
 
   const params = req.nextUrl.searchParams;
   const q = params.get("q")?.trim();
+  // Restrict to contacts that have an AI-generated profile.
+  const hasProfile = params.get("hasProfile") === "true";
 
   const limitRaw = params.get("limit");
   const limit =
@@ -43,6 +45,7 @@ export async function GET(req: NextRequest) {
 
   const where: Prisma.ContactWhereInput = {
     ...ownerWhere(owner.userId),
+    ...(hasProfile ? { profile: { not: null } } : {}),
     ...(q
       ? {
           OR: [

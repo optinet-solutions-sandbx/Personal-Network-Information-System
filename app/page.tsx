@@ -186,6 +186,14 @@ export default function HomePage() {
     }
   }, [fetchPage, query, contacts.length]);
 
+  // Seed the search box from a `?q=` param so dashboard deep-links (company /
+  // tag pills) land here pre-filtered. Read once on mount; we use
+  // window.location instead of useSearchParams to avoid a Suspense boundary.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setQuery(q);
+  }, []);
+
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => load(query), 200);
@@ -245,6 +253,12 @@ export default function HomePage() {
 
   return (
     <div>
+      <Link
+        href="/dashboard"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition-colors hover:text-indigo-600"
+      >
+        <span aria-hidden>←</span> Back to dashboard
+      </Link>
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
