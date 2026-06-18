@@ -276,7 +276,6 @@ describe("extractContact", () => {
     expect(res.model).toBe("fallback");
     expect(res.fields.email).toBe("sarah@acme.io");
     expect(res.enriched).toEqual([]);
-    expect(res.enrichedContact).toEqual([]);
     expect(res.sources).toEqual([]);
     expect(chatCreate).not.toHaveBeenCalled();
   });
@@ -326,7 +325,6 @@ describe("extractContact", () => {
     expect(res.fields.title).toBe("PM");
     expect(res.model).toBe("gpt-4o-mini");
     expect(res.enriched).toEqual([]);
-    expect(res.enrichedContact).toEqual([]);
     expect(res.sources).toEqual([]);
   });
 
@@ -365,8 +363,6 @@ describe("extractContact", () => {
     // Contact fields stay empty — the web values are ignored.
     expect(res.fields.email).toBe("");
     expect(res.fields.phone).toBe("");
-    expect(res.enrichedContact).toEqual([]);
-    expect(res.enrichedContactSources).toEqual({});
     expect(res.sources).toEqual([
       { title: "Wikipedia", url: "https://en.wikipedia.org/wiki/Mark_Zuckerberg" },
     ]);

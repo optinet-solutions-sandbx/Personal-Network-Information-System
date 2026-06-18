@@ -10,13 +10,6 @@ export type ExtractResult = {
   // enrichment (or, as a fallback, the model's training knowledge). The UI
   // renders these separately and flags them for verification.
   enriched: string[];
-  // Standard contact fields ("email"/"phone") that were filled from public web
-  // sources rather than the story. The UI badges these for verification.
-  enrichedContact: string[];
-  // Per-field citation for the web-sourced contact details above: maps a field
-  // key ("email"/"phone") to the exact page URL it was found on, so the UI can
-  // render a clickable "verify" chip pointing straight at the source.
-  enrichedContactSources: Record<string, string>;
   // Web pages the enrichment drew from (empty unless live web search ran).
   sources: Source[];
 };
@@ -448,8 +441,6 @@ export async function extractContact(
       fields: buildFallback(input),
       model: "fallback",
       enriched: [],
-      enrichedContact: [],
-      enrichedContactSources: {},
       sources: [],
     };
   }
@@ -495,8 +486,6 @@ export async function extractContact(
     result = {
       fields,
       enriched: [],
-      enrichedContact: [],
-      enrichedContactSources: {},
       sources: [],
       model: completion.model || model,
     };
@@ -506,8 +495,6 @@ export async function extractContact(
       fields: buildFallback(input),
       model: "fallback",
       enriched: [],
-      enrichedContact: [],
-      enrichedContactSources: {},
       sources: [],
     };
   }

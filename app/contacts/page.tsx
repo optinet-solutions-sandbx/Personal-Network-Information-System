@@ -72,10 +72,6 @@ export default function HomePage() {
   const [extractError, setExtractError] = useState<string | null>(null);
   const [enrich, setEnrich] = useState(true);
   const [enrichedKeys, setEnrichedKeys] = useState<string[]>([]);
-  const [enrichedContact, setEnrichedContact] = useState<string[]>([]);
-  const [enrichedContactSources, setEnrichedContactSources] = useState<
-    Record<string, string>
-  >({});
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
   const [showReExtractConfirm, setShowReExtractConfirm] = useState(false);
   const [showExtractToast, setShowExtractToast] = useState(false);
@@ -245,15 +241,11 @@ export default function HomePage() {
       const {
         fields,
         enriched,
-        enrichedContact: enrichedC,
-        enrichedContactSources: enrichedCSrcs,
         sources: srcs,
         truncated,
       } = (await res.json()) as {
         fields: ContactInput;
         enriched?: string[];
-        enrichedContact?: string[];
-        enrichedContactSources?: Record<string, string>;
         sources?: { title: string; url: string }[];
         truncated?: boolean;
       };
@@ -280,10 +272,6 @@ export default function HomePage() {
           ? enriched.filter((k) => k in (safe.customFields ?? {}))
           : []
       );
-      setEnrichedContact(Array.isArray(enrichedC) ? enrichedC : []);
-      setEnrichedContactSources(
-        enrichedCSrcs && typeof enrichedCSrcs === "object" ? enrichedCSrcs : {}
-      );
       setSources(Array.isArray(srcs) ? srcs : []);
       setExtractError(null);
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -300,8 +288,6 @@ export default function HomePage() {
     setExtracted(null);
     setExtractError(null);
     setEnrichedKeys([]);
-    setEnrichedContact([]);
-    setEnrichedContactSources({});
     setSources([]);
     setInputTruncated(false);
     setAttachments([]);
@@ -641,8 +627,6 @@ export default function HomePage() {
             <ExtractedCard
               extracted={extracted}
               enrichedKeys={enrichedKeys}
-              enrichedContact={enrichedContact}
-              enrichedContactSources={enrichedContactSources}
               sources={sources}
               onUpdate={setExtracted}
             />
@@ -914,15 +898,11 @@ const FIELD_DEFS: {
 function ExtractedCard({
   extracted,
   enrichedKeys = [],
-  enrichedContact = [],
-  enrichedContactSources = {},
   sources = [],
   onUpdate,
 }: {
   extracted: ContactInput;
   enrichedKeys?: string[];
-  enrichedContact?: string[];
-  enrichedContactSources?: Record<string, string>;
   sources?: { title: string; url: string }[];
   onUpdate: (updated: ContactInput) => void;
 }) {
@@ -1007,8 +987,6 @@ function ExtractedCard({
             multiline={f.multiline}
             isTags={f.isTags}
             placeholder={f.placeholder}
-            fromWeb={enrichedContact.includes(f.key)}
-            fromWebUrl={enrichedContactSources[f.key as string]}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
               updateField(f.key, v);
@@ -1124,8 +1102,6 @@ function FieldRow({
   multiline,
   isTags,
   placeholder,
-  fromWeb,
-  fromWebUrl,
   onStartEdit,
   onCommit,
 }: {
@@ -1136,8 +1112,6 @@ function FieldRow({
   multiline?: boolean;
   isTags?: boolean;
   placeholder?: string;
-  fromWeb?: boolean;
-  fromWebUrl?: string;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
 }) {
@@ -1157,23 +1131,6 @@ function FieldRow({
     <div>
       <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
         {label}
-        {fromWeb &&
-          (fromWebUrl ? (
-            <a
-              href={fromWebUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              title={`Found on the web — open the source to verify (${fromWebUrl})`}
-              className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700 normal-case tracking-normal transition-colors hover:bg-green-200"
-            >
-              🌐 web · verify ↗
-            </a>
-          ) : (
-            <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">
-              🌐 web · verify
-            </span>
-          ))}
       </dt>
       {isEditing ? (
         multiline ? (
