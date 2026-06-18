@@ -3,13 +3,38 @@ import { prisma } from "@/lib/prisma";
 import { generateProfile } from "@/lib/profile";
 import { recalculateHealth } from "@/lib/health";
 import { resolveOwner, ownerWhere } from "@/lib/auth";
+import { rateLimit, clientKey } from "@/lib/rate-limit";
 
 type Params = { params: Promise<{ id: string }> };
 
+// This endpoint triggers a paid AI call, so cap how often a single caller can
+// hit it. Best-effort, in-memory (see lib/rate-limit.ts).
+const RATE_LIMIT = 10; // requests
+const RATE_WINDOW_MS = 60_000; // per minute
+
 // POST /api/contacts/:id/profile — generate (or regenerate) the AI-assisted profile
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const owner = await resolveOwner();
   if (!owner.ok) return owner.response;
+
+  const rl = rateLimit(`profile:${clientKey(req, owner.userId)}`, {
+    limit: RATE_LIMIT,
+    windowMs: RATE_WINDOW_MS,
+  });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — please slow down and try again shortly." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rl.retryAfter),
+          "RateLimit-Limit": String(rl.limit),
+          "RateLimit-Remaining": String(rl.remaining),
+          "RateLimit-Reset": String(Math.ceil(rl.resetAt / 1000)),
+        },
+      }
+    );
+  }
 
   const { id } = await params;
 
@@ -23,8 +48,10 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   let profile: string;
   let model: string;
+  let notesTruncated = false;
+  let droppedNotes = 0;
   try {
-    ({ profile, model } = await generateProfile({
+    ({ profile, model, notesTruncated, droppedNotes } = await generateProfile({
       name: contact.name,
       email: contact.email,
       phone: contact.phone,
@@ -53,5 +80,5 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   await recalculateHealth(id);
 
-  return NextResponse.json(updated);
+  return NextResponse.json({ ...updated, notesTruncated, droppedNotes });
 }

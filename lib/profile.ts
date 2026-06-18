@@ -1,4 +1,10 @@
 import OpenAI from "openai";
+import { fitNotesToBudget } from "@/lib/textBudget";
+
+// Token budget for the concatenated notes block. gpt-4o-mini has a large
+// context window; this keeps cost bounded while still covering a deep note
+// history. Oldest notes are dropped first (see fitNotesToBudget).
+const NOTES_TOKEN_BUDGET = 8000;
 
 export type ProfileInput = {
   name: string;
@@ -12,7 +18,13 @@ export type ProfileInput = {
   notes: { content: string; createdAt: Date | string }[];
 };
 
-export type ProfileResult = { profile: string; model: string };
+export type ProfileResult = {
+  profile: string;
+  model: string;
+  // True when older notes were dropped to fit the token budget.
+  notesTruncated: boolean;
+  droppedNotes: number;
+};
 
 const SYSTEM_PROMPT = `You are Networky.ai's relationship-intelligence assistant.
 Given structured contact details and freeform notes, write a concise, professional
@@ -32,7 +44,11 @@ Concrete ways this person and the user could help each other (introductions, dea
 
 Be specific and ground every claim in the provided information. Do not invent facts.`;
 
-function buildUserMessage(input: ProfileInput): string {
+function buildUserMessage(input: ProfileInput): {
+  message: string;
+  notesTruncated: boolean;
+  droppedNotes: number;
+} {
   const fields = [
     ["Name", input.name],
     ["Title", input.title],
@@ -47,13 +63,20 @@ function buildUserMessage(input: ProfileInput): string {
     .map(([k, v]) => `- ${k}: ${v}`)
     .join("\n");
 
-  const notes = input.notes.length
-    ? input.notes
-        .map((n, i) => `Note ${i + 1}: ${n.content}`)
-        .join("\n")
+  // Cap the notes block to a token budget, keeping the most recent notes.
+  const budgeted = fitNotesToBudget(input.notes, NOTES_TOKEN_BUDGET);
+  let notes = budgeted.notes.length
+    ? budgeted.notes.map((n, i) => `Note ${i + 1}: ${n.content}`).join("\n")
     : "(no notes yet)";
+  if (budgeted.truncated) {
+    notes = `(${budgeted.droppedCount} older note(s) omitted to fit length)\n${notes}`;
+  }
 
-  return `Contact details:\n${fields || "(none)"}\n\nNotes:\n${notes}`;
+  return {
+    message: `Contact details:\n${fields || "(none)"}\n\nNotes:\n${notes}`,
+    notesTruncated: budgeted.truncated,
+    droppedNotes: budgeted.droppedCount,
+  };
 }
 
 // Deterministic fallback so the feature is fully demonstrable without an API key.
@@ -109,9 +132,16 @@ function buildFallback(input: ProfileInput): string {
 export async function generateProfile(
   input: ProfileInput
 ): Promise<ProfileResult> {
+  const { message, notesTruncated, droppedNotes } = buildUserMessage(input);
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return { profile: buildFallback(input), model: "fallback" };
+    return {
+      profile: buildFallback(input),
+      model: "fallback",
+      notesTruncated,
+      droppedNotes,
+    };
   }
 
   try {
@@ -122,14 +152,30 @@ export async function generateProfile(
       temperature: 0.4,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserMessage(input) },
+        { role: "user", content: message },
       ],
     });
     const text = completion.choices[0]?.message?.content?.trim();
-    if (!text) return { profile: buildFallback(input), model: "fallback" };
-    return { profile: text, model: completion.model || model };
+    if (!text)
+      return {
+        profile: buildFallback(input),
+        model: "fallback",
+        notesTruncated,
+        droppedNotes,
+      };
+    return {
+      profile: text,
+      model: completion.model || model,
+      notesTruncated,
+      droppedNotes,
+    };
   } catch (err) {
     console.error("OpenAI profile generation failed, using fallback:", err);
-    return { profile: buildFallback(input), model: "fallback" };
+    return {
+      profile: buildFallback(input),
+      model: "fallback",
+      notesTruncated,
+      droppedNotes,
+    };
   }
 }

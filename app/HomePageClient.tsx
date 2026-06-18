@@ -48,7 +48,11 @@ export default function HomePageClient() {
         body: JSON.stringify({ text: story, enrich }),
       });
       if (!res.ok) {
-        setExtractError("Couldn't extract details — try rephrasing or extracting again.");
+        setExtractError(
+          res.status === 429
+            ? "You're going a bit fast — please wait a moment and try again."
+            : "Couldn't extract details — try rephrasing or extracting again."
+        );
         return;
       }
       const {

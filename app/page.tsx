@@ -35,6 +35,7 @@ export default function HomePage() {
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
   const [showReExtractConfirm, setShowReExtractConfirm] = useState(false);
   const [showExtractToast, setShowExtractToast] = useState(false);
+  const [inputTruncated, setInputTruncated] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Word-scanning animation state
@@ -75,7 +76,11 @@ export default function HomePage() {
         body: JSON.stringify({ text: story, enrich }),
       });
       if (!res.ok) {
-        setExtractError("Couldn't extract details — try rephrasing or extracting again.");
+        setExtractError(
+          res.status === 429
+            ? "You're going a bit fast — please wait a moment and try again."
+            : "Couldn't extract details — try rephrasing or extracting again."
+        );
         return;
       }
       const {
@@ -83,12 +88,15 @@ export default function HomePage() {
         enriched,
         enrichedContact: enrichedC,
         sources: srcs,
+        truncated,
       } = (await res.json()) as {
         fields: ContactInput;
         enriched?: string[];
         enrichedContact?: string[];
         sources?: { title: string; url: string }[];
+        truncated?: boolean;
       };
+      setInputTruncated(truncated === true);
       // Normalise all field values to strings to guard against LLM returning arrays/numbers
       const safe: ContactInput = {
         name: String(fields.name ?? ""),
@@ -130,6 +138,7 @@ export default function HomePage() {
     setEnrichedKeys([]);
     setEnrichedContact([]);
     setSources([]);
+    setInputTruncated(false);
   }
 
   // One page of the grid. Search runs server-side via `q`; results are paged.
@@ -497,6 +506,11 @@ export default function HomePage() {
               <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
                 Review the extracted fields below and fill in anything that&apos;s missing before saving.
               </p>
+              {inputTruncated && (
+                <p className="mt-1.5 text-xs leading-relaxed text-amber-600">
+                  Your text was long, so only the beginning was analyzed. Double-check nothing important was missed.
+                </p>
+              )}
             </div>
             {/* Progress bar */}
             <div className="absolute inset-x-4 bottom-0 h-0.5 overflow-hidden rounded-full">

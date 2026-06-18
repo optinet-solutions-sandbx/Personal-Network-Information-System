@@ -1,6 +1,6 @@
 // Networky.ai (PNIS) — Phase 1 schema.
-// SQLite for local-first development. Swappable to Supabase Postgres later
-// by changing the datasource provider + url and re-running migrations.
+// Supabase Postgres (migrated from initial local SQLite on 2026-06-15).
+// Pooler split: DATABASE_URL (transaction/6543) + DIRECT_URL (session/5432, migrations).
 
 generator client {
   provider = "prisma-client-js"
@@ -23,7 +23,7 @@ model Contact {
   company   String?
   title     String?
   location  String?
-  tags      String? // comma-separated (SQLite has no native arrays)
+  tags      String? // comma-separated (kept as scalar string from the original SQLite scaffold)
   // Birthday in a normalized, year-optional form: "YYYY-MM-DD" when the year is
   // known, or "--MM-DD" (ISO 8601 / vCard convention) when it isn't.
   birthday  String?

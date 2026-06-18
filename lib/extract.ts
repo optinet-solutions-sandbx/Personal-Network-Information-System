@@ -172,7 +172,7 @@ function isContactKey(key: string): boolean {
   return /\b(e-?mail|phone|mobile|cell|whatsapp|telephone)\b/i.test(key);
 }
 
-function normalize(raw: unknown): { fields: ContactInput; enriched: string[] } {
+export function normalize(raw: unknown): { fields: ContactInput; enriched: string[] } {
   const out = emptyFields();
   if (!raw || typeof raw !== "object") return { fields: out, enriched: [] };
   const obj = raw as Record<string, unknown>;
@@ -199,7 +199,7 @@ function normalize(raw: unknown): { fields: ContactInput; enriched: string[] } {
 }
 
 // Deterministic fallback — extracts as many fields as possible without an API key.
-function buildFallback(text: string): ContactInput {
+export function buildFallback(text: string): ContactInput {
   const fields = emptyFields();
 
   // Email
