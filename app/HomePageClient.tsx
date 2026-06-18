@@ -247,7 +247,7 @@ export default function HomePageClient() {
               onClick={resetForm}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
             >
-              Clear / start over
+              Clear
             </button>
           )}
           {extracting && (
