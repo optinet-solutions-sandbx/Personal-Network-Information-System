@@ -324,24 +324,16 @@ individual — many people share a name.
 "Occupation", "Current Company", "Title", "Known For", "Location", "Education",
 "Nationality", "Born", "Interests", "Hobbies", "Notable Work", "Public Profile", "Bio".
 
-"email" and "phone" are for OFFICIAL, PUBLICLY-PUBLISHED BUSINESS contact only:
-- Fill them ONLY with a work email / business phone that is intentionally published on an
-  AUTHORITATIVE official source — the person's own official website, or their employer's
-  official contact/team/staff page.
-- Leave them as empty strings ("") if the only thing you can find is a personal/private
-  email, a mobile/cell number, a home number, or anything on a people-search / data-broker
-  / aggregator site. Those are NOT allowed, ever.
-- Whenever you fill "email" or "phone", set "emailSource"/"phoneSource" to the EXACT page
-  URL you took that value from (it must also appear in "sources"). Leave the matching
-  source as "" if you left the value blank. Never cite a URL you did not actually read.
+Do NOT return email addresses or phone numbers. Contact details are NEVER collected from
+the web — models hallucinate plausible-but-wrong addresses and cite them to pages that do
+not contain them. Leave contact info out of "fields" entirely, even for public figures;
+email/phone come only from the user's own notes.
 
 STRICT RULES — follow exactly:
-- Set "identified" to false and return empty "fields"/"email"/"phone" if you cannot confidently
+- Set "identified" to false and return empty "fields" if you cannot confidently
   match a specific real person from the context. Do NOT guess or merge different people.
 - Only include facts backed by a source you actually found. NEVER fabricate. When unsure, omit.
-- PRIVACY: never return a personal/private email, personal mobile/cell, home phone, or
-  home/street address — even if a data-broker or people-search site lists it. Only the
-  official published business email/phone above is permitted.
+- PRIVACY: never return any email, phone, mobile, home address, or other private contact detail.
 - Prefer authoritative sources (official site, company page, Wikipedia, LinkedIn, reputable press).
 - Every value you return should be traceable to an entry in "sources".`;
 
@@ -350,13 +342,9 @@ STRICT RULES — follow exactly:
 const ENRICH_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["identified", "email", "phone", "emailSource", "phoneSource", "fields", "sources"],
+  required: ["identified", "fields", "sources"],
   properties: {
     identified: { type: "boolean" },
-    email: { type: "string" },
-    phone: { type: "string" },
-    emailSource: { type: "string" },
-    phoneSource: { type: "string" },
     fields: {
       type: "array",
       items: {
@@ -387,10 +375,6 @@ async function enrichFromWeb(
   model: string
 ): Promise<{
   fields: Record<string, string>;
-  email: string;
-  phone: string;
-  emailSource: string;
-  phoneSource: string;
   sources: Source[];
 }> {
   const response = await client.responses.create({
@@ -413,21 +397,14 @@ async function enrichFromWeb(
     ],
   });
 
-  const empty = {
-    fields: {},
-    email: "",
-    phone: "",
-    emailSource: "",
-    phoneSource: "",
-    sources: [],
-  };
+  const empty = { fields: {}, sources: [] };
   const parsed = parseLooseJson(response.output_text ?? "");
   if (!parsed || typeof parsed !== "object") return empty;
   const obj = parsed as Record<string, unknown>;
   if (obj.identified === false) return empty;
 
-  // Custom facts: keep contact-detail keys out — email/phone have dedicated,
-  // policy-restricted fields below.
+  // Custom facts only. Contact-detail keys are dropped defensively — we never
+  // surface a web-sourced email/phone (the model fabricates them; see prompt).
   const fields: Record<string, string> = {};
   if (Array.isArray(obj.fields)) {
     for (const item of obj.fields) {
@@ -437,12 +414,6 @@ async function enrichFromWeb(
       if (label && value && !isContactKey(label)) fields[label] = value;
     }
   }
-
-  // Only accept plausibly-formatted official contact values.
-  const rawEmail = String(obj.email ?? "").trim();
-  const rawPhone = String(obj.phone ?? "").trim();
-  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : "";
-  const phone = /\d{6,}/.test(rawPhone.replace(/[\s().-]/g, "")) ? rawPhone : "";
 
   const sources: Source[] = [];
   if (Array.isArray(obj.sources)) {
@@ -455,17 +426,7 @@ async function enrichFromWeb(
     }
   }
 
-  // Per-field citations. Use the model's specific URL when it gave a valid one;
-  // otherwise fall back to the top source so the "verify" chip stays clickable.
-  const httpUrl = (v: unknown) => {
-    const u = String(v ?? "").trim();
-    return /^https?:\/\//i.test(u) ? u : "";
-  };
-  const fallbackSource = sources[0]?.url ?? "";
-  const emailSource = email ? httpUrl(obj.emailSource) || fallbackSource : "";
-  const phoneSource = phone ? httpUrl(obj.phoneSource) || fallbackSource : "";
-
-  return { fields, email, phone, emailSource, phoneSource, sources };
+  return { fields, sources };
 }
 
 export async function extractContact(
@@ -556,24 +517,18 @@ export async function extractContact(
   // 2) Enrich from the live web. Falls back to training knowledge on failure.
   const searchModel = process.env.OPENAI_SEARCH_MODEL || model;
   try {
-    const { fields: webFields, email, phone, emailSource, phoneSource, sources } =
-      await enrichFromWeb(client, result.fields.name, input, searchModel);
+    const { fields: webFields, sources } = await enrichFromWeb(
+      client,
+      result.fields.name,
+      input,
+      searchModel
+    );
     mergeEnrichment(result, webFields);
-
-    // Only fill contact fields the STORY didn't already provide. Story wins.
-    if (email && !result.fields.email) {
-      result.fields.email = email;
-      result.enrichedContact.push("email");
-      if (emailSource) result.enrichedContactSources.email = emailSource;
-    }
-    if (phone && !result.fields.phone) {
-      result.fields.phone = phone;
-      result.enrichedContact.push("phone");
-      if (phoneSource) result.enrichedContactSources.phone = phoneSource;
-    }
+    // NOTE: web enrichment deliberately never fills email/phone — the model
+    // fabricates them. Contact fields come only from the user's own notes.
 
     result.sources = sources;
-    if (result.enriched.length > 0 || result.enrichedContact.length > 0) {
+    if (result.enriched.length > 0) {
       result.model = `${searchModel} + web_search`;
     }
     return result;

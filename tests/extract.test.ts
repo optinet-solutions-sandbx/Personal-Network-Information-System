@@ -330,7 +330,10 @@ describe("extractContact", () => {
     expect(res.sources).toEqual([]);
   });
 
-  it("merges web enrichment facts and official contact email, story winning", async () => {
+  it("merges web facts but NEVER fills email/phone from the web", async () => {
+    // Web enrichment fabricates plausible-but-wrong contact details, so we drop
+    // them entirely — even when the model returns values with cited sources.
+    // Only non-contact public facts are merged; email/phone come from notes only.
     process.env.OPENAI_API_KEY = "test-key";
     process.env.OPENAI_MODEL = "gpt-4o-mini"; // pin the label independent of the default
     chatCreate.mockResolvedValue({
@@ -342,16 +345,14 @@ describe("extractContact", () => {
     responsesCreate.mockResolvedValue({
       output_text: JSON.stringify({
         identified: true,
+        // Even if the model ignores the prompt and returns these, we discard them.
         email: "press@meta.com",
-        phone: "",
-        emailSource: "https://about.meta.com/contact/",
-        phoneSource: "",
+        phone: "+1 650-543-4800",
         fields: [
           { label: "Known For", value: "Co-founding Facebook" },
           { label: "Personal Email", value: "leak@gmail.com" }, // contact key → dropped
         ],
         sources: [
-          { title: "Meta", url: "https://about.meta.com/contact/" },
           { title: "Wikipedia", url: "https://en.wikipedia.org/wiki/Mark_Zuckerberg" },
         ],
       }),
@@ -361,45 +362,15 @@ describe("extractContact", () => {
     });
     expect(res.fields.customFields).toEqual({ "Known For": "Co-founding Facebook" });
     expect(res.enriched).toEqual(["Known For"]);
-    expect(res.fields.email).toBe("press@meta.com");
-    expect(res.enrichedContact).toEqual(["email"]);
-    // The web-sourced email carries the exact page URL it was found on.
-    expect(res.enrichedContactSources).toEqual({
-      email: "https://about.meta.com/contact/",
-    });
+    // Contact fields stay empty — the web values are ignored.
+    expect(res.fields.email).toBe("");
+    expect(res.fields.phone).toBe("");
+    expect(res.enrichedContact).toEqual([]);
+    expect(res.enrichedContactSources).toEqual({});
+    expect(res.sources).toEqual([
+      { title: "Wikipedia", url: "https://en.wikipedia.org/wiki/Mark_Zuckerberg" },
+    ]);
     expect(res.model).toBe("gpt-4o-mini + web_search");
-  });
-
-  it("cites the top source for a web contact value when no per-field URL is given", async () => {
-    process.env.OPENAI_API_KEY = "test-key";
-    process.env.OPENAI_MODEL = "gpt-4o-mini";
-    chatCreate.mockResolvedValue({
-      choices: [
-        { message: { content: JSON.stringify({ name: "Mark Z", company: "Meta" }) } },
-      ],
-      model: "gpt-4o-mini",
-    });
-    responsesCreate.mockResolvedValue({
-      output_text: JSON.stringify({
-        identified: true,
-        email: "",
-        phone: "+1 650-543-4800",
-        emailSource: "",
-        phoneSource: "", // omitted → falls back to the top source
-        fields: [],
-        sources: [
-          { title: "Meta", url: "https://about.meta.com/contact/" },
-        ],
-      }),
-    });
-    const res = await extractContact("I met Mark Z at a conference", {
-      enrich: true,
-    });
-    expect(res.fields.phone).toBe("+1 650-543-4800");
-    expect(res.enrichedContact).toEqual(["phone"]);
-    expect(res.enrichedContactSources).toEqual({
-      phone: "https://about.meta.com/contact/",
-    });
   });
 
   it("falls back to knowledge-based enrichment when web search fails", async () => {
