@@ -3,6 +3,10 @@ import { contacts } from "./contacts-data.mjs";
 
 const prisma = new PrismaClient();
 
+// When auth is enabled, set SEED_USER_ID to your Supabase user id so the demo
+// contacts are owned by (and visible to) your account. Left unset = open mode.
+const SEED_USER_ID = process.env.SEED_USER_ID || null;
+
 async function main() {
   for (const { notes, profileOnReset: _ignore, ...data } of contacts) {
     const existing = await prisma.contact.findFirst({
@@ -12,6 +16,7 @@ async function main() {
     await prisma.contact.create({
       data: {
         ...data,
+        userId: SEED_USER_ID,
         notes: { create: notes.map((content) => ({ content })) },
       },
     });

@@ -52,7 +52,9 @@ npm run db:migrate:deploy
 
 ## Recommended flow (matches the team branch rules)
 
-`feat/* → develop → main`. If the Vercel project is connected via the GitHub
-integration, merging to `main` auto-deploys to production and every PR gets a
-preview URL — in that case the `npm run deploy` commands above are only needed
-for manual/out-of-band deploys.
+`feat/* → main` via pull request. `main` is protected: every change goes
+through a reviewed PR (CODEOWNERS auto-requests review) — no direct pushes.
+If the Vercel project is connected via the GitHub integration, merging to
+`main` auto-deploys to production and every PR gets a preview URL — in that
+case the `npm run deploy` commands above are only needed for manual/out-of-band
+deploys.
