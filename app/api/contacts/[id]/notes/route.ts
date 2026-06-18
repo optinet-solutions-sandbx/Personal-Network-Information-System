@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     data: { contactId: id, content: body.content.trim(), source },
   });
   await prisma.contact.update({ where: { id }, data: { updatedAt: new Date() } });
-  await recalculateHealth(id);
+  recalculateHealth(id).catch(() => {});
 
   return NextResponse.json(note, { status: 201 });
 }

@@ -39,11 +39,12 @@ export default function GiftSuggestions({ contactId, contactName, daysUntil }: P
   async function handleSelect(index: number, suggestion: GiftSuggestion) {
     if (saved.has(index)) return;
     const content = `🎁 Gift idea: ${suggestion.title} — ${suggestion.rationale}`;
-    await fetch(`/api/contacts/${contactId}/notes`, {
+    const res = await fetch(`/api/contacts/${contactId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content, source: "gift" }),
     });
+    if (!res.ok) return;
     setSaved((prev) => new Set(prev).add(index));
   }
 
