@@ -41,8 +41,28 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const raw = typeof body?.text === "string" ? body.text.trim() : "";
-  if (!raw) {
-    return NextResponse.json({ error: "text is required" }, { status: 400 });
+
+  // Photos (business cards, screenshots…) arrive as base64 data URLs. Cap the
+  // count and per-image size so a single request can't blow the body limit or
+  // the vision token budget. Anything malformed is silently dropped.
+  const MAX_IMAGES = 4;
+  const MAX_IMAGE_CHARS = 8_000_000; // ~6MB decoded per image
+  const images: string[] = Array.isArray(body?.images)
+    ? body.images
+        .filter(
+          (s: unknown): s is string =>
+            typeof s === "string" &&
+            /^data:image\/(png|jpe?g|webp|gif);base64,/.test(s) &&
+            s.length <= MAX_IMAGE_CHARS
+        )
+        .slice(0, MAX_IMAGES)
+    : [];
+
+  if (!raw && images.length === 0) {
+    return NextResponse.json(
+      { error: "text or at least one image is required" },
+      { status: 400 }
+    );
   }
   // Guard the AI call against runaway input: truncate to a token budget rather
   // than reject, so a long brain-dump still extracts (we analyze the head).
@@ -50,13 +70,14 @@ export async function POST(req: NextRequest) {
   const enrich = body?.enrich === true;
 
   try {
-    const { fields, model, enriched, enrichedContact, sources } =
-      await extractContact(text, { enrich });
+    const { fields, model, enriched, enrichedContact, enrichedContactSources, sources } =
+      await extractContact(text, { enrich, images });
     return NextResponse.json({
       fields,
       model,
       enriched,
       enrichedContact,
+      enrichedContactSources,
       sources,
       truncated,
     });

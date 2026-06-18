@@ -14,6 +14,47 @@ const TIER_DOT: Record<string, string> = {
   Dormant: "bg-gray-400",
 };
 
+// How many photos the composer accepts per contact.
+const MAX_ATTACHMENTS = 4;
+// Longest edge we downscale photos to before upload — keeps the request small
+// (and within the serverless body limit) without hurting OCR of the vision model.
+const MAX_IMAGE_DIM = 1568;
+
+type Attachment = { name: string; url: string };
+
+// Read an image File and return a (possibly downscaled) data URL. Large photos
+// are re-encoded as JPEG via a canvas; small ones pass through untouched.
+async function fileToDataUrl(file: File): Promise<string> {
+  const original = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("decode failed"));
+    i.src = original;
+  });
+
+  const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(img.width, img.height));
+  // Already small enough and not huge on disk — keep the original bytes.
+  if (scale === 1 && original.length < 1_500_000) return original;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return original;
+  // Flatten onto white so transparent PNGs don't turn black as JPEG.
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
 export default function HomePage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
@@ -32,11 +73,26 @@ export default function HomePage() {
   const [enrich, setEnrich] = useState(true);
   const [enrichedKeys, setEnrichedKeys] = useState<string[]>([]);
   const [enrichedContact, setEnrichedContact] = useState<string[]>([]);
+  const [enrichedContactSources, setEnrichedContactSources] = useState<
+    Record<string, string>
+  >({});
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
   const [showReExtractConfirm, setShowReExtractConfirm] = useState(false);
   const [showExtractToast, setShowExtractToast] = useState(false);
   const [inputTruncated, setInputTruncated] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Composer attachments (photos) + the "+" attach menu.
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Live-camera capture ("Take photo").
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Word-scanning animation state
   const [scanIndex, setScanIndex] = useState(0);
@@ -57,8 +113,107 @@ export default function HomePage() {
     onResult: (text) => setStory((t) => (t ? `${t} ${text}` : text)),
   });
 
+  // Close the attach menu on any outside click.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (room <= 0) return;
+    const picked = Array.from(files)
+      .filter((f) => f.type.startsWith("image/"))
+      .slice(0, room);
+    try {
+      const next = await Promise.all(
+        picked.map(async (f) => ({ name: f.name, url: await fileToDataUrl(f) }))
+      );
+      setAttachments((prev) => [...prev, ...next].slice(0, MAX_ATTACHMENTS));
+    } catch {
+      setExtractError("Couldn't read one of those images — try a different file.");
+    }
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Open the live camera modal (works on desktop + mobile via getUserMedia).
+  function openCamera() {
+    setMenuOpen(false);
+    if (attachments.length >= MAX_ATTACHMENTS) return;
+    setCameraError(null);
+    setCameraOpen(true);
+  }
+
+  // Acquire/tear down the camera stream while the modal is open.
+  useEffect(() => {
+    if (!cameraOpen) return;
+    let cancelled = false;
+    const media = navigator.mediaDevices;
+    if (!media?.getUserMedia) {
+      setCameraError("This browser can't access a camera. Use “Add photos” instead.");
+      return;
+    }
+    media
+      .getUserMedia({ video: { facingMode: "environment" }, audio: false })
+      .then((stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCameraError(
+            "Couldn't access the camera — check the browser permission, or use “Add photos” instead."
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, [cameraOpen]);
+
+  // Snapshot the current video frame into an attachment, downscaling to match
+  // uploaded photos, then close the camera.
+  function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const scale = Math.min(
+      1,
+      MAX_IMAGE_DIM / Math.max(video.videoWidth, video.videoHeight)
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const url = canvas.toDataURL("image/jpeg", 0.85);
+    setAttachments((prev) =>
+      [...prev, { name: `photo-${prev.length + 1}.jpg`, url }].slice(0, MAX_ATTACHMENTS)
+    );
+    setCameraOpen(false);
+  }
+
   async function handleExtract() {
-    if (!story.trim()) return;
+    if (!story.trim() && attachments.length === 0) return;
     setExtracting(true);
     setExtractError(null);
     Swal.fire({
@@ -73,7 +228,11 @@ export default function HomePage() {
       const res = await fetch("/api/contacts/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: story, enrich }),
+        body: JSON.stringify({
+          text: story,
+          enrich,
+          images: attachments.map((a) => a.url),
+        }),
       });
       if (!res.ok) {
         setExtractError(
@@ -87,12 +246,14 @@ export default function HomePage() {
         fields,
         enriched,
         enrichedContact: enrichedC,
+        enrichedContactSources: enrichedCSrcs,
         sources: srcs,
         truncated,
       } = (await res.json()) as {
         fields: ContactInput;
         enriched?: string[];
         enrichedContact?: string[];
+        enrichedContactSources?: Record<string, string>;
         sources?: { title: string; url: string }[];
         truncated?: boolean;
       };
@@ -120,6 +281,9 @@ export default function HomePage() {
           : []
       );
       setEnrichedContact(Array.isArray(enrichedC) ? enrichedC : []);
+      setEnrichedContactSources(
+        enrichedCSrcs && typeof enrichedCSrcs === "object" ? enrichedCSrcs : {}
+      );
       setSources(Array.isArray(srcs) ? srcs : []);
       setExtractError(null);
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -137,8 +301,11 @@ export default function HomePage() {
     setExtractError(null);
     setEnrichedKeys([]);
     setEnrichedContact([]);
+    setEnrichedContactSources({});
     setSources([]);
     setInputTruncated(false);
+    setAttachments([]);
+    setMenuOpen(false);
   }
 
   // One page of the grid. Search runs server-side via `q`; results are paged.
@@ -279,84 +446,171 @@ export default function HomePage() {
 
       {showForm && (
         <div className="mb-6 space-y-4 rounded-xl border border-indigo-200 bg-indigo-50/50 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-indigo-900">
-              ✨ Add contact
-            </h2>
-            <button
-              type="button"
-              onClick={toggle}
-              disabled={!supported}
-              title={
-                supported
-                  ? "Dictate with speech-to-text"
-                  : "Speech recognition not supported in this browser (try Chrome)"
-              }
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                listening
-                  ? "bg-red-600 text-white"
-                  : "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
-              }`}
-            >
-              {listening ? "● Listening… stop" : "🎤 Dictate"}
-            </button>
-          </div>
+          <h2 className="text-sm font-semibold text-indigo-900">
+            ✨ Add contact
+          </h2>
 
-          {extracting ? (
-            <div
-              className="input w-full overflow-auto"
-              style={{ minHeight: "7.5rem", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-              aria-live="polite"
-            >
-              {storyTokens.map((token, idx) => {
-                const wIdx = tokenWordIndices[idx];
-                if (wIdx === -1) return <span key={idx}>{token}</span>;
-                const active = wIdx === scanIndex;
-                return (
-                  <span
-                    key={idx}
-                    style={{
-                      backgroundColor: active ? "rgba(99,102,241,0.15)" : undefined,
-                      color: active ? "rgb(79,70,229)" : undefined,
-                      fontWeight: active ? 600 : undefined,
-                      borderRadius: "3px",
-                      transition: "background-color 0.08s, color 0.08s",
-                    }}
-                  >
-                    {token}
-                  </span>
-                );
-              })}
-            </div>
-          ) : (
-            <textarea
-              value={story}
-              onChange={(e) => setStory(e.target.value)}
-              placeholder="Tell me about this person — how you met, what they do, where they work…"
-              rows={5}
-              className="input w-full resize-y"
-            />
-          )}
+          {/* Claude-style composer: photo thumbnails + textarea, with a toolbar
+              (attach menu, mic, send) docked along the bottom edge. */}
+          <div className="rounded-2xl border border-zinc-300 bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-3 pb-0">
+                {attachments.map((a, i) => (
+                  <div key={i} className="group relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={a.url}
+                      alt={a.name}
+                      className="h-16 w-16 rounded-lg border border-zinc-200 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(i)}
+                      title="Remove image"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-700 text-[10px] leading-none text-white shadow transition-colors hover:bg-red-500"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => extracted ? setShowReExtractConfirm(true) : handleExtract()}
-              disabled={extracting || !story.trim()}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {extracting ? "Extracting…" : extracted ? "Re-extract" : "Extract"}
-            </button>
-            {(story.trim() || extracted) && (
+            {extracting ? (
+              <div
+                className="w-full overflow-auto px-4 pt-3 text-sm"
+                style={{ minHeight: "5rem", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                aria-live="polite"
+              >
+                {storyTokens.map((token, idx) => {
+                  const wIdx = tokenWordIndices[idx];
+                  if (wIdx === -1) return <span key={idx}>{token}</span>;
+                  const active = wIdx === scanIndex;
+                  return (
+                    <span
+                      key={idx}
+                      style={{
+                        backgroundColor: active ? "rgba(99,102,241,0.15)" : undefined,
+                        color: active ? "rgb(79,70,229)" : undefined,
+                        fontWeight: active ? 600 : undefined,
+                        borderRadius: "3px",
+                        transition: "background-color 0.08s, color 0.08s",
+                      }}
+                    >
+                      {token}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <textarea
+                value={story}
+                onChange={(e) => setStory(e.target.value)}
+                placeholder="Tell me about this person — how you met, what they do, where they work…"
+                rows={3}
+                className="block w-full resize-none border-0 bg-transparent px-4 pt-3 text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-0"
+              />
+            )}
+
+            {/* Toolbar: + attach · mic · (clear) · send */}
+            <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">
+              <div className="relative" ref={menuRef}>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((o) => !o)}
+                  disabled={extracting}
+                  title="Add photos & files"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 text-xl leading-none text-zinc-500 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+                >
+                  +
+                </button>
+                {menuOpen && (
+                  <div className="absolute bottom-10 left-0 z-10 w-52 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        fileInputRef.current?.click();
+                      }}
+                      disabled={attachments.length >= MAX_ATTACHMENTS}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+                    >
+                      <span aria-hidden>📎</span> Add photos &amp; files
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openCamera}
+                      disabled={attachments.length >= MAX_ATTACHMENTS}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+                    >
+                      <span aria-hidden>📷</span> Take photo
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={resetForm}
-                disabled={extracting}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+                onClick={toggle}
+                disabled={!supported || extracting}
+                title={
+                  supported
+                    ? "Dictate with speech-to-text"
+                    : "Speech recognition not supported in this browser (try Chrome)"
+                }
+                className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors ${
+                  listening
+                    ? "bg-red-600 text-white"
+                    : "text-zinc-500 hover:bg-zinc-100 disabled:opacity-40"
+                }`}
               >
-                Clear
+                {listening ? "● Listening… stop" : "🎤"}
               </button>
-            )}
+
+              <div className="ml-auto flex items-center gap-2">
+                {!extracting && (story.trim() || attachments.length > 0 || extracted) && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => (extracted ? setShowReExtractConfirm(true) : handleExtract())}
+                  disabled={extracting || (!story.trim() && attachments.length === 0)}
+                  title={extracted ? "Re-extract" : "Extract contact details"}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                >
+                  {extracting ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  ) : extracted ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M20 12a8 8 0 0 1-14.93 2.96M4 12a8 8 0 0 1 14.93-2.96" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                handleFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
           </div>
 
           <label className="flex items-start gap-2 text-xs text-zinc-600">
@@ -388,6 +642,7 @@ export default function HomePage() {
               extracted={extracted}
               enrichedKeys={enrichedKeys}
               enrichedContact={enrichedContact}
+              enrichedContactSources={enrichedContactSources}
               sources={sources}
               onUpdate={setExtracted}
             />
@@ -586,6 +841,53 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Camera capture modal */}
+      {cameraOpen && (
+        <div
+          className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(15, 15, 30, 0.7)", backdropFilter: "blur(6px)" }}
+          onClick={() => setCameraOpen(false)}
+        >
+          <div
+            className="modal-card w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 24px 64px -12px rgba(99,102,241,0.22), 0 8px 24px -4px rgba(0,0,0,0.12)" }}
+          >
+            <div className="relative aspect-[4/3] w-full bg-black">
+              {cameraError ? (
+                <div className="flex h-full items-center justify-center p-6 text-center text-sm text-zinc-300">
+                  {cameraError}
+                </div>
+              ) : (
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  className="h-full w-full object-cover"
+                />
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-3 p-4">
+              <button
+                type="button"
+                onClick={() => setCameraOpen(false)}
+                className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={capturePhoto}
+                disabled={!!cameraError}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+              >
+                <span aria-hidden>📷</span> Capture
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -613,12 +915,14 @@ function ExtractedCard({
   extracted,
   enrichedKeys = [],
   enrichedContact = [],
+  enrichedContactSources = {},
   sources = [],
   onUpdate,
 }: {
   extracted: ContactInput;
   enrichedKeys?: string[];
   enrichedContact?: string[];
+  enrichedContactSources?: Record<string, string>;
   sources?: { title: string; url: string }[];
   onUpdate: (updated: ContactInput) => void;
 }) {
@@ -704,6 +1008,7 @@ function ExtractedCard({
             isTags={f.isTags}
             placeholder={f.placeholder}
             fromWeb={enrichedContact.includes(f.key)}
+            fromWebUrl={enrichedContactSources[f.key as string]}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
               updateField(f.key, v);
@@ -820,6 +1125,7 @@ function FieldRow({
   isTags,
   placeholder,
   fromWeb,
+  fromWebUrl,
   onStartEdit,
   onCommit,
 }: {
@@ -831,6 +1137,7 @@ function FieldRow({
   isTags?: boolean;
   placeholder?: string;
   fromWeb?: boolean;
+  fromWebUrl?: string;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
 }) {
@@ -850,11 +1157,23 @@ function FieldRow({
     <div>
       <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
         {label}
-        {fromWeb && (
-          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
-            🌐 web · verify
-          </span>
-        )}
+        {fromWeb &&
+          (fromWebUrl ? (
+            <a
+              href={fromWebUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`Found on the web — open the source to verify (${fromWebUrl})`}
+              className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700 normal-case tracking-normal transition-colors hover:bg-green-200"
+            >
+              🌐 web · verify ↗
+            </a>
+          ) : (
+            <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">
+              🌐 web · verify
+            </span>
+          ))}
       </dt>
       {isEditing ? (
         multiline ? (

@@ -13,15 +13,33 @@ export type ExtractResult = {
   // Standard contact fields ("email"/"phone") that were filled from public web
   // sources rather than the story. The UI badges these for verification.
   enrichedContact: string[];
+  // Per-field citation for the web-sourced contact details above: maps a field
+  // key ("email"/"phone") to the exact page URL it was found on, so the UI can
+  // render a clickable "verify" chip pointing straight at the source.
+  enrichedContactSources: Record<string, string>;
   // Web pages the enrichment drew from (empty unless live web search ran).
   sources: Source[];
 };
 
-function buildSystemPrompt(enrich: boolean): string {
+function buildSystemPrompt(enrich: boolean, hasImages = false): string {
   const currentYear = new Date().getFullYear();
   return `You extract structured contact details from freeform text
 (typed notes or a transcribed voice message) for a relationship-management app.
 Current year: ${currentYear}.
+${
+  hasImages
+    ? `
+The user has ALSO attached one or more photos (e.g. a business card, a conference
+badge, an email signature, a profile screenshot, or a photo of an object/place tied
+to this person). Read ALL text visible in the images and treat it as a primary source,
+combining it with any typed notes. Map anything that fits a standard field above into
+that field. Capture any OTHER readable text or notable visible detail — a product,
+brand, book, poster, sign, logo, or handwriting — under "customFields" with a clear
+label, so nothing legible in the photo is lost. Only transcribe what is actually
+visible — never invent or guess text that is not there.
+`
+    : ""
+}
 
 Return ONLY a JSON object with these keys:
 
@@ -36,38 +54,19 @@ STANDARD FIELDS — use "" for any you cannot determine:
 - howWeMet: where or how the connection was made
 - birthday: birth date as "--MM-DD" (no year) or "YYYY-MM-DD" (with year) — only set if explicitly stated; NEVER infer or fabricate from age alone
 
-DYNAMIC FIELDS — add a "customFields" key for ALL notable personal details found in the story.
-Be thorough — the more context captured, the better. Categories to look for:
-
-BIOGRAPHICAL
+DYNAMIC FIELDS — add a "customFields" object capturing ALL notable personal details
+stated in the story. Be thorough; use clean, short Capitalized labels. Common labels:
+Research, Thesis, Studies, Education, Skills, Specialization, Industries, Interests,
+Hobbies, Languages, Personality, Relationship, Mutual Connection — and any other clearly
+stated detail.
 - "Age": ONLY if an age is explicitly stated (e.g. "she is 25"). Never estimate.
-- "Birth Year": ONLY when an explicit age (or birth year) is stated — then compute from age + current year (e.g. age 25 in ${currentYear} → "${currentYear - 25}"). Do NOT infer a birth year from graduation year, years of experience, school start, or any other proxy. If no age/birth year is stated, OMIT both "Age" and "Birth Year".
-
-ACADEMIC / RESEARCH
-- "Research": any research topic, theory, or hypothesis they are investigating
-- "Thesis": specific thesis or academic argument they hold
-- "Studies": field of formal study
-- "Education": school, degree, or certification
-
-PROFESSIONAL
-- "Skills": specific technical or professional skills
-- "Specialization": niche domain they are expert in (e.g. "Robotics in Healthcare")
-- "Industries": industries they operate in or are interested in
-
-PERSONAL
-- "Interests": hobbies and personal interests (comma-separated)
-- "Hobbies": recreational activities
-- "Languages": languages they speak
-- "Personality": notable personality traits mentioned
-
-RELATIONSHIP
-- "Relationship": how the contact relates to the narrator (e.g. "junior by 3 years", "mentor", "peer")
-- "Mutual Connection": shared acquaintances or context
+- "Birth Year": ONLY when an explicit age/birth year is stated — compute from age + current
+  year (age 25 in ${currentYear} → "${currentYear - 25}"). Do NOT infer it from graduation
+  year, years of experience, or any other proxy. Otherwise OMIT both "Age" and "Birth Year".
 
 RULES:
-- Include explicitly stated facts. The ONLY inference allowed is a stated age → birth year. Do NOT guess ages, birth years, or other dates from indirect clues (e.g. graduation year).
-- Use clean, short label names (capitalize first letter)
-- Omit "customFields" entirely if nothing extra is mentioned
+- Include only explicitly stated facts. The ONLY inference allowed is a stated age → birth year.
+- Omit "customFields" entirely if nothing extra is mentioned.
 ${
   enrich
     ? `
@@ -332,6 +331,9 @@ individual — many people share a name.
 - Leave them as empty strings ("") if the only thing you can find is a personal/private
   email, a mobile/cell number, a home number, or anything on a people-search / data-broker
   / aggregator site. Those are NOT allowed, ever.
+- Whenever you fill "email" or "phone", set "emailSource"/"phoneSource" to the EXACT page
+  URL you took that value from (it must also appear in "sources"). Leave the matching
+  source as "" if you left the value blank. Never cite a URL you did not actually read.
 
 STRICT RULES — follow exactly:
 - Set "identified" to false and return empty "fields"/"email"/"phone" if you cannot confidently
@@ -348,11 +350,13 @@ STRICT RULES — follow exactly:
 const ENRICH_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["identified", "email", "phone", "fields", "sources"],
+  required: ["identified", "email", "phone", "emailSource", "phoneSource", "fields", "sources"],
   properties: {
     identified: { type: "boolean" },
     email: { type: "string" },
     phone: { type: "string" },
+    emailSource: { type: "string" },
+    phoneSource: { type: "string" },
     fields: {
       type: "array",
       items: {
@@ -385,6 +389,8 @@ async function enrichFromWeb(
   fields: Record<string, string>;
   email: string;
   phone: string;
+  emailSource: string;
+  phoneSource: string;
   sources: Source[];
 }> {
   const response = await client.responses.create({
@@ -407,7 +413,14 @@ async function enrichFromWeb(
     ],
   });
 
-  const empty = { fields: {}, email: "", phone: "", sources: [] };
+  const empty = {
+    fields: {},
+    email: "",
+    phone: "",
+    emailSource: "",
+    phoneSource: "",
+    sources: [],
+  };
   const parsed = parseLooseJson(response.output_text ?? "");
   if (!parsed || typeof parsed !== "object") return empty;
   const obj = parsed as Record<string, unknown>;
@@ -442,32 +455,68 @@ async function enrichFromWeb(
     }
   }
 
-  return { fields, email, phone, sources };
+  // Per-field citations. Use the model's specific URL when it gave a valid one;
+  // otherwise fall back to the top source so the "verify" chip stays clickable.
+  const httpUrl = (v: unknown) => {
+    const u = String(v ?? "").trim();
+    return /^https?:\/\//i.test(u) ? u : "";
+  };
+  const fallbackSource = sources[0]?.url ?? "";
+  const emailSource = email ? httpUrl(obj.emailSource) || fallbackSource : "";
+  const phoneSource = phone ? httpUrl(obj.phoneSource) || fallbackSource : "";
+
+  return { fields, email, phone, emailSource, phoneSource, sources };
 }
 
 export async function extractContact(
   text: string,
-  opts: { enrich?: boolean } = {}
+  opts: { enrich?: boolean; images?: string[] } = {}
 ): Promise<ExtractResult> {
   const input = text.trim();
+  // Only accept image data URLs; anything else is dropped before hitting the model.
+  const images = (opts.images ?? []).filter(
+    (s) => typeof s === "string" && s.startsWith("data:image/")
+  );
   const enrich = opts.enrich ?? false;
   const apiKey = process.env.OPENAI_API_KEY;
 
-  // The deterministic fallback only knows the story text — it cannot enrich.
+  // The deterministic fallback only knows the story text — it cannot read
+  // images or enrich.
   if (!apiKey) {
     return {
       fields: buildFallback(input),
       model: "fallback",
       enriched: [],
       enrichedContact: [],
+      enrichedContactSources: {},
       sources: [],
     };
   }
 
   const client = new OpenAI({ apiKey });
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
-  // 1) Extract what the STORY states (no knowledge/enrichment here).
+  // The story-extraction message is plain text unless photos were attached, in
+  // which case we send a multimodal message so the vision model can OCR them.
+  const userContent: OpenAI.Chat.Completions.ChatCompletionUserMessageParam["content"] =
+    images.length > 0
+      ? [
+          {
+            type: "text",
+            text:
+              input ||
+              "Extract this person's contact details from the attached image(s).",
+          },
+          ...images.map(
+            (url): OpenAI.Chat.Completions.ChatCompletionContentPartImage => ({
+              type: "image_url",
+              image_url: { url },
+            })
+          ),
+        ]
+      : input;
+
+  // 1) Extract what the STORY (and any photos) state — no enrichment here.
   let result: ExtractResult;
   try {
     const completion = await client.chat.completions.create({
@@ -475,8 +524,8 @@ export async function extractContact(
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: buildSystemPrompt(false) },
-        { role: "user", content: input },
+        { role: "system", content: buildSystemPrompt(false, images.length > 0) },
+        { role: "user", content: userContent },
       ],
     });
     const raw = completion.choices[0]?.message?.content?.trim();
@@ -486,6 +535,7 @@ export async function extractContact(
       fields,
       enriched: [],
       enrichedContact: [],
+      enrichedContactSources: {},
       sources: [],
       model: completion.model || model,
     };
@@ -496,6 +546,7 @@ export async function extractContact(
       model: "fallback",
       enriched: [],
       enrichedContact: [],
+      enrichedContactSources: {},
       sources: [],
     };
   }
@@ -505,22 +556,20 @@ export async function extractContact(
   // 2) Enrich from the live web. Falls back to training knowledge on failure.
   const searchModel = process.env.OPENAI_SEARCH_MODEL || model;
   try {
-    const { fields: webFields, email, phone, sources } = await enrichFromWeb(
-      client,
-      result.fields.name,
-      input,
-      searchModel
-    );
+    const { fields: webFields, email, phone, emailSource, phoneSource, sources } =
+      await enrichFromWeb(client, result.fields.name, input, searchModel);
     mergeEnrichment(result, webFields);
 
     // Only fill contact fields the STORY didn't already provide. Story wins.
     if (email && !result.fields.email) {
       result.fields.email = email;
       result.enrichedContact.push("email");
+      if (emailSource) result.enrichedContactSources.email = emailSource;
     }
     if (phone && !result.fields.phone) {
       result.fields.phone = phone;
       result.enrichedContact.push("phone");
+      if (phoneSource) result.enrichedContactSources.phone = phoneSource;
     }
 
     result.sources = sources;
