@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateProfile } from "@/lib/profile";
+import { recalculateHealth } from "@/lib/health";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -35,6 +36,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
     where: { id },
     data: { profile, profileModel: model, profileUpdatedAt: new Date() },
   });
+
+  await recalculateHealth(id);
 
   return NextResponse.json(updated);
 }

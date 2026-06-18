@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
 import type { NoteSource } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
@@ -32,8 +33,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const note = await prisma.note.create({
     data: { contactId: id, content: body.content.trim(), source },
   });
-  // touch the contact so it sorts to the top of the recently-updated list
   await prisma.contact.update({ where: { id }, data: { updatedAt: new Date() } });
+  await recalculateHealth(id);
 
   return NextResponse.json(note, { status: 201 });
 }

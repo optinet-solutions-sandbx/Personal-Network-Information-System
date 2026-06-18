@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
 
 // Case-insensitive substring search (Postgres ILIKE under the hood).
 const insensitive = (q: string) => ({ contains: q, mode: Prisma.QueryMode.insensitive });
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
       location: body.location?.trim() || null,
       tags: body.tags?.trim() || null,
       howWeMet: body.howWeMet?.trim() || null,
+      birthday: body.birthday?.trim() || null,
       customFields:
         body.customFields &&
         typeof body.customFields === "object" &&
@@ -69,6 +71,8 @@ export async function POST(req: NextRequest) {
           : null,
     },
   });
+
+  await recalculateHealth(contact.id);
 
   return NextResponse.json(
     parseCustomFields(contact as unknown as Record<string, unknown>),

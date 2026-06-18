@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -15,6 +16,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id },
       data: { content: body.content.trim() },
     });
+    await recalculateHealth(note.contactId);
     return NextResponse.json(note);
   } catch {
     return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -25,7 +27,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
+    const note = await prisma.note.findUnique({
+      where: { id },
+      select: { contactId: true },
+    });
     await prisma.note.delete({ where: { id } });
+    if (note) await recalculateHealth(note.contactId);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "not found" }, { status: 404 });

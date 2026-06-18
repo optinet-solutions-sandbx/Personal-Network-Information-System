@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -38,6 +39,7 @@ const EDITABLE = [
   "location",
   "tags",
   "howWeMet",
+  "birthday",
 ] as const;
 
 // PATCH /api/contacts/:id
@@ -74,6 +76,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   try {
     const contact = await prisma.contact.update({ where: { id }, data });
+    await recalculateHealth(id);
     return NextResponse.json(
       parseCustomFields(contact as unknown as Record<string, unknown>)
     );
