@@ -40,6 +40,28 @@ OPENAI_MODEL="gpt-4o-mini"
 
 STT requires a Chromium-based browser (Chrome/Edge) and microphone permission.
 
+## Deploying & migrations
+
+Pushing to `main` triggers a production deploy on Vercel. **Migrations are
+intentionally decoupled from the build** — the build runs only
+`prisma generate && next build`, so a frontend/code deploy never fails because
+the database is briefly unreachable or its connection pool is saturated.
+
+When you change `prisma/schema.prisma`, apply the migration deliberately
+**before** (or right after) the deploy:
+
+```bash
+npm run db:migrate:deploy   # prisma migrate deploy — uses DIRECT_URL
+```
+
+> **Connection routing matters.** `DATABASE_URL` must point at the Supabase
+> **transaction pooler** (port `6543`, `?pgbouncer=true&connection_limit=1`) for
+> serverless runtime; `DIRECT_URL` points at the **session pooler** (port `5432`)
+> for migrations only. Routing app traffic through `5432` (session mode) exhausts
+> the 15-client session pool and causes `FATAL: max clients reached`
+> (`EMAXCONNSESSION`) — both at runtime and during migrations. Keep the same
+> split in the Vercel project's environment variables.
+
 ## Project layout
 
 ```
