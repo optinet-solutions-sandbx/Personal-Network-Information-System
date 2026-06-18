@@ -27,6 +27,11 @@ export default function HomePageClient() {
   const [story, setStory] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  // The AI ran successfully but found nothing usable — prompt manual entry
+  // instead of dropping the user into a blank, confusing review form.
+  const [noFields, setNoFields] = useState(false);
+  // The user chose to fill the contact in by hand — show every field upfront.
+  const [manualEntry, setManualEntry] = useState(false);
   const { listening, supported, toggle } = useSpeechRecognition({
     onResult: (text) => setStory((t) => (t ? `${t} ${text}` : text)),
   });
@@ -71,6 +76,8 @@ export default function HomePageClient() {
             : undefined,
       };
       setExtracted(safe);
+      setNoFields(!hasUsableFields(safe));
+      setManualEntry(false);
       setEnrichedKeys(
         Array.isArray(enriched) ? enriched.filter((k) => k in (safe.customFields ?? {})) : []
       );
@@ -85,6 +92,8 @@ export default function HomePageClient() {
   function resetForm() {
     setStory("");
     setExtracted(null);
+    setNoFields(false);
+    setManualEntry(false);
     setEnrichedKeys([]);
     setEnrichedContact([]);
     setSources([]);
@@ -272,12 +281,22 @@ export default function HomePageClient() {
           <p className="text-xs text-red-600">{extractError}</p>
         )}
 
-        {extracted && (
+        {extracted && noFields && (
+          <EmptyExtraction
+            onManual={() => {
+              setManualEntry(true);
+              setNoFields(false);
+            }}
+          />
+        )}
+
+        {extracted && !noFields && (
           <ReviewCard
             extracted={extracted}
             enrichedKeys={enrichedKeys}
             enrichedContact={enrichedContact}
             sources={sources}
+            startExpanded={manualEntry}
             onUpdate={setExtracted}
             onSave={() => handleSave()}
             saving={saving}
@@ -294,6 +313,50 @@ export default function HomePageClient() {
           onCancel={() => setDuplicates([])}
         />
       )}
+    </div>
+  );
+}
+
+// True when extraction produced at least one thing worth reviewing — a name,
+// any standard field, or a custom field. When false, we surface a clear
+// "nothing found" message instead of an empty review form.
+function hasUsableFields(c: ContactInput): boolean {
+  if (c.name?.trim()) return true;
+  const standard: (keyof Omit<ContactInput, "customFields">)[] = [
+    "title",
+    "company",
+    "email",
+    "phone",
+    "location",
+    "tags",
+    "howWeMet",
+  ];
+  if (standard.some((k) => c[k]?.trim())) return true;
+  return Object.keys(c.customFields ?? {}).length > 0;
+}
+
+// Shown when the AI returns nothing usable. Explains what happened and offers
+// an explicit fall-back to manual entry so the user is never stuck.
+function EmptyExtraction({ onManual }: { onManual: () => void }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <p className="text-sm font-semibold text-amber-900">
+        I couldn't find any contact details
+      </p>
+      <p className="mt-1 text-xs text-amber-700">
+        Nothing in that text looked like a name, role, or other detail. Try
+        adding more — a name, where they work, how you met — and extract again,
+        or enter the details yourself.
+      </p>
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={onManual}
+          className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100"
+        >
+          Enter details manually
+        </button>
+      </div>
     </div>
   );
 }
@@ -434,6 +497,7 @@ function ReviewCard({
   enrichedKeys = [],
   enrichedContact = [],
   sources = [],
+  startExpanded = false,
   onUpdate,
   onSave,
   saving,
@@ -442,12 +506,13 @@ function ReviewCard({
   enrichedKeys?: string[];
   enrichedContact?: string[];
   sources?: { title: string; url: string }[];
+  startExpanded?: boolean;
   onUpdate: (updated: ContactInput) => void;
   onSave: () => void;
   saving: boolean;
 }) {
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [showMissing, setShowMissing] = useState(false);
+  const [showMissing, setShowMissing] = useState(startExpanded);
 
   function updateStandardField(
     key: keyof Omit<ContactInput, "customFields">,
