@@ -6,6 +6,7 @@ import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
+import { formatBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 export default function ContactDetailPage({
@@ -127,9 +128,17 @@ function DetailsCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(contact);
+  // Birthday is edited as a friendly string ("May 14"); the server re-normalizes
+  // it to the canonical stored form on save.
+  const [birthdayInput, setBirthdayInput] = useState(
+    formatBirthday(contact.birthday)
+  );
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => setForm(contact), [contact]);
+  useEffect(() => {
+    setForm(contact);
+    setBirthdayInput(formatBirthday(contact.birthday));
+  }, [contact]);
 
   async function save() {
     setSaving(true);
@@ -145,6 +154,7 @@ function DetailsCard({
           phone: form.phone,
           location: form.location,
           tags: form.tags,
+          birthday: birthdayInput,
           howWeMet: form.howWeMet,
           customFields: form.customFields,
         }),
@@ -207,6 +217,7 @@ function DetailsCard({
               <button
                 onClick={() => {
                   setForm(contact);
+                  setBirthdayInput(formatBirthday(contact.birthday));
                   setEditing(false);
                 }}
                 className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm"
@@ -256,6 +267,26 @@ function DetailsCard({
               )}
             </div>
           ))}
+
+        {(editing || contact.birthday) && (
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              Birthday
+            </dt>
+            {editing ? (
+              <input
+                className="input mt-1 w-full"
+                value={birthdayInput}
+                placeholder="e.g. May 14 or 1990-05-14"
+                onChange={(e) => setBirthdayInput(e.target.value)}
+              />
+            ) : (
+              <dd className="text-zinc-700">
+                {formatBirthday(contact.birthday) || "—"}
+              </dd>
+            )}
+          </div>
+        )}
       </dl>
 
       {/* AI-detected custom fields */}

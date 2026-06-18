@@ -1,6 +1,8 @@
 // Pure input-validation helpers shared by the contact/note API routes.
 // Kept framework-free so they're trivially unit-testable.
 
+import { normalizeBirthday } from "@/lib/birthdays";
+
 export type ValidationResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
@@ -15,6 +17,7 @@ export const LIMITS = {
   title: 200,
   location: 200,
   tags: 500,
+  birthday: 60, // generous cap on the raw input before normalization
   howWeMet: 4000,
   customFieldKey: 100,
   customFieldValue: 4000,
@@ -43,6 +46,7 @@ export type CleanContact = {
   title: string | null;
   location: string | null;
   tags: string | null;
+  birthday: string | null;
   howWeMet: string | null;
   customFields: Record<string, string> | null;
 };
@@ -86,6 +90,25 @@ export function validateContact(
         return { ok: false, error: "email is not a valid address" };
     }
     out.email = email;
+  }
+
+  if (!opts.partial || "birthday" in b) {
+    const raw = clean(b.birthday);
+    if (!raw) {
+      out.birthday = null;
+    } else if (raw.length > LIMITS.birthday) {
+      return { ok: false, error: "birthday is too long" };
+    } else {
+      const normalized = normalizeBirthday(raw);
+      if (!normalized) {
+        return {
+          ok: false,
+          error:
+            "birthday isn't a recognizable date — try e.g. “May 14”, “May 14 1990”, or “1990-05-14”",
+        };
+      }
+      out.birthday = normalized;
+    }
   }
 
   for (const field of OPTIONAL_STRING_FIELDS) {

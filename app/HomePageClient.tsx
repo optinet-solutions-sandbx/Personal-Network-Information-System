@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { formatBirthday, liftBirthdayFromCustomFields } from "@/lib/birthdays";
 
 // A possible duplicate returned by /api/contacts/check (name or email match).
 type MatchContact = {
@@ -61,6 +62,9 @@ export default function HomePageClient() {
         enrichedContact?: string[];
         sources?: { title: string; url: string }[];
       };
+      // A birthday may arrive as a top-level field or buried in customFields
+      // (e.g. "Born"/"Birthday"); lift it into the structured field either way.
+      const lifted = liftBirthdayFromCustomFields(fields.customFields);
       const safe: ContactInput = {
         name: String(fields.name ?? ""),
         title: fields.title ? String(fields.title) : undefined,
@@ -69,10 +73,15 @@ export default function HomePageClient() {
         phone: fields.phone ? String(fields.phone) : undefined,
         location: fields.location ? String(fields.location) : undefined,
         tags: fields.tags ? String(fields.tags) : undefined,
+        birthday: fields.birthday
+          ? String(fields.birthday)
+          : lifted.birthday
+          ? formatBirthday(lifted.birthday)
+          : undefined,
         howWeMet: fields.howWeMet ? String(fields.howWeMet) : undefined,
         customFields:
-          fields.customFields && Object.keys(fields.customFields).length > 0
-            ? fields.customFields
+          lifted.customFields && Object.keys(lifted.customFields).length > 0
+            ? lifted.customFields
             : undefined,
       };
       setExtracted(safe);
@@ -158,7 +167,7 @@ export default function HomePageClient() {
       const existing = existingRes.ok ? ((await existingRes.json()) as Contact) : null;
 
       const patch: Record<string, unknown> = {};
-      const gapFields = ["email", "phone", "company", "title", "location", "howWeMet"] as const;
+      const gapFields = ["email", "phone", "company", "title", "location", "birthday", "howWeMet"] as const;
       for (const f of gapFields) {
         const incoming = extracted[f]?.trim();
         if (incoming && !existing?.[f]) patch[f] = incoming;
@@ -328,6 +337,7 @@ function hasUsableFields(c: ContactInput): boolean {
     "email",
     "phone",
     "location",
+    "birthday",
     "tags",
     "howWeMet",
   ];
@@ -488,6 +498,7 @@ const STANDARD_FIELDS: {
   { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
   { key: "location", label: "Location" },
+  { key: "birthday", label: "Birthday" },
   { key: "tags", label: "Tags", isTags: true },
   { key: "howWeMet", label: "How we met", multiline: true },
 ];

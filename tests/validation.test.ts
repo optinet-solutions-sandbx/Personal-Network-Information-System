@@ -54,6 +54,29 @@ describe("validateContact (full)", () => {
       expect(res.data.tags).toBeNull();
     }
   });
+
+  it("normalizes a freeform birthday to canonical form", () => {
+    const res = validateContact({ name: "X", birthday: "May 14, 1990" });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.birthday).toBe("1990-05-14");
+  });
+
+  it("stores a year-unknown birthday as --MM-DD", () => {
+    const res = validateContact({ name: "X", birthday: "May 14" });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.birthday).toBe("--05-14");
+  });
+
+  it("rejects an unparseable birthday", () => {
+    const res = validateContact({ name: "X", birthday: "whenever" });
+    expect(res.ok).toBe(false);
+  });
+
+  it("treats an empty birthday as null", () => {
+    const res = validateContact({ name: "X", birthday: "  " });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.birthday).toBeNull();
+  });
 });
 
 describe("validateContact (partial / PATCH)", () => {

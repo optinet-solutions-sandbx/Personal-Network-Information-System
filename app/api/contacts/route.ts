@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
         title: d.title ?? null,
         location: d.location ?? null,
         tags: d.tags ?? null,
+        birthday: d.birthday ?? null,
         howWeMet: d.howWeMet ?? null,
         customFields: d.customFields ? JSON.stringify(d.customFields) : null,
       },
