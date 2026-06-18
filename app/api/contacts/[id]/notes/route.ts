@@ -29,7 +29,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const source: NoteSource =
-    body.source === "voice" ? "voice" : body.source === "story" ? "story" : "manual";
+    body.source === "voice"
+      ? "voice"
+      : body.source === "story"
+      ? "story"
+      : body.source === "gift"
+      ? "gift"
+      : "manual";
   const note = await prisma.note.create({
     data: { contactId: id, content: body.content.trim(), source },
   });
