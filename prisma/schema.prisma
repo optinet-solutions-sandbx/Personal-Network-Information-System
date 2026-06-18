@@ -22,12 +22,18 @@ model Contact {
   location  String?
   tags      String? // comma-separated (SQLite has no native arrays)
   howWeMet     String?  // context: where/how the connection was made
+  birthday     String?  // "MM-DD" (no year) or "YYYY-MM-DD" (with year)
   customFields String?  // JSON: AI-detected extra fields {"Interests": "...", "Hobbies": "..."}
 
   // AI-assisted profile
   profile          String?
   profileModel     String?
   profileUpdatedAt DateTime?
+
+  // Relationship health score
+  healthScore   Int?
+  healthTier    String?
+  healthInputs  String?
 
   notes Note[]
 
