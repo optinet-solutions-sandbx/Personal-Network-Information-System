@@ -15,12 +15,14 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const customFields =
-    contact.customFields != null
-      ? typeof contact.customFields === "string"
-        ? (JSON.parse(contact.customFields) as Record<string, string>)
-        : (contact.customFields as Record<string, string>)
-      : null;
+  let customFields: Record<string, string> | null = null;
+  if (contact.customFields) {
+    try {
+      customFields = JSON.parse(contact.customFields) as Record<string, string>;
+    } catch {
+      customFields = null;
+    }
+  }
 
   try {
     const suggestions = await generateGiftSuggestions({
