@@ -98,7 +98,10 @@ export async function GET(req: NextRequest) {
       {
         error: "Could not load contacts.",
         code,
-        detail: err instanceof Error ? err.message : String(err),
+        // Only expose the raw error message outside production.
+        ...(process.env.NODE_ENV !== "production"
+          ? { detail: err instanceof Error ? err.message : String(err) }
+          : {}),
       },
       { status: 500 }
     );
