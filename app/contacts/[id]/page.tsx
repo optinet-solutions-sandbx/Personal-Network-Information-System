@@ -4,12 +4,11 @@ import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
-import type { Contact, Note } from "@/lib/types";
+import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { formatBirthday } from "@/lib/birthday";
 import { Markdown } from "@/components/Markdown";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
-import type { HealthInputs } from "@/lib/types";
 
 export default function ContactDetailPage({
   params,
@@ -88,6 +87,7 @@ export default function ContactDetailPage({
                 score={contact.healthScore}
                 tier={contact.healthTier}
                 inputs={contact.healthInputs as HealthInputs}
+                contact={contact}
               />
             </div>
           )}
@@ -186,6 +186,7 @@ function DetailsCard({
           ) : (
             <>
               <button
+                id="edit-contact-btn"
                 onClick={() => setEditing(true)}
                 className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
               >
@@ -327,6 +328,7 @@ function NotesSection({
 
       <div className="rounded-lg border border-zinc-200 p-3">
         <textarea
+          id="notes-textarea"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Type a note, or use the mic to dictate…"

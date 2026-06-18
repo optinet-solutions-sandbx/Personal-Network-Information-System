@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { HealthInputs } from "@/lib/types";
+import type { Contact, HealthInputs } from "@/lib/types";
 
 type Props = {
   score: number;
   tier: string;
   inputs: HealthInputs;
+  contact: Contact;
 };
 
 const TIER_BADGE: Record<string, string> = {
@@ -29,6 +30,28 @@ const TIER_BAR: Record<string, string> = {
   Fading: "bg-amber-400",
   Dormant: "bg-gray-400",
 };
+
+const RICHNESS_FIELDS: { key: keyof Contact; label: string }[] = [
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "company", label: "Company" },
+  { key: "title", label: "Title" },
+  { key: "location", label: "Location" },
+  { key: "tags", label: "Tags" },
+  { key: "howWeMet", label: "How we met" },
+  { key: "birthday", label: "Birthday" },
+  { key: "profile", label: "AI Profile" },
+  { key: "customFields", label: "Custom fields" },
+];
+
+function isFieldFilled(contact: Contact, key: keyof Contact): boolean {
+  const val = contact[key];
+  if (val == null) return false;
+  if (key === "customFields") {
+    return typeof val === "object" && Object.keys(val as object).length > 0;
+  }
+  return typeof val === "string" && val.trim().length > 0;
+}
 
 function daysAgoLabel(iso: string | null): string {
   if (!iso) return "never";
@@ -60,111 +83,6 @@ function buildFrequencyTable(score: number): TableRow[] {
   ];
 }
 
-type ModalState = { type: "recency" | "frequency" | "richness" } | null;
-
-function DetailModal({
-  type,
-  inputs,
-  onClose,
-}: {
-  type: "recency" | "frequency" | "richness";
-  inputs: HealthInputs;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const titles = { recency: "Recency", frequency: "Frequency (90d)", richness: "Profile Richness" };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-sm font-semibold text-gray-800">{titles[type]}</h4>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-          >
-            ×
-          </button>
-        </div>
-
-        {type === "recency" && (
-          <>
-            <p className="text-xs text-gray-500 mb-4">
-              Based on when the most recent note was added.{" "}
-              <span className="font-medium text-gray-700">
-                Last note: {daysAgoLabel(inputs.lastNoteAt)}
-              </span>
-            </p>
-            <ScoreTable rows={buildRecencyTable(inputs.recency)} score={inputs.recency} max={40} />
-          </>
-        )}
-
-        {type === "frequency" && (
-          <>
-            <p className="text-xs text-gray-500 mb-4">
-              Notes added in the last 90 days.{" "}
-              <span className="font-medium text-gray-700">
-                {inputs.noteCount90d} note{inputs.noteCount90d !== 1 ? "s" : ""} recorded
-              </span>
-            </p>
-            <ScoreTable rows={buildFrequencyTable(inputs.frequency)} score={inputs.frequency} max={30} />
-          </>
-        )}
-
-        {type === "richness" && (
-          <>
-            <p className="text-xs text-gray-500 mb-4">
-              3 points per filled field across 10 tracked fields.{" "}
-              <span className="font-medium text-gray-700">
-                {inputs.filledFields} of 10 fields filled
-              </span>
-            </p>
-            <div className="grid grid-cols-2 gap-1.5 mb-4">
-              {[
-                "Email", "Phone", "Company", "Title",
-                "Location", "Tags", "How we met", "Birthday",
-                "Profile", "Custom fields",
-              ].map((field, i) => {
-                const filled = i < inputs.filledFields;
-                return (
-                  <div
-                    key={field}
-                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ${
-                      filled
-                        ? "bg-green-50 text-green-700"
-                        : "bg-gray-50 text-gray-400"
-                    }`}
-                  >
-                    <span>{filled ? "✓" : "○"}</span>
-                    {field}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-between text-xs text-gray-500 border-t pt-3">
-              <span>Score</span>
-              <span className="font-semibold text-gray-700">{inputs.richness} / 30</span>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ScoreTable({ rows, score, max }: { rows: TableRow[]; score: number; max: number }) {
   return (
     <div className="space-y-1">
@@ -184,6 +102,154 @@ function ScoreTable({ rows, score, max }: { rows: TableRow[]; score: number; max
       <div className="flex justify-between text-xs text-gray-500 border-t pt-2 mt-2">
         <span>Your score</span>
         <span className="font-semibold text-gray-700">{score} / {max}</span>
+      </div>
+    </div>
+  );
+}
+
+function scrollTo(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (el instanceof HTMLElement) el.focus();
+}
+
+function DetailModal({
+  type,
+  inputs,
+  contact,
+  onClose,
+}: {
+  type: "recency" | "frequency" | "richness";
+  inputs: HealthInputs;
+  contact: Contact;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const titles = { recency: "Recency", frequency: "Frequency (90d)", richness: "Profile Richness" };
+
+  const filledFields = RICHNESS_FIELDS.map((f) => ({
+    ...f,
+    filled: isFieldFilled(contact, f.key),
+  }));
+  const emptyCount = filledFields.filter((f) => !f.filled).length;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-5 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-sm font-semibold text-gray-800">{titles[type]}</h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+        </div>
+
+        {type === "recency" && (
+          <>
+            <p className="text-xs text-gray-500 mb-4">
+              Based on when the most recent note was added.{" "}
+              <span className="font-medium text-gray-700">
+                Last note: {daysAgoLabel(inputs.lastNoteAt)}
+              </span>
+            </p>
+            <ScoreTable rows={buildRecencyTable(inputs.recency)} score={inputs.recency} max={40} />
+            {inputs.recency < 40 && (
+              <button
+                onClick={() => { onClose(); setTimeout(() => scrollTo("notes-textarea"), 150); }}
+                className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+              >
+                Add a note to improve this score →
+              </button>
+            )}
+          </>
+        )}
+
+        {type === "frequency" && (
+          <>
+            <p className="text-xs text-gray-500 mb-4">
+              Notes added in the last 90 days.{" "}
+              <span className="font-medium text-gray-700">
+                {inputs.noteCount90d} note{inputs.noteCount90d !== 1 ? "s" : ""} recorded
+              </span>
+            </p>
+            <ScoreTable rows={buildFrequencyTable(inputs.frequency)} score={inputs.frequency} max={30} />
+            {inputs.frequency < 30 && (
+              <button
+                onClick={() => { onClose(); setTimeout(() => scrollTo("notes-textarea"), 150); }}
+                className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+              >
+                Add a note to improve this score →
+              </button>
+            )}
+          </>
+        )}
+
+        {type === "richness" && (
+          <>
+            <p className="text-xs text-gray-500 mb-3">
+              3 points per filled field.{" "}
+              <span className="font-medium text-gray-700">
+                {10 - emptyCount} of 10 fields filled
+              </span>
+            </p>
+            <div className="grid grid-cols-2 gap-1.5 mb-4">
+              {filledFields.map(({ key, label, filled }) => (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={filled}
+                  onClick={
+                    filled
+                      ? undefined
+                      : () => {
+                          onClose();
+                          setTimeout(() => {
+                            scrollTo("edit-contact-btn");
+                            document.getElementById("edit-contact-btn")?.click();
+                          }, 150);
+                        }
+                  }
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors ${
+                    filled
+                      ? "bg-green-50 text-green-700 cursor-default"
+                      : "bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
+                  }`}
+                >
+                  <span>{filled ? "✓" : "○"}</span>
+                  {label}
+                  {!filled && <span className="ml-auto text-[10px] text-indigo-400">+3</span>}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-between text-xs text-gray-500 border-t pt-3">
+              <span>Score</span>
+              <span className="font-semibold text-gray-700">{inputs.richness} / 30</span>
+            </div>
+            {emptyCount > 0 && (
+              <button
+                onClick={() => {
+                  onClose();
+                  setTimeout(() => {
+                    scrollTo("edit-contact-btn");
+                    document.getElementById("edit-contact-btn")?.click();
+                  }, 150);
+                }}
+                className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+              >
+                Complete {emptyCount} missing field{emptyCount !== 1 ? "s" : ""} →
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -233,12 +299,12 @@ function SubScore({
   );
 }
 
-export default function HealthCard({ score, tier, inputs }: Props) {
+export default function HealthCard({ score, tier, inputs, contact }: Props) {
   const badgeClass = TIER_BADGE[tier] ?? TIER_BADGE.Dormant;
   const dotClass = TIER_DOT[tier] ?? TIER_DOT.Dormant;
   const barClass = TIER_BAR[tier] ?? TIER_BAR.Dormant;
   const [animated, setAnimated] = useState(false);
-  const [modal, setModal] = useState<ModalState>(null);
+  const [modal, setModal] = useState<"recency" | "frequency" | "richness" | null>(null);
 
   useEffect(() => {
     const id = setTimeout(() => setAnimated(true), 80);
@@ -252,15 +318,12 @@ export default function HealthCard({ score, tier, inputs }: Props) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
             Relationship Health
           </h3>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeClass}`}
-          >
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeClass}`}>
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {tier}
           </span>
         </div>
 
-        {/* animated accent line under the heading */}
         <div className="mb-3 h-px bg-gray-100 overflow-hidden rounded-full">
           <div
             className="h-full bg-gradient-to-r from-indigo-300 via-indigo-200 to-transparent"
@@ -277,40 +340,17 @@ export default function HealthCard({ score, tier, inputs }: Props) {
         </p>
 
         <div className="space-y-1">
-          <SubScore
-            label="Recency"
-            value={inputs.recency}
-            max={40}
-            barColor={barClass}
-            delay={120}
-            animated={animated}
-            onClick={() => setModal({ type: "recency" })}
-          />
-          <SubScore
-            label="Frequency (90d)"
-            value={inputs.frequency}
-            max={30}
-            barColor={barClass}
-            delay={270}
-            animated={animated}
-            onClick={() => setModal({ type: "frequency" })}
-          />
-          <SubScore
-            label="Profile richness"
-            value={inputs.richness}
-            max={30}
-            barColor={barClass}
-            delay={420}
-            animated={animated}
-            onClick={() => setModal({ type: "richness" })}
-          />
+          <SubScore label="Recency" value={inputs.recency} max={40} barColor={barClass} delay={120} animated={animated} onClick={() => setModal("recency")} />
+          <SubScore label="Frequency (90d)" value={inputs.frequency} max={30} barColor={barClass} delay={270} animated={animated} onClick={() => setModal("frequency")} />
+          <SubScore label="Profile richness" value={inputs.richness} max={30} barColor={barClass} delay={420} animated={animated} onClick={() => setModal("richness")} />
         </div>
       </div>
 
       {modal && (
         <DetailModal
-          type={modal.type}
+          type={modal}
           inputs={inputs}
+          contact={contact}
           onClose={() => setModal(null)}
         />
       )}
