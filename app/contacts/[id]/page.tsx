@@ -187,7 +187,20 @@ function DetailsCard({
             <>
               <button
                 id="edit-contact-btn"
-                onClick={() => setEditing(true)}
+                onClick={async () => {
+                  const result = await Swal.fire({
+                    title: "Edit Contact?",
+                    html: `<p style="font-size:0.875rem;color:#6b7280">You are about to edit <strong>${contact.name}</strong>.</p>`,
+                    icon: "question",
+                    showCancelButton: true,
+                    confirmButtonText: "Edit",
+                    cancelButtonText: "Cancel",
+                    confirmButtonColor: "#4f46e5",
+                    cancelButtonColor: "#6b7280",
+                    reverseButtons: true,
+                  });
+                  if (result.isConfirmed) setEditing(true);
+                }}
                 className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
               >
                 Edit
