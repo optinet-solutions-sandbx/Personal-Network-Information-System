@@ -80,7 +80,7 @@ function computeRichness(contact: Contact): { score: number; filledFields: numbe
     }
   }
 
-  return { score: filledFields * 3, filledFields };
+  return { score: Math.min(filledFields * 3, 30), filledFields };
 }
 
 function tierFromScore(score: number): string {

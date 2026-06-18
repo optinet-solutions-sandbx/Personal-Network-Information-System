@@ -74,15 +74,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
+  let contact;
   try {
-    const contact = await prisma.contact.update({ where: { id }, data });
-    await recalculateHealth(id);
-    return NextResponse.json(
-      parseCustomFields(contact as unknown as Record<string, unknown>)
-    );
+    contact = await prisma.contact.update({ where: { id }, data });
   } catch {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  await recalculateHealth(id).catch(() => {});
+  return NextResponse.json(
+    parseCustomFields(contact as unknown as Record<string, unknown>)
+  );
 }
 
 // DELETE /api/contacts/:id

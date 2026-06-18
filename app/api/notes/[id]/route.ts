@@ -11,16 +11,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!body || typeof body.content !== "string" || !body.content.trim()) {
     return NextResponse.json({ error: "content is required" }, { status: 400 });
   }
+  let note;
   try {
-    const note = await prisma.note.update({
+    note = await prisma.note.update({
       where: { id },
       data: { content: body.content.trim() },
     });
-    await recalculateHealth(note.contactId);
-    return NextResponse.json(note);
   } catch {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  await recalculateHealth(note.contactId).catch(() => {});
+  return NextResponse.json(note);
 }
 
 // DELETE /api/notes/:id
