@@ -34,6 +34,7 @@ STANDARD FIELDS — use "" for any you cannot determine:
 - location: city, region, or country
 - tags: comma-separated short professional keywords (e.g. "investor, fintech, warm-lead")
 - howWeMet: where or how the connection was made
+- birthday: birth date as "--MM-DD" (no year) or "YYYY-MM-DD" (with year) — only set if explicitly stated; NEVER infer or fabricate from age alone
 
 DYNAMIC FIELDS — add a "customFields" key for ALL notable personal details found in the story.
 Be thorough — the more context captured, the better. Categories to look for:
@@ -134,6 +135,7 @@ const FIELD_KEYS: (keyof Omit<ContactInput, "customFields">)[] = [
   "location",
   "tags",
   "howWeMet",
+  "birthday",
 ];
 
 function emptyFields(): ContactInput {
@@ -146,6 +148,7 @@ function emptyFields(): ContactInput {
     location: "",
     tags: "",
     howWeMet: "",
+    birthday: "",
   };
 }
 
@@ -259,6 +262,23 @@ function buildFallback(text: string): ContactInput {
     const age = ageMatch[1];
     custom["Age"] = age;
     custom["Birth Year"] = String(new Date().getFullYear() - parseInt(age, 10));
+  }
+
+  // Birthday — explicit month/day mentions like "birthday is March 15" or "born on July 4, 1990"
+  const MONTHS: Record<string, string> = {
+    january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
+    july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
+    jan: "01", feb: "02", mar: "03", apr: "04", jun: "06", jul: "07",
+    aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+  };
+  const bdMatch = text.match(
+    /\b(?:birthday|born|birth\s+date)\b[^.]*?\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,\s]+(\d{4}))?/i
+  );
+  if (bdMatch) {
+    const mm = MONTHS[bdMatch[1].toLowerCase()];
+    const dd = bdMatch[2].padStart(2, "0");
+    const yyyy = bdMatch[3];
+    fields.birthday = yyyy ? `${yyyy}-${mm}-${dd}` : `--${mm}-${dd}`;
   }
 
   // Research / thesis — "research about" or "theory about"

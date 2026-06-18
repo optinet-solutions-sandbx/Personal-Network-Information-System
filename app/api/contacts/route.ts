@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
 import { resolveOwner, ownerWhere } from "@/lib/auth";
 import { validateContact } from "@/lib/validation";
 
@@ -136,6 +137,8 @@ export async function POST(req: NextRequest) {
         customFields: d.customFields ? JSON.stringify(d.customFields) : null,
       },
     });
+
+    await recalculateHealth(contact.id).catch(() => {});
 
     return NextResponse.json(
       parseCustomFields(contact as unknown as Record<string, unknown>),

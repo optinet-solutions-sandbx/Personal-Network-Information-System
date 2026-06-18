@@ -492,13 +492,14 @@ const STANDARD_FIELDS: {
   label: string;
   multiline?: boolean;
   isTags?: boolean;
+  placeholder?: string;
 }[] = [
   { key: "title", label: "Title" },
   { key: "company", label: "Company" },
   { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
   { key: "location", label: "Location" },
-  { key: "birthday", label: "Birthday" },
+  { key: "birthday", label: "Birthday", placeholder: "MM-DD or MM-DD-YYYY" },
   { key: "tags", label: "Tags", isTags: true },
   { key: "howWeMet", label: "How we met", multiline: true },
 ];
@@ -626,6 +627,7 @@ function ReviewCard({
             isEditing={editingField === f.key}
             multiline={f.multiline}
             isTags={f.isTags}
+            placeholder={f.placeholder}
             fromWeb={enrichedContact.includes(f.key)}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
@@ -644,6 +646,7 @@ function ReviewCard({
               isEditing={editingField === f.key}
               multiline={f.multiline}
               isTags={f.isTags}
+              placeholder={f.placeholder}
               onStartEdit={() => setEditingField(f.key)}
               onCommit={(v) => {
                 updateStandardField(f.key, v);
@@ -737,6 +740,7 @@ function FieldRow({
   isEditing,
   multiline,
   isTags,
+  placeholder,
   fromWeb,
   onStartEdit,
   onCommit,
@@ -747,6 +751,7 @@ function FieldRow({
   isEditing: boolean;
   multiline?: boolean;
   isTags?: boolean;
+  placeholder?: string;
   fromWeb?: boolean;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
@@ -797,6 +802,7 @@ function FieldRow({
               escapedRef.current = false;
             }}
             onKeyDown={handleKeyDown}
+            placeholder={placeholder}
             className="input mt-1 w-full"
           />
         )

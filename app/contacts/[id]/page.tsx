@@ -4,10 +4,11 @@ import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
-import type { Contact, Note } from "@/lib/types";
+import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
 import { formatBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import HealthCard from "./HealthCard";
 
 export default function ContactDetailPage({
   params,
@@ -29,7 +30,16 @@ export default function ContactDetailPage({
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setContact(await res.json());
+      const data = await res.json();
+      // healthInputs is stored as a JSON string; parse it for HealthCard.
+      if (typeof data.healthInputs === "string") {
+        try {
+          data.healthInputs = JSON.parse(data.healthInputs) as HealthInputs;
+        } catch {
+          data.healthInputs = null;
+        }
+      }
+      setContact(data);
       setLoadError(false);
     } catch {
       // network failure or unexpected server error
@@ -95,6 +105,18 @@ export default function ContactDetailPage({
           ← Back to contacts
         </Link>
         <DetailsCard contact={contact} onSaved={load} onDelete={handleDelete} />
+        {contact.healthScore != null &&
+          contact.healthTier != null &&
+          contact.healthInputs != null && (
+            <div className="mt-6">
+              <HealthCard
+                score={contact.healthScore}
+                tier={contact.healthTier}
+                inputs={contact.healthInputs as HealthInputs}
+                contact={contact}
+              />
+            </div>
+          )}
         <NotesSection contact={contact} onChange={load} />
       </div>
       <div className="lg:col-span-2">
@@ -228,6 +250,7 @@ function DetailsCard({
           ) : (
             <>
               <button
+                id="edit-contact-btn"
                 onClick={() => setEditing(true)}
                 className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
               >
@@ -351,6 +374,10 @@ function NotesSection({
   const notes = contact.notes ?? [];
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 5;
+  const totalPages = Math.max(1, Math.ceil(notes.length / PAGE_SIZE));
+  const visibleNotes = notes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const { listening, supported, toggle } = useSpeechRecognition({
     onResult: (text) =>
@@ -397,6 +424,7 @@ function NotesSection({
 
       <div className="rounded-lg border border-zinc-200 p-3">
         <textarea
+          id="notes-textarea"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Type a note, or use the mic to dictate…"
@@ -435,10 +463,45 @@ function NotesSection({
         {notes.length === 0 && (
           <li className="text-sm text-zinc-400">No notes yet.</li>
         )}
-        {notes.map((n) => (
-          <NoteItem key={n.id} note={n} onChange={onChange} />
+        {visibleNotes.map((n) => (
+          <NoteItem key={n.id} note={n} onChange={() => { onChange(); setPage(1); }} />
         ))}
       </ul>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
+          <span>{notes.length} notes · page {page} of {totalPages}</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
+            >
+              ← Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`rounded-md border px-2.5 py-1 ${
+                  p === page
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold"
+                    : "border-zinc-200 hover:bg-zinc-50"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

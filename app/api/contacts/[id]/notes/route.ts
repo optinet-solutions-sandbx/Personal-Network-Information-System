@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
 import { resolveOwner, ownerWhere } from "@/lib/auth";
 import { validateNoteContent } from "@/lib/validation";
 import type { NoteSource } from "@/lib/types";
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
     // touch the contact so it sorts to the top of the recently-updated list
     await prisma.contact.update({ where: { id }, data: { updatedAt: new Date() } });
+    // adding a note is a relationship signal — refresh the health score
+    await recalculateHealth(id);
     return NextResponse.json(note, { status: 201 });
   } catch (err) {
     console.error("POST /api/contacts/[id]/notes failed:", err);

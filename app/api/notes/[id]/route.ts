@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveOwner, ownerWhere } from "@/lib/auth";
+import { recalculateHealth } from "@/lib/health";
+import { resolveOwner } from "@/lib/auth";
 import { validateNoteContent } from "@/lib/validation";
 
 type Params = { params: Promise<{ id: string }> };
@@ -31,6 +32,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
   const note = await prisma.note.findUnique({ where: { id } });
+  // editing a note is a relationship signal — refresh the health score
+  if (note) await recalculateHealth(note.contactId).catch(() => {});
   return NextResponse.json(note);
 }
 
@@ -40,11 +43,17 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!owner.ok) return owner.response;
 
   const { id } = await params;
+  // capture the parent contact before deletion so we can refresh its health score
+  const note = await prisma.note.findFirst({
+    where: ownedNoteWhere(id, owner.userId),
+    select: { contactId: true },
+  });
   const result = await prisma.note.deleteMany({
     where: ownedNoteWhere(id, owner.userId),
   });
   if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  if (note) await recalculateHealth(note.contactId).catch(() => {});
   return NextResponse.json({ ok: true });
 }

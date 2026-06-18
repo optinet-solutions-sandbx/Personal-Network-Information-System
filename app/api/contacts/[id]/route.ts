@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
 import { resolveOwner, ownerWhere } from "@/lib/auth";
 import { validateContact } from "@/lib/validation";
 
@@ -70,6 +71,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const contact = await prisma.contact.findUnique({ where: { id } });
+  // editing fields can shift the relationship signals — refresh the health score
+  await recalculateHealth(id).catch(() => {});
   return NextResponse.json(
     parseCustomFields(contact as unknown as Record<string, unknown>)
   );

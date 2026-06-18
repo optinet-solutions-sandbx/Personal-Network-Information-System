@@ -11,6 +11,15 @@ export type Note = {
   updatedAt: string;
 };
 
+export type HealthInputs = {
+  recency: number;
+  frequency: number;
+  richness: number;
+  lastNoteAt: string | null;
+  noteCount90d: number;
+  filledFields: number;
+};
+
 export type Contact = {
   id: string;
   name: string;
@@ -26,6 +35,9 @@ export type Contact = {
   profile: string | null;
   profileModel: string | null;
   profileUpdatedAt: string | null;
+  healthScore: number | null;
+  healthTier: string | null;
+  healthInputs: HealthInputs | null;
   createdAt: string;
   updatedAt: string;
   notes?: Note[];

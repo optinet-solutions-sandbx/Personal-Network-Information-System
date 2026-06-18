@@ -35,6 +35,11 @@ model Contact {
   profileModel     String?
   profileUpdatedAt DateTime?
 
+  // Relationship health score
+  healthScore   Int?
+  healthTier    String?
+  healthInputs  String?
+
   notes Note[]
 
   createdAt DateTime @default(now())
