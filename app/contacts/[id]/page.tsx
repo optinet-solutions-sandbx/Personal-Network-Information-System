@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note } from "@/lib/types";
+import { formatBirthday } from "@/lib/birthday";
 import { Markdown } from "@/components/Markdown";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import HealthCard from "./HealthCard";
+import type { HealthInputs } from "@/lib/types";
 
 export default function ContactDetailPage({
   params,
@@ -26,7 +29,15 @@ export default function ContactDetailPage({
       setLoading(false);
       return;
     }
-    setContact(await res.json());
+    const data = await res.json();
+    if (typeof data.healthInputs === "string") {
+      try {
+        data.healthInputs = JSON.parse(data.healthInputs) as HealthInputs;
+      } catch {
+        data.healthInputs = null;
+      }
+    }
+    setContact(data);
     setLoading(false);
   }, [id]);
 
@@ -69,6 +80,17 @@ export default function ContactDetailPage({
           ← Back to contacts
         </Link>
         <DetailsCard contact={contact} onSaved={load} onDelete={handleDelete} />
+        {contact.healthScore != null &&
+          contact.healthTier != null &&
+          contact.healthInputs != null && (
+            <div className="mt-6">
+              <HealthCard
+                score={contact.healthScore}
+                tier={contact.healthTier}
+                inputs={contact.healthInputs as HealthInputs}
+              />
+            </div>
+          )}
         <NotesSection contact={contact} onChange={load} />
       </div>
       <div className="lg:col-span-2">
@@ -109,6 +131,7 @@ function DetailsCard({
         location: form.location,
         tags: form.tags,
         howWeMet: form.howWeMet,
+        birthday: form.birthday,
         customFields: form.customFields,
       }),
     });
@@ -189,6 +212,7 @@ function DetailsCard({
             ["location", "Location"],
             ["tags", "Tags"],
             ["howWeMet", "How we met"],
+            ["birthday", "Birthday"],
           ] as [keyof Contact, string][]
         ).map(([key, label]) => (
           <div key={key} className={key === "howWeMet" ? "col-span-2" : ""}>
@@ -200,10 +224,13 @@ function DetailsCard({
                 className="input mt-1 w-full"
                 value={(form[key] as string) ?? ""}
                 onChange={set(key)}
+                placeholder={key === "birthday" ? "MM-DD or MM-DD-YYYY" : undefined}
               />
             ) : (
               <dd className="text-zinc-700">
-                {(contact[key] as string) || "—"}
+                {key === "birthday" && (contact[key] as string)
+                  ? formatBirthday(contact[key] as string)
+                  : (contact[key] as string) || "—"}
               </dd>
             )}
           </div>
