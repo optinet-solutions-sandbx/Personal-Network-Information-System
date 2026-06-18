@@ -2,16 +2,37 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ContactInput } from "@/lib/types";
+import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { formatBirthday, liftBirthdayFromCustomFields } from "@/lib/birthdays";
+
+// A possible duplicate returned by /api/contacts/check (name or email match).
+type MatchContact = {
+  id: string;
+  name: string;
+  email: string | null;
+  company: string | null;
+  title: string | null;
+  _count?: { notes: number };
+};
 
 export default function HomePageClient() {
   const router = useRouter();
   const [extracted, setExtracted] = useState<ContactInput | null>(null);
+  const [enrichedKeys, setEnrichedKeys] = useState<string[]>([]);
+  const [enrichedContact, setEnrichedContact] = useState<string[]>([]);
+  const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
+  const [enrich, setEnrich] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [duplicates, setDuplicates] = useState<MatchContact[]>([]);
   const [story, setStory] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  // The AI ran successfully but found nothing usable — prompt manual entry
+  // instead of dropping the user into a blank, confusing review form.
+  const [noFields, setNoFields] = useState(false);
+  // The user chose to fill the contact in by hand — show every field upfront.
+  const [manualEntry, setManualEntry] = useState(false);
   const { listening, supported, toggle } = useSpeechRecognition({
     onResult: (text) => setStory((t) => (t ? `${t} ${text}` : text)),
   });
@@ -24,13 +45,26 @@ export default function HomePageClient() {
       const res = await fetch("/api/contacts/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: story }),
+        body: JSON.stringify({ text: story, enrich }),
       });
       if (!res.ok) {
         setExtractError("Couldn't extract details — try rephrasing or extracting again.");
         return;
       }
-      const { fields } = (await res.json()) as { fields: ContactInput };
+      const {
+        fields,
+        enriched,
+        enrichedContact: enrichedC,
+        sources: srcs,
+      } = (await res.json()) as {
+        fields: ContactInput;
+        enriched?: string[];
+        enrichedContact?: string[];
+        sources?: { title: string; url: string }[];
+      };
+      // A birthday may arrive as a top-level field or buried in customFields
+      // (e.g. "Born"/"Birthday"); lift it into the structured field either way.
+      const lifted = liftBirthdayFromCustomFields(fields.customFields);
       const safe: ContactInput = {
         name: String(fields.name ?? ""),
         title: fields.title ? String(fields.title) : undefined,
@@ -39,14 +73,25 @@ export default function HomePageClient() {
         phone: fields.phone ? String(fields.phone) : undefined,
         location: fields.location ? String(fields.location) : undefined,
         tags: fields.tags ? String(fields.tags) : undefined,
+        birthday: fields.birthday
+          ? String(fields.birthday)
+          : lifted.birthday
+          ? formatBirthday(lifted.birthday)
+          : undefined,
         howWeMet: fields.howWeMet ? String(fields.howWeMet) : undefined,
-        birthday: fields.birthday ? String(fields.birthday) : undefined,
         customFields:
-          fields.customFields && Object.keys(fields.customFields).length > 0
-            ? fields.customFields
+          lifted.customFields && Object.keys(lifted.customFields).length > 0
+            ? lifted.customFields
             : undefined,
       };
       setExtracted(safe);
+      setNoFields(!hasUsableFields(safe));
+      setManualEntry(false);
+      setEnrichedKeys(
+        Array.isArray(enriched) ? enriched.filter((k) => k in (safe.customFields ?? {})) : []
+      );
+      setEnrichedContact(Array.isArray(enrichedC) ? enrichedC : []);
+      setSources(Array.isArray(srcs) ? srcs : []);
       setExtractError(null);
     } finally {
       setExtracting(false);
@@ -56,13 +101,47 @@ export default function HomePageClient() {
   function resetForm() {
     setStory("");
     setExtracted(null);
+    setNoFields(false);
+    setManualEntry(false);
+    setEnrichedKeys([]);
+    setEnrichedContact([]);
+    setSources([]);
     setExtractError(null);
+    setDuplicates([]);
   }
 
-  async function handleSave() {
+  // Attach the original story (if any) as a note, then go to the contact.
+  async function attachStoryAndGo(contactId: string) {
+    if (story.trim()) {
+      await fetch(`/api/contacts/${contactId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: story, source: "story" }),
+      });
+    }
+    router.push(`/contacts/${contactId}`);
+  }
+
+  // Save flow. Unless `force` is set, first checks for an existing contact with
+  // the same name or email and surfaces a merge / save-anyway prompt instead.
+  async function handleSave(force = false) {
     if (!extracted?.name?.trim()) return;
     setSaving(true);
     try {
+      if (!force) {
+        const params = new URLSearchParams();
+        params.set("name", extracted.name.trim());
+        if (extracted.email?.trim()) params.set("email", extracted.email.trim());
+        const dupRes = await fetch(`/api/contacts/check?${params.toString()}`);
+        if (dupRes.ok) {
+          const matches = (await dupRes.json()) as MatchContact[];
+          if (matches.length > 0) {
+            setDuplicates(matches);
+            return; // wait for the user to choose merge / save anyway
+          }
+        }
+      }
+
       const res = await fetch("/api/contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,15 +149,49 @@ export default function HomePageClient() {
       });
       if (res.ok) {
         const contact = (await res.json()) as { id: string };
-        if (story.trim()) {
-          await fetch(`/api/contacts/${contact.id}/notes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content: story, source: "story" }),
-          });
-        }
-        router.push(`/contacts/${contact.id}`);
+        await attachStoryAndGo(contact.id);
       }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Merge the extracted details into an existing contact: gap-fill empty
+  // standard fields, union tags, add new custom fields (never overwriting
+  // existing values), then attach the story note.
+  async function handleMerge(target: MatchContact) {
+    if (!extracted) return;
+    setSaving(true);
+    try {
+      const existingRes = await fetch(`/api/contacts/${target.id}`);
+      const existing = existingRes.ok ? ((await existingRes.json()) as Contact) : null;
+
+      const patch: Record<string, unknown> = {};
+      const gapFields = ["email", "phone", "company", "title", "location", "birthday", "howWeMet"] as const;
+      for (const f of gapFields) {
+        const incoming = extracted[f]?.trim();
+        if (incoming && !existing?.[f]) patch[f] = incoming;
+      }
+
+      const tags = unionTags(existing?.tags ?? null, extracted.tags);
+      if (tags && tags !== (existing?.tags ?? null)) patch.tags = tags;
+
+      // Existing values win on key conflicts — extracted only fills gaps.
+      const mergedCustom = {
+        ...(extracted.customFields ?? {}),
+        ...(existing?.customFields ?? {}),
+      };
+      if (Object.keys(mergedCustom).length > 0) patch.customFields = mergedCustom;
+
+      if (Object.keys(patch).length > 0) {
+        await fetch(`/api/contacts/${target.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+      }
+
+      await attachStoryAndGo(target.id);
     } finally {
       setSaving(false);
     }
@@ -153,18 +266,220 @@ export default function HomePageClient() {
           )}
         </div>
 
+        <label className="flex items-start gap-2 text-xs text-zinc-600">
+          <input
+            type="checkbox"
+            checked={enrich}
+            onChange={(e) => setEnrich(e.target.checked)}
+            className="mt-0.5 accent-indigo-600"
+          />
+          <span>
+            <span className="font-medium text-zinc-700">
+              🌐 Enrich from the web
+            </span>
+            <span className="block text-zinc-400">
+              Searches the public web for this person (works for anyone with a
+              public footprint) and adds cited details — role, bio, interests.
+              May be outdated; verify before trusting. Never collects private
+              email, phone, or home address.
+            </span>
+          </span>
+        </label>
+
         {extractError && (
           <p className="text-xs text-red-600">{extractError}</p>
         )}
 
-        {extracted && (
+        {extracted && noFields && (
+          <EmptyExtraction
+            onManual={() => {
+              setManualEntry(true);
+              setNoFields(false);
+            }}
+          />
+        )}
+
+        {extracted && !noFields && (
           <ReviewCard
             extracted={extracted}
+            enrichedKeys={enrichedKeys}
+            enrichedContact={enrichedContact}
+            sources={sources}
+            startExpanded={manualEntry}
             onUpdate={setExtracted}
-            onSave={handleSave}
+            onSave={() => handleSave()}
             saving={saving}
           />
         )}
+      </div>
+
+      {duplicates.length > 0 && (
+        <DuplicatePrompt
+          duplicates={duplicates}
+          saving={saving}
+          onMerge={handleMerge}
+          onSaveAnyway={() => handleSave(true)}
+          onCancel={() => setDuplicates([])}
+        />
+      )}
+    </div>
+  );
+}
+
+// True when extraction produced at least one thing worth reviewing — a name,
+// any standard field, or a custom field. When false, we surface a clear
+// "nothing found" message instead of an empty review form.
+function hasUsableFields(c: ContactInput): boolean {
+  if (c.name?.trim()) return true;
+  const standard: (keyof Omit<ContactInput, "customFields">)[] = [
+    "title",
+    "company",
+    "email",
+    "phone",
+    "location",
+    "birthday",
+    "tags",
+    "howWeMet",
+  ];
+  if (standard.some((k) => c[k]?.trim())) return true;
+  return Object.keys(c.customFields ?? {}).length > 0;
+}
+
+// Shown when the AI returns nothing usable. Explains what happened and offers
+// an explicit fall-back to manual entry so the user is never stuck.
+function EmptyExtraction({ onManual }: { onManual: () => void }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <p className="text-sm font-semibold text-amber-900">
+        I couldn't find any contact details
+      </p>
+      <p className="mt-1 text-xs text-amber-700">
+        Nothing in that text looked like a name, role, or other detail. Try
+        adding more — a name, where they work, how you met — and extract again,
+        or enter the details yourself.
+      </p>
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={onManual}
+          className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100"
+        >
+          Enter details manually
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Union two comma-separated tag strings, case-insensitively de-duped, keeping
+// the existing order first. Returns null when both are empty.
+function unionTags(existing: string | null, incoming?: string): string | null {
+  const split = (s?: string | null) =>
+    (s ?? "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of [...split(existing), ...split(incoming)]) {
+    const key = t.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(t);
+    }
+  }
+  return out.length > 0 ? out.join(", ") : null;
+}
+
+// ── Duplicate prompt ──────────────────────────────────────────────────────────
+
+function DuplicatePrompt({
+  duplicates,
+  saving,
+  onMerge,
+  onSaveAnyway,
+  onCancel,
+}: {
+  duplicates: MatchContact[];
+  saving: boolean;
+  onMerge: (target: MatchContact) => void;
+  onSaveAnyway: () => void;
+  onCancel: () => void;
+}) {
+  const plural = duplicates.length > 1;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-zinc-100 px-5 py-4">
+          <h2 className="text-base font-semibold text-zinc-900">
+            Possible duplicate{plural ? "s" : ""} found
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            {plural
+              ? "These contacts share this name or email. Merge into one to keep things tidy, or save as a new contact anyway."
+              : "A contact with this name or email already exists. Merge into it to keep things tidy, or save as a new contact anyway."}
+          </p>
+        </div>
+
+        <ul className="max-h-72 divide-y divide-zinc-100 overflow-y-auto px-5">
+          {duplicates.map((d) => {
+            const subtitle = [d.title, d.company].filter(Boolean).join(" · ");
+            return (
+              <li key={d.id} className="flex items-center gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-zinc-800">{d.name}</p>
+                  {(subtitle || d.email) && (
+                    <p className="truncate text-xs text-zinc-500">
+                      {subtitle}
+                      {subtitle && d.email ? " · " : ""}
+                      {d.email}
+                    </p>
+                  )}
+                  {d._count && (
+                    <p className="text-[11px] text-zinc-400">
+                      {d._count.notes} note{d._count.notes !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onMerge(d)}
+                  disabled={saving}
+                  className="shrink-0 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:opacity-50"
+                >
+                  Merge here
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="flex items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSaveAnyway}
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save as new anyway"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -184,24 +499,32 @@ const STANDARD_FIELDS: {
   { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
   { key: "location", label: "Location" },
+  { key: "birthday", label: "Birthday", placeholder: "MM-DD or MM-DD-YYYY" },
   { key: "tags", label: "Tags", isTags: true },
   { key: "howWeMet", label: "How we met", multiline: true },
-  { key: "birthday", label: "Birthday", placeholder: "MM-DD or MM-DD-YYYY" },
 ];
 
 function ReviewCard({
   extracted,
+  enrichedKeys = [],
+  enrichedContact = [],
+  sources = [],
+  startExpanded = false,
   onUpdate,
   onSave,
   saving,
 }: {
   extracted: ContactInput;
+  enrichedKeys?: string[];
+  enrichedContact?: string[];
+  sources?: { title: string; url: string }[];
+  startExpanded?: boolean;
   onUpdate: (updated: ContactInput) => void;
   onSave: () => void;
   saving: boolean;
 }) {
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [showMissing, setShowMissing] = useState(false);
+  const [showMissing, setShowMissing] = useState(startExpanded);
 
   function updateStandardField(
     key: keyof Omit<ContactInput, "customFields">,
@@ -230,7 +553,36 @@ function ReviewCard({
   const filledStandard = STANDARD_FIELDS.filter((f) => Boolean(extracted[f.key]));
   const missingStandard = STANDARD_FIELDS.filter((f) => !extracted[f.key]);
   const customEntries = Object.entries(extracted.customFields ?? {});
+  const enrichedSet = new Set(enrichedKeys);
+  const detectedEntries = customEntries.filter(([k]) => !enrichedSet.has(k));
+  const enrichedEntries = customEntries.filter(([k]) => enrichedSet.has(k));
   const totalFields = 1 + filledStandard.length + customEntries.length;
+
+  const renderCustomRow = ([key, value]: [string, string]) => (
+    <div key={key} className="flex items-start gap-1.5">
+      <div className="flex-1">
+        <FieldRow
+          label={key}
+          value={value}
+          isEditing={editingField === `custom:${key}`}
+          multiline={value.length > 60}
+          onStartEdit={() => setEditingField(`custom:${key}`)}
+          onCommit={(v) => {
+            updateCustomField(key, v);
+            setEditingField(null);
+          }}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => removeCustomField(key)}
+        title="Remove this field"
+        className="mt-5 shrink-0 text-zinc-300 hover:text-red-400 transition-colors text-xs leading-none px-1"
+      >
+        ✕
+      </button>
+    </div>
+  );
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
@@ -276,6 +628,7 @@ function ReviewCard({
             multiline={f.multiline}
             isTags={f.isTags}
             placeholder={f.placeholder}
+            fromWeb={enrichedContact.includes(f.key)}
             onStartEdit={() => setEditingField(f.key)}
             onCommit={(v) => {
               updateStandardField(f.key, v);
@@ -314,36 +667,49 @@ function ReviewCard({
           </button>
         )}
 
-        {customEntries.length > 0 && (
+        {detectedEntries.length > 0 && (
           <div className="pt-3 border-t border-zinc-100 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
               ✦ AI-detected
             </p>
-            {customEntries.map(([key, value]) => (
-              <div key={key} className="flex items-start gap-1.5">
-                <div className="flex-1">
-                  <FieldRow
-                    label={key}
-                    value={value}
-                    isEditing={editingField === `custom:${key}`}
-                    multiline={value.length > 60}
-                    onStartEdit={() => setEditingField(`custom:${key}`)}
-                    onCommit={(v) => {
-                      updateCustomField(key, v);
-                      setEditingField(null);
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeCustomField(key)}
-                  title="Remove this field"
-                  className="mt-5 shrink-0 text-zinc-300 hover:text-red-400 transition-colors text-xs leading-none px-1"
-                >
-                  ✕
-                </button>
+            {detectedEntries.map(renderCustomRow)}
+          </div>
+        )}
+
+        {enrichedEntries.length > 0 && (
+          <div className="pt-3 border-t border-amber-100 space-y-3 -mx-4 -mb-4 mt-3 rounded-b-xl bg-amber-50/60 px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                🌐 Enriched from public knowledge
+              </p>
+              <p className="mt-0.5 text-[11px] text-amber-700/80">
+                Pulled from the public web — may be outdated or wrong. Verify
+                before saving; remove any you don't want.
+              </p>
+            </div>
+            {enrichedEntries.map(renderCustomRow)}
+
+            {sources.length > 0 && (
+              <div className="pt-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600/80">
+                  Sources
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {sources.map((s) => (
+                    <li key={s.url} className="truncate text-[11px]">
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-700 underline hover:text-amber-900"
+                      >
+                        {s.title || s.url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -375,6 +741,7 @@ function FieldRow({
   multiline,
   isTags,
   placeholder,
+  fromWeb,
   onStartEdit,
   onCommit,
 }: {
@@ -385,6 +752,7 @@ function FieldRow({
   multiline?: boolean;
   isTags?: boolean;
   placeholder?: string;
+  fromWeb?: boolean;
   onStartEdit: () => void;
   onCommit: (value: string) => void;
 }) {
@@ -402,8 +770,13 @@ function FieldRow({
 
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
         {label}
+        {fromWeb && (
+          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+            🌐 web · verify
+          </span>
+        )}
       </dt>
       {isEditing ? (
         multiline ? (

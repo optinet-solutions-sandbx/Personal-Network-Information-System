@@ -31,8 +31,8 @@ export type Contact = {
   title: string | null;
   location: string | null;
   tags: string | null;
+  birthday: string | null; // "YYYY-MM-DD" or "--MM-DD" (year unknown)
   howWeMet: string | null;
-  birthday: string | null;
   customFields: Record<string, string> | null;
   profile: string | null;
   profileModel: string | null;
@@ -54,7 +54,7 @@ export type ContactInput = {
   title?: string;
   location?: string;
   tags?: string;
-  howWeMet?: string;
   birthday?: string;
+  howWeMet?: string;
   customFields?: Record<string, string>;
 };

@@ -1,12 +1,23 @@
 import OpenAI from "openai";
 import type { ContactInput } from "@/lib/types";
 
+export type Source = { title: string; url: string };
+
 export type ExtractResult = {
   fields: ContactInput;
   model: string;
+  // customFields keys that did NOT come from the story — they were added by web
+  // enrichment (or, as a fallback, the model's training knowledge). The UI
+  // renders these separately and flags them for verification.
+  enriched: string[];
+  // Standard contact fields ("email"/"phone") that were filled from public web
+  // sources rather than the story. The UI badges these for verification.
+  enrichedContact: string[];
+  // Web pages the enrichment drew from (empty unless live web search ran).
+  sources: Source[];
 };
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(enrich: boolean): string {
   const currentYear = new Date().getFullYear();
   return `You extract structured contact details from freeform text
 (typed notes or a transcribed voice message) for a relationship-management app.
@@ -23,14 +34,14 @@ STANDARD FIELDS — use "" for any you cannot determine:
 - location: city, region, or country
 - tags: comma-separated short professional keywords (e.g. "investor, fintech, warm-lead")
 - howWeMet: where or how the connection was made
-- birthday: birth date in "MM-DD" format (no year) or "MM-DD-YYYY" (with year) — only set if explicitly stated; NEVER infer or fabricate from age alone
+- birthday: birth date as "--MM-DD" (no year) or "YYYY-MM-DD" (with year) — only set if explicitly stated; NEVER infer or fabricate from age alone
 
 DYNAMIC FIELDS — add a "customFields" key for ALL notable personal details found in the story.
 Be thorough — the more context captured, the better. Categories to look for:
 
 BIOGRAPHICAL
-- "Age": their age if stated (e.g. "25")
-- "Birth Year": calculate from age + current year if age is known (e.g. age 25 in ${currentYear} → "${currentYear - 25}")
+- "Age": ONLY if an age is explicitly stated (e.g. "she is 25"). Never estimate.
+- "Birth Year": ONLY when an explicit age (or birth year) is stated — then compute from age + current year (e.g. age 25 in ${currentYear} → "${currentYear - 25}"). Do NOT infer a birth year from graduation year, years of experience, school start, or any other proxy. If no age/birth year is stated, OMIT both "Age" and "Birth Year".
 
 ACADEMIC / RESEARCH
 - "Research": any research topic, theory, or hypothesis they are investigating
@@ -54,10 +65,37 @@ RELATIONSHIP
 - "Mutual Connection": shared acquaintances or context
 
 RULES:
-- Include both explicitly stated AND directly inferable facts (e.g. age + current year → birth year)
+- Include explicitly stated facts. The ONLY inference allowed is a stated age → birth year. Do NOT guess ages, birth years, or other dates from indirect clues (e.g. graduation year).
 - Use clean, short label names (capitalize first letter)
 - Omit "customFields" entirely if nothing extra is mentioned
+${
+  enrich
+    ? `
+ENRICHMENT (the user has enabled "enrich from public knowledge"):
+Add a SEPARATE "enrichment" object with well-known PUBLIC facts about this person
+that were NOT stated in the story — but ONLY if the named person is a widely
+recognized PUBLIC FIGURE you have reliable, publicly-documented knowledge of.
 
+Allowed enrichment keys (include only those you are confident are publicly documented):
+- "Occupation": what they are publicly known for doing
+- "Current Company": their primary current organization/role
+- "Known For": primary public accomplishment
+- "Born": publicly-known date of birth (public figures only)
+- "Nationality"
+- "Education"
+- "Interests" / "Hobbies": publicly-reported interests
+- "Notable Work": companies, products, or projects they are publicly associated with
+
+STRICT SAFETY RULES FOR ENRICHMENT — follow exactly:
+- NEVER fabricate or guess. If you are not confident a fact is publicly documented, OMIT that key.
+- NEVER output a private email address or phone number under ANY key. Personal contact
+  details are not public facts — always leave email/phone blank, even for public figures.
+- For ordinary or private individuals you have no reliable public knowledge of,
+  OMIT the "enrichment" object entirely. Do not invent a persona.
+- Enrichment facts may be outdated; they are unverified hints for the user to confirm.
+`
+    : ""
+}
 Example output:
 {
   "name": "Cirilo Siri",
@@ -73,6 +111,15 @@ Example output:
     "Research": "Time travel physics — surpassing the speed of light and traveling at hundreds of light years",
     "Specialization": "Robotics in Healthcare",
     "Relationship": "Junior colleague, 3 years younger than narrator"
+  }${
+    enrich
+      ? `,
+  "enrichment": {
+    "Occupation": "Co-founder, Chairman & CEO of Meta Platforms",
+    "Known For": "Co-founding Facebook",
+    "Born": "May 14, 1984"
+  }`
+      : ""
   }
 }
 
@@ -105,9 +152,29 @@ function emptyFields(): ContactInput {
   };
 }
 
-function normalize(raw: unknown): ContactInput {
+// Coerce an arbitrary object of {label: value} into clean string entries.
+function toStringMap(raw: unknown): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return map;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === "string" && v.trim()) map[k] = v.trim();
+    else if (Array.isArray(v)) {
+      const joined = v.map(String).filter(Boolean).join(", ");
+      if (joined) map[k] = joined;
+    }
+  }
+  return map;
+}
+
+// Safety net: a contact's private email/phone must never arrive via enrichment,
+// regardless of what the model returns. Drop any such key defensively.
+function isContactKey(key: string): boolean {
+  return /\b(e-?mail|phone|mobile|cell|whatsapp|telephone)\b/i.test(key);
+}
+
+function normalize(raw: unknown): { fields: ContactInput; enriched: string[] } {
   const out = emptyFields();
-  if (!raw || typeof raw !== "object") return out;
+  if (!raw || typeof raw !== "object") return { fields: out, enriched: [] };
   const obj = raw as Record<string, unknown>;
 
   for (const key of FIELD_KEYS) {
@@ -116,30 +183,19 @@ function normalize(raw: unknown): ContactInput {
     else if (Array.isArray(v)) out[key] = v.map(String).join(", ").trim();
   }
 
-  // Extract dynamic custom fields
-  if (
-    obj.customFields &&
-    typeof obj.customFields === "object" &&
-    !Array.isArray(obj.customFields)
-  ) {
-    const custom: Record<string, string> = {};
-    for (const [k, v] of Object.entries(
-      obj.customFields as Record<string, unknown>
-    )) {
-      if (typeof v === "string" && v.trim()) {
-        custom[k] = v.trim();
-      } else if (Array.isArray(v)) {
-        const joined = v
-          .map(String)
-          .filter(Boolean)
-          .join(", ");
-        if (joined) custom[k] = joined;
-      }
-    }
-    if (Object.keys(custom).length > 0) out.customFields = custom;
+  const custom = toStringMap(obj.customFields);
+
+  // Merge public-knowledge enrichment into customFields. Story-derived facts
+  // always win on key collisions, and contact-detail keys are never enriched.
+  const enriched: string[] = [];
+  for (const [k, v] of Object.entries(toStringMap(obj.enrichment))) {
+    if (isContactKey(k) || k in custom) continue;
+    custom[k] = v;
+    enriched.push(k);
   }
 
-  return out;
+  if (Object.keys(custom).length > 0) out.customFields = custom;
+  return { fields: out, enriched };
 }
 
 // Deterministic fallback — extracts as many fields as possible without an API key.
@@ -222,7 +278,7 @@ function buildFallback(text: string): ContactInput {
     const mm = MONTHS[bdMatch[1].toLowerCase()];
     const dd = bdMatch[2].padStart(2, "0");
     const yyyy = bdMatch[3];
-    fields.birthday = yyyy ? `${mm}-${dd}-${yyyy}` : `${mm}-${dd}`;
+    fields.birthday = yyyy ? `${yyyy}-${mm}-${dd}` : `--${mm}-${dd}`;
   }
 
   // Research / thesis — "research about" or "theory about"
@@ -248,32 +304,269 @@ function buildFallback(text: string): ContactInput {
   return fields;
 }
 
-export async function extractContact(text: string): Promise<ExtractResult> {
-  const input = text.trim();
-  const apiKey = process.env.OPENAI_API_KEY;
+// Strip ```json fences a model sometimes wraps JSON in, then parse.
+function parseLooseJson(raw: string): unknown {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1) return null;
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
 
-  if (!apiKey) {
-    return { fields: buildFallback(input), model: "fallback" };
+const ENRICH_SYSTEM_PROMPT = `You are a research assistant for a relationship-management app.
+Use web search to find PUBLICLY AVAILABLE information about the specific person described.
+Use the provided context (company, location, how-we-met, role) to identify the RIGHT
+individual — many people share a name.
+
+"fields" is a list of { "label", "value" } facts. Use clear labels such as:
+"Occupation", "Current Company", "Title", "Known For", "Location", "Education",
+"Nationality", "Born", "Interests", "Hobbies", "Notable Work", "Public Profile", "Bio".
+
+"email" and "phone" are for OFFICIAL, PUBLICLY-PUBLISHED BUSINESS contact only:
+- Fill them ONLY with a work email / business phone that is intentionally published on an
+  AUTHORITATIVE official source — the person's own official website, or their employer's
+  official contact/team/staff page.
+- Leave them as empty strings ("") if the only thing you can find is a personal/private
+  email, a mobile/cell number, a home number, or anything on a people-search / data-broker
+  / aggregator site. Those are NOT allowed, ever.
+
+STRICT RULES — follow exactly:
+- Set "identified" to false and return empty "fields"/"email"/"phone" if you cannot confidently
+  match a specific real person from the context. Do NOT guess or merge different people.
+- Only include facts backed by a source you actually found. NEVER fabricate. When unsure, omit.
+- PRIVACY: never return a personal/private email, personal mobile/cell, home phone, or
+  home/street address — even if a data-broker or people-search site lists it. Only the
+  official published business email/phone above is permitted.
+- Prefer authoritative sources (official site, company page, Wikipedia, LinkedIn, reputable press).
+- Every value you return should be traceable to an entry in "sources".`;
+
+// Strict JSON schema so web_search + Structured Outputs return parseable data.
+// (Strict mode requires arrays of fixed-key objects, not free-form maps.)
+const ENRICH_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["identified", "email", "phone", "fields", "sources"],
+  properties: {
+    identified: { type: "boolean" },
+    email: { type: "string" },
+    phone: { type: "string" },
+    fields: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label", "value"],
+        properties: { label: { type: "string" }, value: { type: "string" } },
+      },
+    },
+    sources: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "url"],
+        properties: { title: { type: "string" }, url: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+// Live web enrichment via the Responses API + web_search tool. Returns public,
+// cited facts about the person — or empty fields if no confident match.
+async function enrichFromWeb(
+  client: OpenAI,
+  name: string,
+  context: string,
+  model: string
+): Promise<{
+  fields: Record<string, string>;
+  email: string;
+  phone: string;
+  sources: Source[];
+}> {
+  const response = await client.responses.create({
+    model,
+    tools: [{ type: "web_search" }],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "enrichment",
+        strict: true,
+        schema: ENRICH_SCHEMA,
+      },
+    },
+    input: [
+      { role: "system", content: ENRICH_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Person to research: ${name}\n\nContext from the user's note:\n${context}`,
+      },
+    ],
+  });
+
+  const empty = { fields: {}, email: "", phone: "", sources: [] };
+  const parsed = parseLooseJson(response.output_text ?? "");
+  if (!parsed || typeof parsed !== "object") return empty;
+  const obj = parsed as Record<string, unknown>;
+  if (obj.identified === false) return empty;
+
+  // Custom facts: keep contact-detail keys out — email/phone have dedicated,
+  // policy-restricted fields below.
+  const fields: Record<string, string> = {};
+  if (Array.isArray(obj.fields)) {
+    for (const item of obj.fields) {
+      if (!item || typeof item !== "object") continue;
+      const label = String((item as Record<string, unknown>).label ?? "").trim();
+      const value = String((item as Record<string, unknown>).value ?? "").trim();
+      if (label && value && !isContactKey(label)) fields[label] = value;
+    }
   }
 
+  // Only accept plausibly-formatted official contact values.
+  const rawEmail = String(obj.email ?? "").trim();
+  const rawPhone = String(obj.phone ?? "").trim();
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : "";
+  const phone = /\d{6,}/.test(rawPhone.replace(/[\s().-]/g, "")) ? rawPhone : "";
+
+  const sources: Source[] = [];
+  if (Array.isArray(obj.sources)) {
+    for (const s of obj.sources) {
+      if (s && typeof s === "object") {
+        const url = String((s as Record<string, unknown>).url ?? "").trim();
+        const title = String((s as Record<string, unknown>).title ?? "").trim();
+        if (/^https?:\/\//i.test(url)) sources.push({ url, title: title || url });
+      }
+    }
+  }
+
+  return { fields, email, phone, sources };
+}
+
+export async function extractContact(
+  text: string,
+  opts: { enrich?: boolean } = {}
+): Promise<ExtractResult> {
+  const input = text.trim();
+  const enrich = opts.enrich ?? false;
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  // The deterministic fallback only knows the story text — it cannot enrich.
+  if (!apiKey) {
+    return {
+      fields: buildFallback(input),
+      model: "fallback",
+      enriched: [],
+      enrichedContact: [],
+      sources: [],
+    };
+  }
+
+  const client = new OpenAI({ apiKey });
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+  // 1) Extract what the STORY states (no knowledge/enrichment here).
+  let result: ExtractResult;
   try {
-    const client = new OpenAI({ apiKey });
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const completion = await client.chat.completions.create({
       model,
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: buildSystemPrompt() },
+        { role: "system", content: buildSystemPrompt(false) },
         { role: "user", content: input },
       ],
     });
     const raw = completion.choices[0]?.message?.content?.trim();
-    if (!raw) return { fields: buildFallback(input), model: "fallback" };
-    const parsed = JSON.parse(raw);
-    return { fields: normalize(parsed), model: completion.model || model };
+    if (!raw) throw new Error("empty completion");
+    const { fields } = normalize(parseLooseJson(raw));
+    result = {
+      fields,
+      enriched: [],
+      enrichedContact: [],
+      sources: [],
+      model: completion.model || model,
+    };
   } catch (err) {
-    console.error("OpenAI contact extraction failed, using fallback:", err);
-    return { fields: buildFallback(input), model: "fallback" };
+    console.error("Story extraction failed, using fallback:", err);
+    return {
+      fields: buildFallback(input),
+      model: "fallback",
+      enriched: [],
+      enrichedContact: [],
+      sources: [],
+    };
   }
+
+  if (!enrich || !result.fields.name?.trim()) return result;
+
+  // 2) Enrich from the live web. Falls back to training knowledge on failure.
+  const searchModel = process.env.OPENAI_SEARCH_MODEL || model;
+  try {
+    const { fields: webFields, email, phone, sources } = await enrichFromWeb(
+      client,
+      result.fields.name,
+      input,
+      searchModel
+    );
+    mergeEnrichment(result, webFields);
+
+    // Only fill contact fields the STORY didn't already provide. Story wins.
+    if (email && !result.fields.email) {
+      result.fields.email = email;
+      result.enrichedContact.push("email");
+    }
+    if (phone && !result.fields.phone) {
+      result.fields.phone = phone;
+      result.enrichedContact.push("phone");
+    }
+
+    result.sources = sources;
+    if (result.enriched.length > 0 || result.enrichedContact.length > 0) {
+      result.model = `${searchModel} + web_search`;
+    }
+    return result;
+  } catch (err) {
+    console.error("Web enrichment failed, falling back to model knowledge:", err);
+  }
+
+  // 3) Knowledge-based fallback (no live data, no citations).
+  try {
+    const completion = await client.chat.completions.create({
+      model,
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: buildSystemPrompt(true) },
+        { role: "user", content: input },
+      ],
+    });
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (raw) {
+      const { fields, enriched } = normalize(parseLooseJson(raw));
+      const knowledgeFields: Record<string, string> = {};
+      for (const k of enriched) {
+        const v = fields.customFields?.[k];
+        if (v) knowledgeFields[k] = v;
+      }
+      mergeEnrichment(result, knowledgeFields);
+    }
+  } catch (err) {
+    console.error("Knowledge enrichment fallback failed:", err);
+  }
+  return result;
+}
+
+// Merge enriched fields into a result's customFields: story facts always win,
+// contact-detail keys are dropped, and merged keys are recorded as enriched.
+function mergeEnrichment(result: ExtractResult, enriched: Record<string, string>) {
+  const custom = { ...(result.fields.customFields ?? {}) };
+  for (const [k, v] of Object.entries(enriched)) {
+    if (isContactKey(k) || k in custom || !v.trim()) continue;
+    custom[k] = v.trim();
+    result.enriched.push(k);
+  }
+  if (Object.keys(custom).length > 0) result.fields.customFields = custom;
 }

@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note, HealthInputs } from "@/lib/types";
-import { formatBirthday } from "@/lib/birthday";
 import { Markdown } from "@/components/Markdown";
+import { formatBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
 import { daysUntilBirthday } from "@/lib/birthday";
@@ -22,24 +22,33 @@ export default function ContactDetailPage({
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/contacts/${id}`);
-    if (res.status === 404) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    const data = await res.json();
-    if (typeof data.healthInputs === "string") {
-      try {
-        data.healthInputs = JSON.parse(data.healthInputs) as HealthInputs;
-      } catch {
-        data.healthInputs = null;
+    try {
+      const res = await fetch(`/api/contacts/${id}`);
+      if (res.status === 404) {
+        setNotFound(true);
+        return;
       }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      // healthInputs is stored as a JSON string; parse it for HealthCard.
+      if (typeof data.healthInputs === "string") {
+        try {
+          data.healthInputs = JSON.parse(data.healthInputs) as HealthInputs;
+        } catch {
+          data.healthInputs = null;
+        }
+      }
+      setContact(data);
+      setLoadError(false);
+    } catch {
+      // network failure or unexpected server error
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    setContact(data);
-    setLoading(false);
   }, [id]);
 
   useEffect(() => {
@@ -47,6 +56,23 @@ export default function ContactDetailPage({
   }, [load]);
 
   if (loading) return <p className="text-sm text-zinc-400">Loading…</p>;
+  if (loadError && !contact)
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-red-600">
+          Couldn&apos;t load this contact — check your connection and try again.
+        </p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            load();
+          }}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+        >
+          Retry
+        </button>
+      </div>
+    );
   if (notFound || !contact)
     return (
       <div>
@@ -113,6 +139,17 @@ export default function ContactDetailPage({
 
 /* ---------------- Details (view + edit) ---------------- */
 
+// Standard contact columns, rendered dynamically like the AI-detected fields.
+const STANDARD_FIELDS: [keyof Contact, string][] = [
+  ["title", "Title"],
+  ["company", "Company"],
+  ["email", "Email"],
+  ["phone", "Phone"],
+  ["location", "Location"],
+  ["tags", "Tags"],
+  ["howWeMet", "How we met"],
+];
+
 function DetailsCard({
   contact,
   onSaved,
@@ -124,39 +161,57 @@ function DetailsCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(contact);
+  // Birthday is edited as a friendly string ("May 14"); the server re-normalizes
+  // it to the canonical stored form on save.
+  const [birthdayInput, setBirthdayInput] = useState(
+    formatBirthday(contact.birthday)
+  );
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => setForm(contact), [contact]);
+  useEffect(() => {
+    setForm(contact);
+    setBirthdayInput(formatBirthday(contact.birthday));
+  }, [contact]);
 
   async function save() {
     setSaving(true);
-    await fetch(`/api/contacts/${contact.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        title: form.title,
-        company: form.company,
-        email: form.email,
-        phone: form.phone,
-        location: form.location,
-        tags: form.tags,
-        howWeMet: form.howWeMet,
-        birthday: form.birthday,
-        customFields: form.customFields,
-      }),
-    });
-    setSaving(false);
-    setEditing(false);
-    onSaved();
-    Swal.fire({
-      title: "Saved!",
-      text: `${form.name} has been updated.`,
-      icon: "success",
-      timer: 1800,
-      showConfirmButton: false,
-      timerProgressBar: true,
-    });
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          title: form.title,
+          company: form.company,
+          email: form.email,
+          phone: form.phone,
+          location: form.location,
+          tags: form.tags,
+          birthday: birthdayInput,
+          howWeMet: form.howWeMet,
+          customFields: form.customFields,
+        }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Couldn't save changes",
+          text: error || "Please check the fields and try again.",
+        });
+        return;
+      }
+      setEditing(false);
+      onSaved();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't save changes",
+        text: "Please check your connection and try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const set = (k: keyof Contact) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -195,6 +250,7 @@ function DetailsCard({
               <button
                 onClick={() => {
                   setForm(contact);
+                  setBirthdayInput(formatBirthday(contact.birthday));
                   setEditing(false);
                 }}
                 className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm"
@@ -223,38 +279,48 @@ function DetailsCard({
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        {(
-          [
-            ["title", "Title"],
-            ["company", "Company"],
-            ["email", "Email"],
-            ["phone", "Phone"],
-            ["location", "Location"],
-            ["tags", "Tags"],
-            ["howWeMet", "How we met"],
-            ["birthday", "Birthday"],
-          ] as [keyof Contact, string][]
-        ).map(([key, label]) => (
-          <div key={key} className={key === "howWeMet" ? "col-span-2" : ""}>
+        {STANDARD_FIELDS
+          // In view mode only show fields the AI/user populated — same as the
+          // AI-detected section. In edit mode show all so they can be filled in.
+          .filter(([key]) => editing || (contact[key] as string)?.trim())
+          .map(([key, label]) => (
+            <div key={key} className={key === "howWeMet" ? "col-span-2" : ""}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                {label}
+              </dt>
+              {editing ? (
+                <input
+                  className="input mt-1 w-full"
+                  value={(form[key] as string) ?? ""}
+                  onChange={set(key)}
+                />
+              ) : (
+                <dd className="text-zinc-700">
+                  {(contact[key] as string) || "—"}
+                </dd>
+              )}
+            </div>
+          ))}
+
+        {(editing || contact.birthday) && (
+          <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-              {label}
+              Birthday
             </dt>
             {editing ? (
               <input
                 className="input mt-1 w-full"
-                value={(form[key] as string) ?? ""}
-                onChange={set(key)}
-                placeholder={key === "birthday" ? "MM-DD or MM-DD-YYYY" : undefined}
+                value={birthdayInput}
+                placeholder="e.g. May 14 or 1990-05-14"
+                onChange={(e) => setBirthdayInput(e.target.value)}
               />
             ) : (
               <dd className="text-zinc-700">
-                {key === "birthday" && (contact[key] as string)
-                  ? formatBirthday(contact[key] as string)
-                  : (contact[key] as string) || "—"}
+                {formatBirthday(contact.birthday) || "—"}
               </dd>
             )}
           </div>
-        ))}
+        )}
       </dl>
 
       {/* AI-detected custom fields */}
@@ -332,17 +398,35 @@ function NotesSection({
   async function addNote() {
     if (!draft.trim()) return;
     setSaving(true);
-    await fetch(`/api/contacts/${contact.id}/notes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: draft,
-        source: listening ? "voice" : "manual",
-      }),
-    });
-    setSaving(false);
-    setDraft("");
-    onChange();
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: draft,
+          source: listening ? "voice" : "manual",
+        }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Couldn't save note",
+          text: error || "Please check your connection and try again.",
+        });
+        return;
+      }
+      setDraft("");
+      onChange();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't save note",
+        text: "Please check your connection and try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -438,13 +522,30 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
   const [text, setText] = useState(note.content);
 
   async function save() {
-    await fetch(`/api/notes/${note.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text }),
-    });
-    setEditing(false);
-    onChange();
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Couldn't update note",
+          text: error || "Please try again.",
+        });
+        return;
+      }
+      setEditing(false);
+      onChange();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't update note",
+        text: "Please check your connection and try again.",
+      });
+    }
   }
   async function remove() {
     const result = await Swal.fire({
@@ -459,8 +560,17 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
       reverseButtons: true,
     });
     if (!result.isConfirmed) return;
-    await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
-    onChange();
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onChange();
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't delete note",
+        text: "Please check your connection and try again.",
+      });
+    }
   }
 
   return (
@@ -562,10 +672,33 @@ function ProfileCard({
       showConfirmButton: false,
       didOpen: () => Swal.showLoading(),
     });
-    await fetch(`/api/contacts/${contact.id}/profile`, { method: "POST" });
-    setGenerating(false);
-    Swal.close();
-    onChange();
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/profile`, {
+        method: "POST",
+      });
+      Swal.close();
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        await Swal.fire({
+          icon: "error",
+          title: "Profile generation failed",
+          text:
+            error ||
+            "The AI service may be unavailable. Please try again in a moment.",
+        });
+        return;
+      }
+      onChange();
+    } catch {
+      Swal.close();
+      await Swal.fire({
+        icon: "error",
+        title: "Profile generation failed",
+        text: "Please check your connection and try again.",
+      });
+    } finally {
+      setGenerating(false);
+    }
   }
 
   return (

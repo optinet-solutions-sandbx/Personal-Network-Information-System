@@ -14,6 +14,9 @@ datasource db {
 
 model Contact {
   id        String   @id @default(cuid())
+  // Supabase auth user id (auth.users.id) of the owner. Nullable so existing
+  // rows stay valid and the app runs in open/shared mode until auth is enabled.
+  userId    String?
   name      String
   email     String?
   phone     String?
@@ -21,8 +24,10 @@ model Contact {
   title     String?
   location  String?
   tags      String? // comma-separated (SQLite has no native arrays)
+  // Birthday in a normalized, year-optional form: "YYYY-MM-DD" when the year is
+  // known, or "--MM-DD" (ISO 8601 / vCard convention) when it isn't.
+  birthday  String?
   howWeMet     String?  // context: where/how the connection was made
-  birthday     String?  // "MM-DD" (no year) or "YYYY-MM-DD" (with year)
   customFields String?  // JSON: AI-detected extra fields {"Interests": "...", "Hobbies": "..."}
 
   // AI-assisted profile
@@ -42,6 +47,7 @@ model Contact {
 
   @@index([name])
   @@index([company])
+  @@index([userId])
 }
 
 model Note {
