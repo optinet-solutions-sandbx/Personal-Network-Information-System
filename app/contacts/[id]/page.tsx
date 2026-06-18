@@ -9,6 +9,8 @@ import { formatBirthday } from "@/lib/birthday";
 import { Markdown } from "@/components/Markdown";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
+import { daysUntilBirthday } from "@/lib/birthday";
+import GiftSuggestions from "./GiftSuggestions";
 
 export default function ContactDetailPage({
   params,
@@ -72,6 +74,8 @@ export default function ContactDetailPage({
     router.push("/");
   }
 
+  const daysUntil = contact.birthday ? daysUntilBirthday(contact.birthday) : null;
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
       <div className="lg:col-span-3">
@@ -95,6 +99,13 @@ export default function ContactDetailPage({
       </div>
       <div className="lg:col-span-2">
         <ProfileCard contact={contact} onChange={load} />
+        {contact.birthday && daysUntil !== null && daysUntil <= 30 && (
+          <GiftSuggestions
+            contactId={contact.id}
+            contactName={contact.name}
+            daysUntil={daysUntil}
+          />
+        )}
       </div>
     </div>
   );
