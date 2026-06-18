@@ -1,5 +1,25 @@
-import { describe, it, expect } from "vitest";
-import { buildFallback, normalize } from "@/lib/extract";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// Mock the OpenAI SDK so extractContact's network paths are deterministic.
+// vi.hoisted lets the mock factory (which is hoisted above imports) reference
+// these spies.
+const { chatCreate, responsesCreate } = vi.hoisted(() => ({
+  chatCreate: vi.fn(),
+  responsesCreate: vi.fn(),
+}));
+vi.mock("openai", () => ({
+  default: class {
+    chat = { completions: { create: chatCreate } };
+    responses = { create: responsesCreate };
+  },
+}));
+
+import {
+  buildFallback,
+  normalize,
+  parseLooseJson,
+  extractContact,
+} from "@/lib/extract";
 
 // ---------------------------------------------------------------------------
 // buildFallback — the keyless, deterministic regex extractor used when no
@@ -181,5 +201,195 @@ describe("normalize", () => {
     });
     expect(fields.customFields).toEqual({ Occupation: "Engineer" });
     expect(enriched).toEqual(["Occupation"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseLooseJson — pulls a JSON object out of model output that may be wrapped
+// in ```json fences or surrounded by prose. Throws only when the braces it
+// finds enclose invalid JSON (callers run it inside try/catch).
+// ---------------------------------------------------------------------------
+describe("parseLooseJson", () => {
+  it("parses plain JSON", () => {
+    expect(parseLooseJson('{"name":"Sarah"}')).toEqual({ name: "Sarah" });
+  });
+
+  it("strips ```json fences", () => {
+    expect(parseLooseJson('```json\n{"a":1}\n```')).toEqual({ a: 1 });
+  });
+
+  it("strips bare ``` fences", () => {
+    expect(parseLooseJson('```\n{"a":1}\n```')).toEqual({ a: 1 });
+  });
+
+  it("extracts the object from surrounding prose", () => {
+    expect(parseLooseJson('Here you go: {"a":1} — hope that helps')).toEqual({
+      a: 1,
+    });
+  });
+
+  it("returns null when there is no JSON object", () => {
+    expect(parseLooseJson("no json here")).toBeNull();
+    expect(parseLooseJson("")).toBeNull();
+  });
+
+  it("throws when the braces enclose malformed JSON", () => {
+    expect(() => parseLooseJson("{ not valid }")).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractContact — orchestration. The OpenAI SDK is mocked, so these tests
+// pin the three-tier behavior: keyless fallback, story extraction, and the
+// web/knowledge enrichment merge. Network failures degrade gracefully.
+// ---------------------------------------------------------------------------
+describe("extractContact", () => {
+  // .env is not loaded under vitest, so these are usually undefined — capture
+  // and restore exactly to avoid leaking state into other tests.
+  const ORIGINAL = {
+    key: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL,
+    search: process.env.OPENAI_SEARCH_MODEL,
+  };
+
+  function setOrDelete(name: string, value: string | undefined) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default the model env vars so the model label is predictable.
+    delete process.env.OPENAI_MODEL;
+    delete process.env.OPENAI_SEARCH_MODEL;
+  });
+
+  afterEach(() => {
+    setOrDelete("OPENAI_API_KEY", ORIGINAL.key);
+    setOrDelete("OPENAI_MODEL", ORIGINAL.model);
+    setOrDelete("OPENAI_SEARCH_MODEL", ORIGINAL.search);
+  });
+
+  it("uses the deterministic fallback when no API key is set", async () => {
+    delete process.env.OPENAI_API_KEY;
+    const res = await extractContact("Reach her at sarah@acme.io");
+    expect(res.model).toBe("fallback");
+    expect(res.fields.email).toBe("sarah@acme.io");
+    expect(res.enriched).toEqual([]);
+    expect(res.enrichedContact).toEqual([]);
+    expect(res.sources).toEqual([]);
+    expect(chatCreate).not.toHaveBeenCalled();
+  });
+
+  it("falls back when the story-extraction call throws", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    chatCreate.mockRejectedValue(new Error("rate limited"));
+    const res = await extractContact("Reach her at sarah@acme.io");
+    expect(chatCreate).toHaveBeenCalledTimes(1);
+    expect(res.model).toBe("fallback");
+    expect(res.fields.email).toBe("sarah@acme.io");
+  });
+
+  it("falls back when the model returns malformed JSON", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    chatCreate.mockResolvedValue({
+      choices: [{ message: { content: "{ not valid json }" } }],
+      model: "gpt-4o-mini",
+    });
+    const res = await extractContact("Reach her at sarah@acme.io");
+    expect(res.model).toBe("fallback");
+    expect(res.fields.email).toBe("sarah@acme.io");
+  });
+
+  it("falls back on an empty completion", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    chatCreate.mockResolvedValue({
+      choices: [{ message: { content: "   " } }],
+      model: "gpt-4o-mini",
+    });
+    const res = await extractContact("Reach her at sarah@acme.io");
+    expect(res.model).toBe("fallback");
+  });
+
+  it("returns normalized story fields on a successful extraction", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    chatCreate.mockResolvedValue({
+      choices: [
+        { message: { content: '{"name":"  Sarah Chen ","title":"PM"}' } },
+      ],
+      model: "gpt-4o-mini",
+    });
+    const res = await extractContact("met sarah");
+    expect(chatCreate).toHaveBeenCalledTimes(1);
+    expect(responsesCreate).not.toHaveBeenCalled();
+    expect(res.fields.name).toBe("Sarah Chen");
+    expect(res.fields.title).toBe("PM");
+    expect(res.model).toBe("gpt-4o-mini");
+    expect(res.enriched).toEqual([]);
+    expect(res.enrichedContact).toEqual([]);
+    expect(res.sources).toEqual([]);
+  });
+
+  it("merges web enrichment facts and official contact email, story winning", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    chatCreate.mockResolvedValue({
+      choices: [
+        { message: { content: JSON.stringify({ name: "Mark Z", company: "Meta" }) } },
+      ],
+      model: "gpt-4o-mini",
+    });
+    responsesCreate.mockResolvedValue({
+      output_text: JSON.stringify({
+        identified: true,
+        email: "press@meta.com",
+        phone: "",
+        fields: [
+          { label: "Known For", value: "Co-founding Facebook" },
+          { label: "Personal Email", value: "leak@gmail.com" }, // contact key → dropped
+        ],
+        sources: [
+          { title: "Wikipedia", url: "https://en.wikipedia.org/wiki/Mark_Zuckerberg" },
+        ],
+      }),
+    });
+    const res = await extractContact("I met Mark Z at a conference", {
+      enrich: true,
+    });
+    expect(res.fields.customFields).toEqual({ "Known For": "Co-founding Facebook" });
+    expect(res.enriched).toEqual(["Known For"]);
+    expect(res.fields.email).toBe("press@meta.com");
+    expect(res.enrichedContact).toEqual(["email"]);
+    expect(res.sources).toEqual([
+      { title: "Wikipedia", url: "https://en.wikipedia.org/wiki/Mark_Zuckerberg" },
+    ]);
+    expect(res.model).toBe("gpt-4o-mini + web_search");
+  });
+
+  it("falls back to knowledge-based enrichment when web search fails", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    chatCreate
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: JSON.stringify({ name: "Ada L" }) } }],
+        model: "gpt-4o-mini",
+      })
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: "Ada L",
+                enrichment: { Occupation: "Mathematician" },
+              }),
+            },
+          },
+        ],
+        model: "gpt-4o-mini",
+      });
+    responsesCreate.mockRejectedValue(new Error("web search down"));
+    const res = await extractContact("I met Ada L", { enrich: true });
+    expect(responsesCreate).toHaveBeenCalledTimes(1);
+    expect(chatCreate).toHaveBeenCalledTimes(2);
+    expect(res.fields.customFields).toEqual({ Occupation: "Mathematician" });
+    expect(res.enriched).toEqual(["Occupation"]);
   });
 });

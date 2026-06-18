@@ -305,7 +305,7 @@ export function buildFallback(text: string): ContactInput {
 }
 
 // Strip ```json fences a model sometimes wraps JSON in, then parse.
-function parseLooseJson(raw: string): unknown {
+export function parseLooseJson(raw: string): unknown {
   const cleaned = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
