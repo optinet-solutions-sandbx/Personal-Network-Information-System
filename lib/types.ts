@@ -1,6 +1,8 @@
 // Client-facing shapes. Dates are serialized to ISO strings over the wire.
 
-export type NoteSource = "manual" | "voice" | "story";
+export type NoteSource = "manual" | "voice" | "story" | "gift";
+
+export type GiftSuggestion = { title: string; rationale: string };
 
 export type Note = {
   id: string;
@@ -9,6 +11,15 @@ export type Note = {
   source: NoteSource;
   createdAt: string;
   updatedAt: string;
+};
+
+export type HealthInputs = {
+  recency: number;
+  frequency: number;
+  richness: number;
+  lastNoteAt: string | null;
+  noteCount90d: number;
+  filledFields: number;
 };
 
 export type Contact = {
@@ -20,11 +31,15 @@ export type Contact = {
   title: string | null;
   location: string | null;
   tags: string | null;
+  birthday: string | null; // "YYYY-MM-DD" or "--MM-DD" (year unknown)
   howWeMet: string | null;
   customFields: Record<string, string> | null;
   profile: string | null;
   profileModel: string | null;
   profileUpdatedAt: string | null;
+  healthScore: number | null;
+  healthTier: string | null;
+  healthInputs: HealthInputs | null;
   createdAt: string;
   updatedAt: string;
   notes?: Note[];
@@ -39,6 +54,7 @@ export type ContactInput = {
   title?: string;
   location?: string;
   tags?: string;
+  birthday?: string;
   howWeMet?: string;
   customFields?: Record<string, string>;
 };

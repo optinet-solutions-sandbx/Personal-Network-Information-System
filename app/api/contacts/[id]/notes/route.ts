@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalculateHealth } from "@/lib/health";
+import { resolveOwner, ownerWhere } from "@/lib/auth";
+import { validateNoteContent } from "@/lib/validation";
 import type { NoteSource } from "@/lib/types";
-import { getWorkspaceContext } from "@/lib/workspace";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(req: NextRequest, { params }: Params) {
-  const ctx = getWorkspaceContext(req);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+// GET /api/contacts/:id/notes
+export async function GET(_req: NextRequest, { params }: Params) {
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
 
   const { id } = await params;
-  // Verify contact belongs to this workspace
-  const contact = await prisma.contact.findUnique({
-    where: { id, workspaceId: ctx.workspaceId },
+  const contact = await prisma.contact.findFirst({
+    where: { id, ...ownerWhere(owner.userId) },
     select: { id: true },
   });
-  if (!contact) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!contact) {
+    return NextResponse.json({ error: "contact not found" }, { status: 404 });
+  }
 
   const notes = await prisma.note.findMany({
     where: { contactId: id },
@@ -24,30 +28,50 @@ export async function GET(req: NextRequest, { params }: Params) {
   return NextResponse.json(notes);
 }
 
+// POST /api/contacts/:id/notes
 export async function POST(req: NextRequest, { params }: Params) {
-  const ctx = getWorkspaceContext(req);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
 
   const { id } = await params;
   const body = await req.json().catch(() => null);
-  if (!body || typeof body.content !== "string" || !body.content.trim()) {
-    return NextResponse.json({ error: "content is required" }, { status: 400 });
+
+  const valid = validateNoteContent(body?.content);
+  if (!valid.ok) {
+    return NextResponse.json({ error: valid.error }, { status: 400 });
   }
 
-  // Verify contact belongs to this workspace before creating a note
-  const contact = await prisma.contact.findUnique({
-    where: { id, workspaceId: ctx.workspaceId },
+  const contact = await prisma.contact.findFirst({
+    where: { id, ...ownerWhere(owner.userId) },
+    select: { id: true },
   });
   if (!contact) {
     return NextResponse.json({ error: "contact not found" }, { status: 404 });
   }
 
   const source: NoteSource =
-    body.source === "voice" ? "voice" : body.source === "story" ? "story" : "manual";
-  const note = await prisma.note.create({
-    data: { contactId: id, content: body.content.trim(), source },
-  });
-  await prisma.contact.update({ where: { id }, data: { updatedAt: new Date() } });
+    body.source === "voice"
+      ? "voice"
+      : body.source === "story"
+      ? "story"
+      : body.source === "gift"
+      ? "gift"
+      : "manual";
 
-  return NextResponse.json(note, { status: 201 });
+  try {
+    const note = await prisma.note.create({
+      data: { contactId: id, content: valid.data, source },
+    });
+    // touch the contact so it sorts to the top of the recently-updated list
+    await prisma.contact.update({ where: { id }, data: { updatedAt: new Date() } });
+    // adding a note is a relationship signal — refresh the health score
+    await recalculateHealth(id);
+    return NextResponse.json(note, { status: 201 });
+  } catch (err) {
+    console.error("POST /api/contacts/[id]/notes failed:", err);
+    return NextResponse.json(
+      { error: "Could not save note. Please try again." },
+      { status: 500 }
+    );
+  }
 }

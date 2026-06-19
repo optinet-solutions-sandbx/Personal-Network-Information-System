@@ -1,27 +1,26 @@
--- Wipe dev data so workspaceId NOT NULL can be added cleanly
-TRUNCATE "Note", "Contact" CASCADE;
+-- Workspaces epic — sub-project 1 (data model only).
+-- ADDITIVE and NON-DESTRUCTIVE: creates the workspace tables and adds a
+-- nullable Contact.workspaceId. No data is wiped and no existing columns
+-- (userId / birthday / health*) are dropped — ownership stays userId-based
+-- until a later sub-project adopts workspace scoping.
+-- IF [NOT] EXISTS guards are intentional given this project's known migration
+-- drift on the shared Supabase DB; they make a manual `migrate deploy` re-runnable.
 
 -- CreateEnum
-CREATE TYPE "WorkspaceType" AS ENUM ('personal', 'team');
+DO $$ BEGIN
+  CREATE TYPE "WorkspaceType" AS ENUM ('personal', 'team');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- CreateEnum
-CREATE TYPE "MemberRole" AS ENUM ('owner', 'admin', 'member');
+DO $$ BEGIN
+  CREATE TYPE "MemberRole" AS ENUM ('owner', 'admin', 'member');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- DropIndex (conditional: only exists on live DB from untracked migrations)
-DROP INDEX IF EXISTS "Contact_userId_idx";
-
--- AlterTable
-ALTER TABLE "Contact" DROP COLUMN IF EXISTS "birthday",
-DROP COLUMN IF EXISTS "followUpCadence",
-DROP COLUMN IF EXISTS "followUpCadenceDays",
-DROP COLUMN IF EXISTS "healthInputs",
-DROP COLUMN IF EXISTS "healthScore",
-DROP COLUMN IF EXISTS "healthTier",
-DROP COLUMN IF EXISTS "userId",
-ADD COLUMN     "workspaceId" TEXT NOT NULL;
+-- AlterTable (additive, nullable — existing rows stay valid)
+ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "workspaceId" TEXT;
 
 -- CreateTable
-CREATE TABLE "User" (
+CREATE TABLE IF NOT EXISTS "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT,
@@ -32,7 +31,7 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
-CREATE TABLE "Workspace" (
+CREATE TABLE IF NOT EXISTS "Workspace" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" "WorkspaceType" NOT NULL DEFAULT 'personal',
@@ -43,7 +42,7 @@ CREATE TABLE "Workspace" (
 );
 
 -- CreateTable
-CREATE TABLE "WorkspaceMember" (
+CREATE TABLE IF NOT EXISTS "WorkspaceMember" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL,
@@ -54,16 +53,16 @@ CREATE TABLE "WorkspaceMember" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");
 
 -- CreateIndex
-CREATE INDEX "WorkspaceMember_userId_idx" ON "WorkspaceMember"("userId");
+CREATE INDEX IF NOT EXISTS "WorkspaceMember_userId_idx" ON "WorkspaceMember"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkspaceMember_userId_workspaceId_key" ON "WorkspaceMember"("userId", "workspaceId");
+CREATE UNIQUE INDEX IF NOT EXISTS "WorkspaceMember_userId_workspaceId_key" ON "WorkspaceMember"("userId", "workspaceId");
 
 -- CreateIndex
-CREATE INDEX "Contact_workspaceId_idx" ON "Contact"("workspaceId");
+CREATE INDEX IF NOT EXISTS "Contact_workspaceId_idx" ON "Contact"("workspaceId");
 
 -- AddForeignKey
 ALTER TABLE "WorkspaceMember" ADD CONSTRAINT "WorkspaceMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

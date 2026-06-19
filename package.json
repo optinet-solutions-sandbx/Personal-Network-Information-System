@@ -4,9 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:lowmem": "node --max-old-space-size=4096 node_modules/next/dist/bin/next dev",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "dev:clean": "npm run clean && next dev",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "deploy": "vercel deploy --prod --yes",
     "deploy:preview": "vercel deploy --yes",
     "db:migrate": "prisma migrate dev",
@@ -22,7 +27,8 @@
     "next": "16.2.9",
     "openai": "^6.42.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "sweetalert2": "^11.26.25"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -31,6 +37,7 @@
     "@types/react-dom": "^19",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }

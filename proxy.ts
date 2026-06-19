@@ -1,71 +1,55 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { resolveOrCreateWorkspace } from "@/lib/workspace";
 
-export async function proxy(request: NextRequest) {
-  // Build a mutable response so Supabase can refresh session cookies
-  let supabaseResponse = NextResponse.next({ request });
+// Next.js 16 renamed `middleware` → `proxy`. This runs on every matched route
+// to (a) refresh the Supabase auth session cookie and (b) redirect
+// unauthenticated users to /login. When the Supabase env vars are not set the
+// app runs in open mode and this is a no-op.
+export default async function proxy(req: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) return NextResponse.next();
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
+  let res = NextResponse.next({ request: req });
+
+  const supabase = createServerClient(url, anon, {
+    cookies: {
+      getAll() {
+        return req.cookies.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+        res = NextResponse.next({ request: req });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          res.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
 
+  // IMPORTANT: getUser() refreshes the session; don't run logic between this
+  // and the response, per Supabase SSR guidance.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  const path = req.nextUrl.pathname;
+  const isApi = path.startsWith("/api");
+  const isPublic = path === "/login" || path.startsWith("/auth");
+
+  // API routes enforce auth themselves (returning 401), so don't redirect them.
+  if (!user && !isApi && !isPublic) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+  // Signed-in users shouldn't see the login page.
+  if (user && path === "/login") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  const name = (user.user_metadata?.name as string | undefined) ??
-    (user.user_metadata?.full_name as string | undefined);
-
-  const { workspaceId } = await resolveOrCreateWorkspace(
-    user.id,
-    user.email!,
-    name
-  );
-
-  // Forward user context to route handlers via request headers,
-  // while preserving any session cookies Supabase refreshed above.
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-user-id", user.id);
-  requestHeaders.set("x-workspace-id", workspaceId);
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
-
-  // Copy any cookie refreshes from Supabase to the final response
-  supabaseResponse.cookies.getAll().forEach((cookie) => {
-    response.cookies.set(cookie.name, cookie.value, cookie);
-  });
-
-  return response;
+  return res;
 }
 
 export const config = {
-  matcher: [
-    // Run proxy on all routes except: login, signup, Next.js internals, static files
-    "/((?!login|signup|_next/static|_next/image|favicon|apple-icon|icon).*)",
-  ],
+  // Run on everything except static assets and image optimization.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|ico|svg|jpg|jpeg|webp)$).*)"],
 };

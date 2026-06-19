@@ -1,3 +1,7 @@
+// Networky.ai (PNIS) — Phase 1 schema.
+// Supabase Postgres (migrated from initial local SQLite on 2026-06-15).
+// Pooler split: DATABASE_URL (transaction/6543) + DIRECT_URL (session/5432, migrations).
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +11,72 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
+model Contact {
+  id           String  @id @default(cuid())
+  // Supabase auth user id (auth.users.id) of the owner. Nullable so existing
+  // rows stay valid and the app runs in open/shared mode until auth is enabled.
+  userId       String?
+  // Workspace this contact belongs to. Nullable + additive for now: ownership is
+  // still enforced via userId (see lib/auth.ts). Workspaces (User/Workspace/
+  // WorkspaceMember below) are landed as data-model groundwork for the upcoming
+  // workspaces epic; routes will adopt workspace scoping in a later sub-project.
+  workspaceId  String?
+  name         String
+  email        String?
+  phone        String?
+  company      String?
+  title        String?
+  location     String?
+  tags         String? // comma-separated (kept as scalar string from the original SQLite scaffold)
+  // Birthday in a normalized, year-optional form: "YYYY-MM-DD" when the year is
+  // known, or "--MM-DD" (ISO 8601 / vCard convention) when it isn't.
+  birthday     String?
+  howWeMet     String? // context: where/how the connection was made
+  customFields String? // JSON: AI-detected extra fields {"Interests": "...", "Hobbies": "..."}
+
+  // AI-assisted profile
+  profile          String?
+  profileModel     String?
+  profileUpdatedAt DateTime?
+
+  // Relationship health score
+  healthScore  Int?
+  healthTier   String?
+  healthInputs String?
+
+  notes     Note[]
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([company])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model Note {
+  id        String  @id @default(cuid())
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  content String
+  source  String @default("manual") // "manual" | "voice" | "story"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contactId])
+}
+
+// ---------------------------------------------------------------------------
+// Workspaces epic — sub-project 1 (data model only).
+// Landed additively: these tables exist and are ready, but no route enforces
+// workspace scoping yet (ownership remains userId-based via lib/auth.ts).
+// lib/workspace.ts holds the resolve-or-create helper for the next sub-project.
+// ---------------------------------------------------------------------------
 
 model User {
   id        String   @id // = Supabase auth.users UUID
@@ -52,46 +122,4 @@ enum MemberRole {
   owner
   admin
   member
-}
-
-model Contact {
-  id          String    @id @default(cuid())
-  workspaceId String
-  name        String
-  email       String?
-  phone       String?
-  company     String?
-  title       String?
-  location    String?
-  tags        String?
-  howWeMet    String?
-  customFields String?
-
-  profile          String?
-  profileModel     String?
-  profileUpdatedAt DateTime?
-
-  notes Note[]
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([workspaceId])
-  @@index([name])
-  @@index([company])
-}
-
-model Note {
-  id        String  @id @default(cuid())
-  contactId String
-  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
-
-  content String
-  source  String @default("manual")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([contactId])
 }

@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getWorkspaceContext } from "@/lib/workspace";
+import { resolveOwner, ownerWhere } from "@/lib/auth";
 
+// GET /api/contacts/check?name=...&email=...
+// Returns existing contacts that look like duplicates of the one about to be
+// saved — a case-insensitive exact match on name OR email, scoped to the owner.
+// Does NOT persist anything; the client uses this to prompt "merge or save
+// anyway" before POST.
 export async function GET(req: NextRequest) {
-  const ctx = getWorkspaceContext(req);
-  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const owner = await resolveOwner();
+  if (!owner.ok) return owner.response;
 
   const name = req.nextUrl.searchParams.get("name")?.trim();
   const email = req.nextUrl.searchParams.get("email")?.trim();
@@ -13,10 +18,11 @@ export async function GET(req: NextRequest) {
   if (name) or.push({ name: { equals: name, mode: "insensitive" } });
   if (email) or.push({ email: { equals: email, mode: "insensitive" } });
 
+  // Nothing to match on → no duplicates.
   if (or.length === 0) return NextResponse.json([]);
 
   const matches = await prisma.contact.findMany({
-    where: { workspaceId: ctx.workspaceId, OR: or },
+    where: { ...ownerWhere(owner.userId), OR: or },
     orderBy: { updatedAt: "desc" },
     include: { _count: { select: { notes: true } } },
     take: 5,
