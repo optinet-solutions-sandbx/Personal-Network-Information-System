@@ -78,7 +78,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     data: { profile, profileModel: model, profileUpdatedAt: new Date() },
   });
 
-  await recalculateHealth(id);
+  recalculateHealth(id).catch(() => {});
 
   return NextResponse.json({ ...updated, notesTruncated, droppedNotes });
 }

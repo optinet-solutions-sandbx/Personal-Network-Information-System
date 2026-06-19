@@ -6,9 +6,10 @@ import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
-import { formatBirthday } from "@/lib/birthdays";
+import { formatBirthday, normalizeBirthday, daysUntilBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
+import GiftSuggestions from "./GiftSuggestions";
 
 export default function ContactDetailPage({
   params,
@@ -113,6 +114,8 @@ export default function ContactDetailPage({
     router.push("/contacts");
   }
 
+  const daysUntil = contact.birthday ? daysUntilBirthday(contact.birthday) : null;
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
       <div className="lg:col-span-3">
@@ -136,6 +139,13 @@ export default function ContactDetailPage({
       </div>
       <div className="lg:col-span-2">
         <ProfileCard contact={contact} onChange={load} />
+        {contact.birthday && daysUntil !== null && daysUntil <= 30 && (
+          <GiftSuggestions
+            contactId={contact.id}
+            contactName={contact.name}
+            daysUntil={daysUntil}
+          />
+        )}
       </div>
     </div>
   );
@@ -323,8 +333,12 @@ function DetailsCard({
               <input
                 className="input mt-1 w-full"
                 value={birthdayInput}
-                placeholder="e.g. May 14 or 1990-05-14"
+                placeholder="e.g. May 14 or March 15, 1990"
                 onChange={(e) => setBirthdayInput(e.target.value)}
+                onBlur={() => {
+                  const normalized = normalizeBirthday(birthdayInput);
+                  if (normalized) setBirthdayInput(formatBirthday(normalized));
+                }}
               />
             ) : (
               <dd className="text-zinc-700">
