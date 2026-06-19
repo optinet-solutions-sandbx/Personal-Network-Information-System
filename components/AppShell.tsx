@@ -23,7 +23,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <header className="border-b border-zinc-200 bg-white">
         <div className="flex items-center justify-between px-6 py-3">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
               N
             </span>
@@ -34,7 +34,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <HeaderActions />
             <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500">
-              Phase 1 · MVP
+              Phase 2 · Intelligence
             </span>
             {authEnabled && <UserMenu />}
           </div>

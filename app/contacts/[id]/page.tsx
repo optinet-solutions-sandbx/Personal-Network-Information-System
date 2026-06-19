@@ -77,7 +77,7 @@ export default function ContactDetailPage({
     return (
       <div>
         <p className="text-sm text-zinc-500">Contact not found.</p>
-        <Link href="/" className="text-sm text-indigo-600">
+        <Link href="/contacts" className="text-sm text-indigo-600">
           ← Back to contacts
         </Link>
       </div>
@@ -86,18 +86,33 @@ export default function ContactDetailPage({
   async function handleDelete() {
     const result = await Swal.fire({
       title: "Delete Contact?",
-      html: `<p style="font-size:0.875rem;color:#6b7280">Are you sure you want to delete <strong>${contact!.name}</strong>? This cannot be undone.</p>`,
+      html: `<p style="font-size:0.875rem;color:#6b7280">This will permanently delete <strong>${contact!.name}</strong>. This cannot be undone.<br/><br/>Type <strong>delete</strong> below to confirm.</p>`,
       icon: "warning",
+      input: "text",
+      inputPlaceholder: "Type delete to confirm",
+      inputAttributes: {
+        autocapitalize: "off",
+        autocorrect: "off",
+        autocomplete: "off",
+      },
       showCancelButton: true,
       confirmButtonText: "Delete",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#6b7280",
       reverseButtons: true,
+      preConfirm: (value: string) => {
+        const v = (value ?? "").trim().toLowerCase();
+        if (v !== "delete" && v !== "confirm") {
+          Swal.showValidationMessage('Please type "delete" to confirm.');
+          return false;
+        }
+        return true;
+      },
     });
     if (!result.isConfirmed) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
-    router.push("/");
+    router.push("/contacts");
   }
 
   const daysUntil = contact.birthday ? daysUntilBirthday(contact.birthday) : null;
@@ -105,7 +120,7 @@ export default function ContactDetailPage({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
       <div className="lg:col-span-3">
-        <Link href="/" className="text-sm text-indigo-600">
+        <Link href="/contacts" className="text-sm text-indigo-600">
           ← Back to contacts
         </Link>
         <DetailsCard contact={contact} onSaved={load} onDelete={handleDelete} />
@@ -203,6 +218,14 @@ function DetailsCard({
       }
       setEditing(false);
       onSaved();
+      Swal.fire({
+        title: "Saved!",
+        text: `${form.name} has been updated.`,
+        icon: "success",
+        timer: 1800,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
     } catch {
       await Swal.fire({
         icon: "error",
@@ -685,8 +708,11 @@ function ProfileCard({
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: "" }));
         await Swal.fire({
-          icon: "error",
-          title: "Profile generation failed",
+          icon: res.status === 429 ? "warning" : "error",
+          title:
+            res.status === 429
+              ? "Slow down a moment"
+              : "Profile generation failed",
           text:
             error ||
             "The AI service may be unavailable. Please try again in a moment.",

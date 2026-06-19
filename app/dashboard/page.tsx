@@ -126,10 +126,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Contacts" value={stats.totalContacts} />
-        <StatCard label="Notes" value={stats.totalNotes} />
-        <StatCard label="Companies" value={stats.companies} />
-        <StatCard label="AI Profiles" value={stats.withProfile} />
+        <StatCard label="Contacts" value={stats.totalContacts} href="/" />
+        <StatCard label="Notes" value={stats.totalNotes} href="/notes" />
+        <StatCard label="Companies" value={stats.companies} href="/companies" />
+        <StatCard label="AI Profiles" value={stats.withProfile} href="/profiles" />
       </div>
 
       {/* Birthdays */}
@@ -188,7 +188,7 @@ export default function DashboardPage() {
           {recent.length === 0 ? (
             <p className="text-sm text-zinc-400">
               No contacts yet.{" "}
-              <Link href="/" className="text-indigo-600 hover:underline">
+              <Link href="/contacts" className="text-indigo-600 hover:underline">
                 Add your first one →
               </Link>
             </p>
@@ -233,16 +233,18 @@ export default function DashboardPage() {
             {stats.topCompanies.length === 0 ? (
               <p className="text-sm text-zinc-400">No companies yet.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-1">
                 {stats.topCompanies.map(([company, count]) => (
-                  <li
-                    key={company}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span className="truncate text-zinc-700">{company}</span>
-                    <span className="ml-3 flex-shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
-                      {count}
-                    </span>
+                  <li key={company}>
+                    <Link
+                      href={`/contacts?q=${encodeURIComponent(company)}`}
+                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-zinc-50"
+                    >
+                      <span className="truncate text-zinc-700">{company}</span>
+                      <span className="ml-3 flex-shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
+                        {count}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -256,12 +258,13 @@ export default function DashboardPage() {
             ) : (
               <div className="flex flex-wrap gap-2">
                 {stats.topTags.map(([tag, count]) => (
-                  <span
+                  <Link
                     key={tag}
-                    className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600"
+                    href={`/contacts?q=${encodeURIComponent(tag)}`}
+                    className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
                   >
                     {tag} · {count}
-                  </span>
+                  </Link>
                 ))}
               </div>
             )}
@@ -297,15 +300,26 @@ function BirthdayBadge({ daysUntil }: { daysUntil: number }) {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: number;
+  href: string;
+}) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5">
+    <Link
+      href={href}
+      className="block rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:border-zinc-300 hover:shadow-sm"
+    >
       <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
         {label}
       </p>
       <p className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900">
         {value}
       </p>
-    </div>
+    </Link>
   );
 }

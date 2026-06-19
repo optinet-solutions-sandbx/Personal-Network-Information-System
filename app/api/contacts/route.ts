@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
 
   const params = req.nextUrl.searchParams;
   const q = params.get("q")?.trim();
+  // Restrict to contacts that have an AI-generated profile.
+  const hasProfile = params.get("hasProfile") === "true";
 
   const limitRaw = params.get("limit");
   const limit =
@@ -40,9 +42,17 @@ export async function GET(req: NextRequest) {
       ? Math.min(Math.max(parseInt(limitRaw, 10) || 0, 1), MAX_LIMIT)
       : null;
   const offset = Math.max(parseInt(params.get("offset") ?? "0", 10) || 0, 0);
+  // Default ordering is most-recently-updated first (used by the dashboard's
+  // "recent" section). `sort=name` switches to alphabetical, which the contacts
+  // list uses so its A–Z grouping stays correct across paginated "Load more".
+  const orderBy: Prisma.ContactOrderByWithRelationInput =
+    params.get("sort") === "name"
+      ? { name: "asc" }
+      : { updatedAt: "desc" };
 
   const where: Prisma.ContactWhereInput = {
     ...ownerWhere(owner.userId),
+    ...(hasProfile ? { profile: { not: null } } : {}),
     ...(q
       ? {
           OR: [
@@ -59,7 +69,7 @@ export async function GET(req: NextRequest) {
 
   const findArgs: Prisma.ContactFindManyArgs = {
     where,
-    orderBy: { updatedAt: "desc" },
+    orderBy,
     include: { _count: { select: { notes: true } } },
   };
   if (limit != null) {
