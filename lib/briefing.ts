@@ -144,7 +144,7 @@ export async function generateBriefing(
 
   try {
     const client = new OpenAI({ apiKey });
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.4,
@@ -155,7 +155,7 @@ export async function generateBriefing(
     });
     const text = completion.choices[0]?.message?.content?.trim();
     if (!text) return { briefing: buildFallback(input), model: "fallback" };
-    return { briefing: text, model: completion.model || model };
+    return { briefing: text, model: completion.model ?? model };
   } catch (err) {
     console.error("OpenAI briefing generation failed, using fallback:", err);
     return { briefing: buildFallback(input), model: "fallback" };
