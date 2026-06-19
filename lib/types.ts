@@ -40,13 +40,15 @@ export type Contact = {
   healthScore: number | null;
   healthTier: string | null;
   healthInputs: HealthInputs | null;
+  followUpCadence: string | null;
+  followUpCadenceDays: number | null;
   createdAt: string;
   updatedAt: string;
   notes?: Note[];
   _count?: { notes: number };
 };
 
-export type InsightType = "birthday" | "follow_up" | "introduction" | "enrichment"
+export type InsightType = "birthday" | "follow_up" | "introduction" | "enrichment" | "cadence_due"
 export type InsightPriority = 1 | 2 | 3
 
 export type InsightItem = {
@@ -59,7 +61,22 @@ export type InsightItem = {
   message: string
   actionUrl: string
   daysUntil?: number
+  draftable?: boolean
 }
+
+export type Suggestion = {
+  id: string;
+  userId: string | null;
+  contactAId: string;
+  contactBId: string;
+  contactA: { id: string; name: string; title: string | null; company: string | null };
+  contactB: { id: string; name: string; title: string | null; company: string | null };
+  rationale: string;
+  score: number;
+  status: "pending" | "accepted" | "dismissed";
+  generatedAt: string;
+  respondedAt: string | null;
+};
 
 export type ContactInput = {
   name: string;
