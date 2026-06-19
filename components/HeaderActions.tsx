@@ -15,6 +15,35 @@ function avatarColor(name: string): string {
 }
 
 const MS_PER_DAY = 86_400_000;
+// How far ahead of a birthday we start nudging to plan a gift.
+const GIFT_LEAD_DAYS = 14;
+
+// Per-day record of which toasts have been seen, so a full reload doesn't
+// re-pop the same alert. Keyed `${notifKey}|${YYYY-MM-DD}` and pruned to today.
+const TOAST_STORE_KEY = "networky:seenToasts";
+
+function readSeenToasts(today: string): Set<string> {
+  try {
+    const arr = JSON.parse(
+      localStorage.getItem(TOAST_STORE_KEY) || "[]"
+    ) as string[];
+    return new Set(arr.filter((k) => k.endsWith(`|${today}`)));
+  } catch {
+    return new Set();
+  }
+}
+
+function markToastsSeen(notifKeys: string[]) {
+  if (notifKeys.length === 0) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const seen = readSeenToasts(today);
+  notifKeys.forEach((k) => seen.add(`${k}|${today}`));
+  try {
+    localStorage.setItem(TOAST_STORE_KEY, JSON.stringify([...seen]));
+  } catch {
+    /* storage unavailable/quota — non-fatal */
+  }
+}
 
 type Notification = {
   key: string;
@@ -40,6 +69,7 @@ type Suggestion = {
 export default function HeaderActions() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [open, setOpen] = useState<"messages" | "bell" | null>(null);
+  const [toasts, setToasts] = useState<Notification[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,7 +107,7 @@ export default function HeaderActions() {
 
     const notes: Notification[] = [];
 
-    // Birthdays — today first, then upcoming within a week.
+    // Birthdays — today is a greeting prompt; the lead-up is a gift reminder.
     for (const b of birthdays) {
       if (b.daysUntil === 0) {
         notes.push({
@@ -86,24 +116,24 @@ export default function HeaderActions() {
           title: `🎂 ${b.contact.name}'s birthday is today`,
           detail:
             b.turningAge != null
-              ? `Turning ${b.turningAge} — send a message`
-              : "Send a birthday message",
+              ? `Turning ${b.turningAge} — send your wishes`
+              : "Send your birthday wishes",
           href: `/contacts/${b.contact.id}`,
           accent: "bg-indigo-500",
         });
-      } else if (b.daysUntil <= 7) {
+      } else if (b.daysUntil <= GIFT_LEAD_DAYS) {
+        const when =
+          b.daysUntil === 1 ? "tomorrow" : `in ${b.daysUntil} days`;
         notes.push({
-          key: `bday-${b.contact.id}`,
+          key: `gift-${b.contact.id}`,
           contact: b.contact,
-          title: `${b.contact.name}'s birthday ${
-            b.daysUntil === 1 ? "is tomorrow" : `in ${b.daysUntil} days`
-          }`,
-          detail: b.next.toLocaleDateString(undefined, {
+          title: `🎁 Plan a gift for ${b.contact.name}`,
+          detail: `Birthday ${when} · ${b.next.toLocaleDateString(undefined, {
             month: "long",
             day: "numeric",
-          }),
+          })}`,
           href: `/contacts/${b.contact.id}`,
-          accent: "bg-amber-500",
+          accent: "bg-pink-500",
         });
       }
     }
@@ -160,12 +190,41 @@ export default function HeaderActions() {
     return { notifications: notes, suggestions: suggestionList };
   }, [contacts]);
 
-  // Badge counts only the time-sensitive items (today's birthdays + new connections).
-  const unreadCount = notifications.filter(
-    (n) => n.accent !== "bg-amber-500"
-  ).length;
+  // Every surfaced item is time-sensitive (today's birthdays, gift lead-ups,
+  // new connections), so the badge counts them all.
+  const unreadCount = notifications.length;
+
+  // Facebook-style toasts: pop today's actionable items in the corner. We only
+  // *show* here (no persistence), so React StrictMode's double-invoke can't
+  // suppress them; items are marked seen on dismiss instead.
+  useEffect(() => {
+    if (notifications.length === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const seen = readSeenToasts(today);
+    const fresh = notifications.filter(
+      (n) => !seen.has(`${n.key}|${today}`)
+    );
+    if (fresh.length > 0) setToasts(fresh.slice(0, 3));
+  }, [notifications]);
+
+  // Auto-dismiss whatever is showing after a few seconds, marking it seen so a
+  // reload won't re-pop it.
+  useEffect(() => {
+    if (toasts.length === 0) return;
+    const t = setTimeout(() => {
+      markToastsSeen(toasts.map((x) => x.key));
+      setToasts([]);
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [toasts]);
+
+  function dismissToast(key: string) {
+    markToastsSeen([key]);
+    setToasts((prev) => prev.filter((t) => t.key !== key));
+  }
 
   return (
+    <>
     <div ref={rootRef} className="flex items-center gap-1">
       {/* Messages */}
       <div className="relative">
@@ -241,6 +300,51 @@ export default function HeaderActions() {
         )}
       </div>
     </div>
+
+    {/* Facebook-style toast stack, bottom-left */}
+    {toasts.length > 0 && (
+      <div className="pointer-events-none fixed bottom-5 left-5 z-[60] flex w-80 max-w-[calc(100vw-2.5rem)] flex-col gap-2">
+        {toasts.map((n) => (
+          <div
+            key={n.key}
+            className="fb-toast-enter pointer-events-auto overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg"
+          >
+            <div className="flex items-start gap-3 p-3">
+              <span
+                className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${avatarColor(
+                  n.contact.name ?? ""
+                )}`}
+              >
+                {(n.contact.name?.[0] ?? "?").toUpperCase()}
+              </span>
+              <Link
+                href={n.href}
+                onClick={() => dismissToast(n.key)}
+                className="min-w-0 flex-1"
+              >
+                <span className="block text-sm font-medium text-zinc-800">
+                  {n.title}
+                </span>
+                <span className="block truncate text-xs text-zinc-500">
+                  {n.detail}
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => dismissToast(n.key)}
+                aria-label="Dismiss"
+                className="flex-shrink-0 text-zinc-400 transition-colors hover:text-zinc-600"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+    </>
   );
 }
 
