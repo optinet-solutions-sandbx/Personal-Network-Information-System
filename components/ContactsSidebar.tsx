@@ -27,15 +27,17 @@ export default function ContactsSidebar() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
 
-  // Don't render sidebar on auth pages
-  if (pathname === "/login" || pathname === "/signup") return null;
+  const isAuthPage = pathname === "/login" || pathname === "/signup";
 
   useEffect(() => {
+    if (isAuthPage) return;
     fetch("/api/contacts")
       .then((r) => r.json())
       .then((data: Contact[]) => setContacts(data))
       .catch(() => {});
-  }, [pathname]);
+  }, [pathname, isAuthPage]);
+
+  if (isAuthPage) return null;
 
   const filtered = query.trim()
     ? contacts.filter((c) =>
