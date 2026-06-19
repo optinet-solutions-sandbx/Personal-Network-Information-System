@@ -34,7 +34,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <HeaderActions />
             <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500">
-              Phase 1 · MVP
+              Phase 2 · Intelligence
             </span>
             {authEnabled && <UserMenu />}
           </div>
