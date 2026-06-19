@@ -111,17 +111,17 @@ function ContactCard({ c }: { c: Contact }) {
   return (
     <Link
       href={`/contacts/${c.id}`}
-      className="block rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-sm"
+      className="block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 transition-shadow hover:shadow-sm"
     >
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-semibold">{c.name}</p>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
           </p>
         </div>
         {c.profile && (
-          <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+          <span className="shrink-0 rounded-full bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400">
             AI profile
           </span>
         )}
@@ -134,24 +134,24 @@ function ContactCard({ c }: { c: Contact }) {
           .map((t) => (
             <span
               key={t}
-              className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+              className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300"
             >
               {t}
             </span>
           ))}
         {c._count && (
-          <span className="ml-auto text-xs text-zinc-400">
+          <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500">
             {c._count.notes} note{c._count.notes === 1 ? "" : "s"}
           </span>
         )}
       </div>
       {c.healthScore != null && c.healthTier && (
-        <span className="flex items-center gap-1 text-xs text-gray-500">
+        <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-zinc-400">
           <span
             className={`inline-block h-2 w-2 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`}
           />
           <span className="font-medium">{c.healthTier}</span>
-          <span className="text-gray-400">({c.healthScore})</span>
+          <span className="text-gray-400 dark:text-zinc-500">({c.healthScore})</span>
         </span>
       )}
     </Link>
@@ -635,14 +635,14 @@ export default function HomePage() {
     <div>
       <Link
         href="/dashboard"
-        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition-colors hover:text-indigo-600"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:text-indigo-600"
       >
         <span aria-hidden>←</span> Back to dashboard
       </Link>
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Your professional network, enriched with AI.
           </p>
         </div>
@@ -658,14 +658,14 @@ export default function HomePage() {
       </div>
 
       {showForm && (
-        <div className="mb-6 space-y-4 rounded-xl border border-indigo-200 bg-indigo-50/50 p-5">
-          <h2 className="text-sm font-semibold text-indigo-900">
+        <div className="mb-6 space-y-4 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/30 p-5">
+          <h2 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
             ✨ Add contact
           </h2>
 
           {/* Claude-style composer: photo thumbnails + textarea, with a toolbar
               (attach menu, mic, send) docked along the bottom edge. */}
-          <div className="rounded-2xl border border-zinc-300 bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
+          <div className="rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 p-3 pb-0">
                 {attachments.map((a, i) => (
@@ -674,7 +674,7 @@ export default function HomePage() {
                     <img
                       src={a.url}
                       alt={a.name}
-                      className="h-16 w-16 rounded-lg border border-zinc-200 object-cover"
+                      className="h-16 w-16 rounded-lg border border-zinc-200 dark:border-zinc-800 object-cover"
                     />
                     <button
                       type="button"
@@ -721,7 +721,7 @@ export default function HomePage() {
                 onChange={(e) => setStory(e.target.value)}
                 placeholder="Tell me about this person — how you met, what they do, where they work…"
                 rows={3}
-                className="block w-full resize-none border-0 bg-transparent px-4 pt-3 text-sm text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-0"
+                className="block w-full resize-none border-0 bg-transparent px-4 pt-3 text-sm text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-0"
               />
             )}
 
@@ -733,12 +733,12 @@ export default function HomePage() {
                   onClick={() => setMenuOpen((o) => !o)}
                   disabled={extracting}
                   title="Add photos & files"
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 text-xl leading-none text-zinc-500 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 dark:border-zinc-700 text-xl leading-none text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
                 >
                   +
                 </button>
                 {menuOpen && (
-                  <div className="absolute bottom-10 left-0 z-10 w-52 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
+                  <div className="absolute bottom-10 left-0 z-10 w-52 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-1 shadow-lg">
                     <button
                       type="button"
                       onClick={() => {
@@ -746,7 +746,7 @@ export default function HomePage() {
                         fileInputRef.current?.click();
                       }}
                       disabled={attachments.length >= MAX_ATTACHMENTS}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
                     >
                       <span aria-hidden>📎</span> Add photos &amp; files
                     </button>
@@ -754,7 +754,7 @@ export default function HomePage() {
                       type="button"
                       onClick={openCamera}
                       disabled={attachments.length >= MAX_ATTACHMENTS}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40"
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
                     >
                       <span aria-hidden>📷</span> Take photo
                     </button>
@@ -774,7 +774,7 @@ export default function HomePage() {
                 className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors ${
                   listening
                     ? "bg-red-600 text-white"
-                    : "text-zinc-500 hover:bg-zinc-100 disabled:opacity-40"
+                    : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-40"
                 }`}
               >
                 {listening ? "● Listening… stop" : "🎤"}
@@ -785,7 +785,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
+                    className="rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
                   >
                     Clear
                   </button>
@@ -826,7 +826,7 @@ export default function HomePage() {
             />
           </div>
 
-          <label className="flex items-start gap-2 text-xs text-zinc-600">
+          <label className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-300">
             <input
               type="checkbox"
               checked={enrich}
@@ -834,10 +834,10 @@ export default function HomePage() {
               className="mt-0.5 accent-indigo-600"
             />
             <span>
-              <span className="font-medium text-zinc-700">
+              <span className="font-medium text-zinc-700 dark:text-zinc-200">
                 🌐 Enrich from the web
               </span>
-              <span className="block text-zinc-400">
+              <span className="block text-zinc-400 dark:text-zinc-500">
                 Searches the public web for this person (works for anyone with a
                 public footprint) and adds cited details — role, bio, interests.
                 May be outdated; verify before trusting. Never collects private
@@ -847,7 +847,7 @@ export default function HomePage() {
           </label>
 
           {extractError && (
-            <p className="text-xs text-red-600">{extractError}</p>
+            <p className="text-xs text-red-600 dark:text-red-400">{extractError}</p>
           )}
 
           {extracted && (
@@ -881,7 +881,7 @@ export default function HomePage() {
           placeholder="Search by name, company, title, tag…"
           className="input w-full"
         />
-        <div className="flex shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 text-sm">
+        <div className="flex shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 p-0.5 text-sm">
           {(
             [
               ["name", "A–Z"],
@@ -895,8 +895,8 @@ export default function HomePage() {
               aria-pressed={sort === mode}
               className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
                 sort === mode
-                  ? "bg-white text-indigo-700 shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-700"
+                  ? "bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-300 shadow-sm"
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700"
               }`}
             >
               {label}
@@ -906,21 +906,21 @@ export default function HomePage() {
       </div>
 
       {loading ? (
-        <p className="py-12 text-center text-sm text-zinc-400">Loading…</p>
+        <p className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>
       ) : loadError && contacts.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-red-600 dark:text-red-400">
             Couldn&apos;t load contacts — check your connection.
           </p>
           <button
             onClick={() => load(query)}
-            className="mt-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+            className="mt-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
           >
             Retry
           </button>
         </div>
       ) : contacts.length === 0 ? (
-        <p className="py-12 text-center text-sm text-zinc-400">
+        <p className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
           {query
             ? "No contacts match your search."
             : "No contacts yet. Add your first one above."}
@@ -929,7 +929,7 @@ export default function HomePage() {
         <div className="space-y-6">
           {groupByInitial(contacts).map((group) => (
             <section key={group.letter}>
-              <h2 className="mb-2 border-b border-zinc-100 pb-1 text-sm font-semibold text-zinc-400">
+              <h2 className="mb-2 border-b border-zinc-100 dark:border-zinc-800 pb-1 text-sm font-semibold text-zinc-400 dark:text-zinc-500">
                 {group.letter}
               </h2>
               <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -957,7 +957,7 @@ export default function HomePage() {
           <button
             onClick={loadMore}
             disabled={loadingMore}
-            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
           >
             {loadingMore ? "Loading…" : "Load more"}
           </button>
@@ -968,7 +968,7 @@ export default function HomePage() {
       {showExtractToast && (
         <div className="toast-enter pointer-events-none fixed inset-x-0 top-5 z-50 flex justify-center px-4">
           <div
-            className="relative flex w-full max-w-sm items-start gap-3.5 rounded-2xl border border-indigo-100 bg-white p-4 pb-5"
+            className="relative flex w-full max-w-sm items-start gap-3.5 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 bg-white dark:bg-zinc-900 p-4 pb-5"
             style={{ boxShadow: "0 12px 40px -8px rgba(99,102,241,0.28), 0 4px 16px -4px rgba(0,0,0,0.10)" }}
           >
             {/* Check icon */}
@@ -978,12 +978,12 @@ export default function HomePage() {
               </svg>
             </div>
             <div className="flex-1 pt-0.5">
-              <p className="text-sm font-semibold text-zinc-900">Extraction complete!</p>
-              <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Extraction complete!</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
                 Review the extracted fields below and fill in anything that&apos;s missing before saving.
               </p>
               {inputTruncated && (
-                <p className="mt-1.5 text-xs leading-relaxed text-amber-600">
+                <p className="mt-1.5 text-xs leading-relaxed text-amber-600 dark:text-amber-400">
                   Your text was long, so only the beginning was analyzed. Double-check nothing important was missed.
                 </p>
               )}
@@ -1007,12 +1007,12 @@ export default function HomePage() {
           onClick={() => setShowReExtractConfirm(false)}
         >
           <div
-            className="modal-card w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+            className="modal-card w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             style={{ boxShadow: "0 24px 64px -12px rgba(99,102,241,0.22), 0 8px 24px -4px rgba(0,0,0,0.12)" }}
           >
             {/* Icon */}
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/40">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M4 4v5h5M20 20v-5h-5" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M20 12a8 8 0 0 1-14.93 2.96M4 12a8 8 0 0 1 14.93-2.96" stroke="#6366f1" strokeWidth="2" strokeLinecap="round"/>
@@ -1020,8 +1020,8 @@ export default function HomePage() {
             </div>
 
             {/* Heading */}
-            <h2 className="mb-1 text-base font-semibold text-zinc-900">Re-extract contact info?</h2>
-            <p className="mb-5 text-sm leading-relaxed text-zinc-500">
+            <h2 className="mb-1 text-base font-semibold text-zinc-900 dark:text-zinc-100">Re-extract contact info?</h2>
+            <p className="mb-5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
               This will overwrite your currently extracted details. Any edits you&apos;ve made will be lost.
             </p>
 
@@ -1030,7 +1030,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setShowReExtractConfirm(false)}
-                className="flex-1 rounded-lg border border-zinc-200 bg-white py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+                className="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
               >
                 Cancel
               </button>
@@ -1057,13 +1057,13 @@ export default function HomePage() {
           onClick={() => setCameraOpen(false)}
         >
           <div
-            className="modal-card w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="modal-card w-full max-w-md overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             style={{ boxShadow: "0 24px 64px -12px rgba(99,102,241,0.22), 0 8px 24px -4px rgba(0,0,0,0.12)" }}
           >
             <div className="relative aspect-[4/3] w-full bg-black">
               {cameraError ? (
-                <div className="flex h-full items-center justify-center p-6 text-center text-sm text-zinc-300">
+                <div className="flex h-full items-center justify-center p-6 text-center text-sm text-zinc-300 dark:text-zinc-600">
                   {cameraError}
                 </div>
               ) : (
@@ -1079,7 +1079,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setCameraOpen(false)}
-                className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
               >
                 Cancel
               </button>
@@ -1177,7 +1177,7 @@ function ExtractedCard({
         type="button"
         onClick={() => removeCustomField(key)}
         title="Remove this field"
-        className="mt-5 shrink-0 text-zinc-300 hover:text-red-400 transition-colors text-xs leading-none px-1"
+        className="mt-5 shrink-0 text-zinc-300 dark:text-zinc-600 hover:text-red-400 transition-colors text-xs leading-none px-1"
       >
         ✕
       </button>
@@ -1185,7 +1185,7 @@ function ExtractedCard({
   );
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">
       <FieldRow
         label="Name *"
         value={extracted.name ?? ""}
@@ -1223,7 +1223,7 @@ function ExtractedCard({
         <button
           type="button"
           onClick={() => setShowMissing((s) => !s)}
-          className="text-xs text-indigo-600 hover:underline"
+          className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
         >
           {showMissing
             ? "− Hide empty fields"
@@ -1232,8 +1232,8 @@ function ExtractedCard({
       )}
 
       {detectedEntries.length > 0 && (
-        <div className="pt-3 border-t border-zinc-100 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
+        <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400 dark:text-indigo-400">
             ✦ AI-detected
           </p>
           {detectedEntries.map(renderCustomRow)}
@@ -1241,12 +1241,12 @@ function ExtractedCard({
       )}
 
       {enrichedEntries.length > 0 && (
-        <div className="pt-3 border-t border-amber-100 space-y-3 -mx-4 -mb-4 mt-3 rounded-b-lg bg-amber-50/60 px-4 py-3">
+        <div className="pt-3 border-t border-amber-100 dark:border-amber-900/40 space-y-3 -mx-4 -mb-4 mt-3 rounded-b-lg bg-amber-50/60 dark:bg-amber-950/30 px-4 py-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
               🌐 Enriched from public knowledge
             </p>
-            <p className="mt-0.5 text-[11px] text-amber-700/80">
+            <p className="mt-0.5 text-[11px] text-amber-700/80 dark:text-amber-300">
               Pulled from the public web — may be outdated or wrong. Verify
               before saving; remove any you don&apos;t want.
             </p>
@@ -1255,7 +1255,7 @@ function ExtractedCard({
 
           {sources.length > 0 && (
             <div className="pt-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600/80">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600/80 dark:text-amber-400">
                 Sources
               </p>
               <ul className="mt-1 space-y-0.5">
@@ -1265,7 +1265,7 @@ function ExtractedCard({
                       href={s.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-amber-700 underline hover:text-amber-900"
+                      className="text-amber-700 dark:text-amber-300 underline hover:text-amber-900"
                     >
                       {s.title || s.url}
                     </a>
@@ -1288,8 +1288,8 @@ function UpcomingBirthdays({ contacts }: { contacts: Contact[] }) {
   if (upcoming.length === 0) return null;
 
   return (
-    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-      <h2 className="mb-3 text-sm font-semibold text-amber-900">
+    <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/30 p-4">
+      <h2 className="mb-3 text-sm font-semibold text-amber-900 dark:text-amber-200">
         🎂 Upcoming birthdays
       </h2>
       <ul className="space-y-2">
@@ -1297,11 +1297,11 @@ function UpcomingBirthdays({ contacts }: { contacts: Contact[] }) {
           <li key={contact.id} className="flex items-center justify-between gap-2">
             <Link
               href={`/contacts/${contact.id}`}
-              className="text-sm font-medium text-zinc-700 hover:text-indigo-600 truncate"
+              className="text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:text-indigo-600 truncate"
             >
               {contact.name}
             </Link>
-            <span className="shrink-0 text-xs text-amber-700">
+            <span className="shrink-0 text-xs text-amber-700 dark:text-amber-300">
               {daysUntil === 0
                 ? "Today 🎉"
                 : daysUntil === 1
@@ -1352,7 +1352,7 @@ function FieldRow({
 
   return (
     <div>
-      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
         {label}
       </dt>
       {isEditing ? (
@@ -1381,7 +1381,7 @@ function FieldRow({
         <div
           role="button"
           onClick={onStartEdit}
-          className="group mt-1 flex cursor-text items-center justify-between rounded px-1 py-0.5 hover:bg-zinc-50"
+          className="group mt-1 flex cursor-text items-center justify-between rounded px-1 py-0.5 hover:bg-zinc-50 dark:hover:bg-zinc-800"
         >
           {isTags && value ? (
             <div className="flex flex-wrap gap-1">
@@ -1392,24 +1392,24 @@ function FieldRow({
                 .map((t) => (
                   <span
                     key={t}
-                    className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+                    className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300"
                   >
                     {t}
                   </span>
                 ))}
             </div>
           ) : value ? (
-            <span className="text-sm text-zinc-700">{value}</span>
+            <span className="text-sm text-zinc-700 dark:text-zinc-200">{value}</span>
           ) : (
             <span
               className={`text-sm italic ${
-                isRequired ? "text-red-400" : "text-zinc-400"
+                isRequired ? "text-red-400 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"
               }`}
             >
               {isRequired ? "Not found — tap to add" : "—"}
             </span>
           )}
-          <span className="ml-2 text-xs text-zinc-300 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="ml-2 text-xs text-zinc-300 dark:text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100">
             ✎
           </span>
         </div>

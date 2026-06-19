@@ -25,11 +25,11 @@ export default function LoginPage() {
           </span>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h1 className="text-lg font-semibold text-zinc-900">
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm">
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             {isSignup ? "Create your account" : "Welcome back"}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {isSignup
               ? "Sign up to start building your network."
               : "Sign in to access your contacts."}
@@ -39,7 +39,7 @@ export default function LoginPage() {
             <input type="hidden" name="intent" value={mode} />
 
             <div>
-              <label htmlFor="email" className="mb-1 block text-xs font-medium text-zinc-600">
+              <label htmlFor="email" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
                 Email
               </label>
               <input
@@ -54,7 +54,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-1 block text-xs font-medium text-zinc-600">
+              <label htmlFor="password" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
                 Password
               </label>
               <input
@@ -70,12 +70,12 @@ export default function LoginPage() {
             </div>
 
             {state?.error && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
+              <p className="rounded-md bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-600 dark:text-red-400">
                 {state.error}
               </p>
             )}
             {state?.message && (
-              <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              <p className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
                 {state.message}
               </p>
             )}
@@ -95,7 +95,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-zinc-500">
+          <p className="mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
             {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
             <button
               type="button"
@@ -107,7 +107,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="mt-4 text-center text-xs text-zinc-400">
+        <p className="mt-4 text-center text-xs text-zinc-400 dark:text-zinc-500">
           <Link href="/" className="hover:underline">
             ← Back home
           </Link>

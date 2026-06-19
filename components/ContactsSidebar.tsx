@@ -149,8 +149,8 @@ export default function ContactsSidebar() {
         href={`/contacts/${c.id}`}
         className={`flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors ${
           active
-            ? "bg-indigo-50 text-indigo-700"
-            : "text-zinc-700 hover:bg-zinc-50"
+            ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300"
+            : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
         }`}
       >
         <span
@@ -163,12 +163,12 @@ export default function ContactsSidebar() {
         <span className="min-w-0">
           <span
             className={`block truncate text-xs font-medium ${
-              active ? "text-indigo-700" : "text-zinc-800"
+              active ? "text-indigo-700 dark:text-indigo-300" : "text-zinc-800 dark:text-zinc-100"
             }`}
           >
             {c.name}
           </span>
-          <span className="block truncate text-[10px] text-zinc-400">
+          <span className="block truncate text-[10px] text-zinc-400 dark:text-zinc-500">
             {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
           </span>
         </span>
@@ -179,13 +179,13 @@ export default function ContactsSidebar() {
   // ── Collapsed: thin icon rail ───────────────────────────────────────────────
   if (collapsed) {
     return (
-      <aside className="flex w-14 flex-shrink-0 flex-col items-center border-r border-zinc-200 bg-white py-3">
+      <aside className="flex w-14 flex-shrink-0 flex-col items-center border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-3">
         <button
           type="button"
           onClick={toggleCollapsed}
           title="Expand sidebar"
           aria-label="Expand sidebar"
-          className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
         >
           »
         </button>
@@ -194,7 +194,7 @@ export default function ContactsSidebar() {
           href="/dashboard"
           title="Dashboard"
           className={`mt-2 flex h-8 w-8 items-center justify-center rounded-md text-base transition-colors ${
-            onDashboard ? "bg-indigo-50" : "hover:bg-zinc-50"
+            onDashboard ? "bg-indigo-50 dark:bg-indigo-950/40" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"
           }`}
         >
           📊
@@ -208,7 +208,7 @@ export default function ContactsSidebar() {
           +
         </Link>
 
-        <div className="mt-2 h-px w-8 bg-zinc-100" />
+        <div className="mt-2 h-px w-8 bg-zinc-100 dark:bg-zinc-800" />
 
         <nav className="mt-2 flex flex-1 flex-col items-center gap-1.5 overflow-y-auto">
           {contacts.map((c) => {
@@ -237,14 +237,14 @@ export default function ContactsSidebar() {
 
   // ── Expanded: full sidebar ──────────────────────────────────────────────────
   return (
-    <aside className="flex w-56 flex-shrink-0 flex-col border-r border-zinc-200 bg-white">
+    <aside className="flex w-56 flex-shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <div className="flex items-center gap-1 px-2 pt-3">
         <Link
           href="/dashboard"
           className={`flex flex-1 items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors ${
             onDashboard
-              ? "bg-indigo-50 text-indigo-700"
-              : "text-zinc-700 hover:bg-zinc-50"
+              ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300"
+              : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
           }`}
         >
           <span className="text-base leading-none">📊</span>
@@ -255,19 +255,19 @@ export default function ContactsSidebar() {
           onClick={toggleCollapsed}
           title="Collapse sidebar"
           aria-label="Collapse sidebar"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           «
         </button>
       </div>
 
-      <div className="mt-1 flex items-center justify-between border-t border-zinc-100 px-4 py-3">
+      <div className="mt-1 flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800 px-4 py-3">
         <Link
           href="/contacts"
           className={`rounded-md px-1.5 py-0.5 text-sm font-semibold transition-colors ${
             pathname === "/contacts"
-              ? "text-indigo-700"
-              : "text-zinc-900 hover:text-indigo-700"
+              ? "text-indigo-700 dark:text-indigo-300"
+              : "text-zinc-900 dark:text-zinc-100 hover:text-indigo-700 dark:hover:text-indigo-300"
           }`}
         >
           Contacts
@@ -285,7 +285,7 @@ export default function ContactsSidebar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search…"
-          className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs outline-none focus:border-indigo-400 focus:ring-0"
+          className="w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 px-2.5 py-1.5 text-xs outline-none focus:border-indigo-400 focus:ring-0"
         />
       </div>
 
@@ -293,7 +293,7 @@ export default function ContactsSidebar() {
         {sort === "name"
           ? groupByInitial(contacts).map((group) => (
               <div key={group.letter}>
-                <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                   {group.letter}
                 </p>
                 {group.items.map(renderContactLink)}
@@ -302,7 +302,7 @@ export default function ContactsSidebar() {
           : contacts.map(renderContactLink)}
 
         {contacts.length === 0 && (
-          <p className="px-2 py-3 text-xs text-zinc-400">
+          <p className="px-2 py-3 text-xs text-zinc-400 dark:text-zinc-500">
             {query ? "No matches." : "No contacts yet."}
           </p>
         )}
@@ -312,7 +312,7 @@ export default function ContactsSidebar() {
             type="button"
             onClick={loadMore}
             disabled={loadingMore}
-            className="mt-1 w-full rounded-md px-2 py-2 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+            className="mt-1 w-full rounded-md px-2 py-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 disabled:opacity-50"
           >
             {loadingMore ? "Loading…" : "Load more"}
           </button>

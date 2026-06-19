@@ -56,11 +56,11 @@ export default function ContactDetailPage({
     load();
   }, [load]);
 
-  if (loading) return <p className="text-sm text-zinc-400">Loading…</p>;
+  if (loading) return <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>;
   if (loadError && !contact)
     return (
       <div className="space-y-2">
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-red-600 dark:text-red-400">
           Couldn&apos;t load this contact — check your connection and try again.
         </p>
         <button
@@ -68,7 +68,7 @@ export default function ContactDetailPage({
             setLoading(true);
             load();
           }}
-          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+          className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
         >
           Retry
         </button>
@@ -77,8 +77,8 @@ export default function ContactDetailPage({
   if (notFound || !contact)
     return (
       <div>
-        <p className="text-sm text-zinc-500">Contact not found.</p>
-        <Link href="/contacts" className="text-sm text-indigo-600">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Contact not found.</p>
+        <Link href="/contacts" className="text-sm text-indigo-600 dark:text-indigo-400">
           ← Back to contacts
         </Link>
       </div>
@@ -121,7 +121,7 @@ export default function ContactDetailPage({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
       <div className="lg:col-span-3">
-        <Link href="/contacts" className="text-sm text-indigo-600">
+        <Link href="/contacts" className="text-sm text-indigo-600 dark:text-indigo-400">
           ← Back to contacts
         </Link>
         <DetailsCard contact={contact} onSaved={load} onDelete={handleDelete} />
@@ -252,7 +252,7 @@ function DetailsCard({
     setForm({ ...form, [k]: e.target.value });
 
   return (
-    <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-5">
+    <div className="mt-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
       <div className="flex items-start justify-between">
         {editing ? (
           <input
@@ -265,7 +265,7 @@ function DetailsCard({
             <h1 className="text-2xl font-semibold tracking-tight">
               {contact.name}
             </h1>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {[contact.title, contact.company].filter(Boolean).join(" · ") ||
                 "—"}
             </p>
@@ -287,7 +287,7 @@ function DetailsCard({
                   setBirthdayInput(formatBirthday(contact.birthday));
                   setEditing(false);
                 }}
-                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm"
+                className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm"
               >
                 Cancel
               </button>
@@ -298,13 +298,13 @@ function DetailsCard({
               <button
                 id="edit-contact-btn"
                 onClick={() => setEditing(true)}
-                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
               >
                 Edit
               </button>
               <button
                 onClick={onDelete}
-                className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
               >
                 Delete
               </button>
@@ -320,7 +320,7 @@ function DetailsCard({
           .filter(([key]) => editing || (contact[key] as string)?.trim())
           .map(([key, label]) => (
             <div key={key} className={key === "howWeMet" ? "col-span-2" : ""}>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 {label}
               </dt>
               {editing ? (
@@ -330,7 +330,7 @@ function DetailsCard({
                   onChange={set(key)}
                 />
               ) : (
-                <dd className="text-zinc-700">
+                <dd className="text-zinc-700 dark:text-zinc-200">
                   {(contact[key] as string) || "—"}
                 </dd>
               )}
@@ -339,7 +339,7 @@ function DetailsCard({
 
         {(editing || contact.birthday) && (
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
               Birthday
             </dt>
             {editing ? (
@@ -354,7 +354,7 @@ function DetailsCard({
                 }}
               />
             ) : (
-              <dd className="text-zinc-700">
+              <dd className="text-zinc-700 dark:text-zinc-200">
                 {formatBirthday(contact.birthday) || "—"}
               </dd>
             )}
@@ -406,8 +406,8 @@ function DetailsCard({
       {/* AI-detected custom fields */}
       {((editing ? form : contact).customFields) &&
         Object.keys((editing ? form : contact).customFields!).length > 0 && (
-          <div className="mt-5 pt-4 border-t border-zinc-100">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-400">
+          <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-400 dark:text-indigo-400">
               ✦ AI-detected
             </p>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -419,7 +419,7 @@ function DetailsCard({
                       (value as string).length > 60 ? "col-span-2" : ""
                     }
                   >
-                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                       {key}
                     </dt>
                     {editing ? (
@@ -441,7 +441,7 @@ function DetailsCard({
                         }
                       />
                     ) : (
-                      <dd className="text-zinc-700">{(value as string) || "—"}</dd>
+                      <dd className="text-zinc-700 dark:text-zinc-200">{(value as string) || "—"}</dd>
                     )}
                   </div>
                 )
@@ -510,10 +510,10 @@ function NotesSection({
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
       <h2 className="mb-3 text-lg font-semibold">Notes</h2>
 
-      <div className="rounded-lg border border-zinc-200 p-3">
+      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
         <textarea
           id="notes-textarea"
           value={draft}
@@ -535,7 +535,7 @@ function NotesSection({
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               listening
                 ? "bg-red-600 text-white"
-                : "border border-zinc-300 text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+                : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
             }`}
           >
             <span>{listening ? "● Listening… stop" : "🎤 Dictate"}</span>
@@ -552,7 +552,7 @@ function NotesSection({
 
       <ul className="mt-4 space-y-3">
         {notes.length === 0 && (
-          <li className="text-sm text-zinc-400">No notes yet.</li>
+          <li className="text-sm text-zinc-400 dark:text-zinc-500">No notes yet.</li>
         )}
         {visibleNotes.map((n) => (
           <NoteItem key={n.id} note={n} onChange={() => { onChange(); setPage(1); }} />
@@ -560,13 +560,13 @@ function NotesSection({
       </ul>
 
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
+        <div className="mt-4 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
           <span>{notes.length} notes · page {page} of {totalPages}</span>
           <div className="flex gap-1">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
             >
               ← Prev
             </button>
@@ -576,8 +576,8 @@ function NotesSection({
                 onClick={() => setPage(p)}
                 className={`rounded-md border px-2.5 py-1 ${
                   p === page
-                    ? "border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold"
-                    : "border-zinc-200 hover:bg-zinc-50"
+                    ? "border-indigo-300 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold"
+                    : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 }`}
               >
                 {p}
@@ -586,7 +586,7 @@ function NotesSection({
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
             >
               Next →
             </button>
@@ -654,7 +654,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
   }
 
   return (
-    <li className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+    <li className="rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 p-3">
       {editing ? (
         <div>
           <textarea
@@ -675,7 +675,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
                 setText(note.content);
                 setEditing(false);
               }}
-              className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs"
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs"
             >
               Cancel
             </button>
@@ -683,15 +683,15 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
         </div>
       ) : (
         <>
-          <p className="text-sm text-zinc-700">{note.content}</p>
-          <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400">
+          <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
+          <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
             <span
               className={`rounded-full px-1.5 py-0.5 ${
                 note.source === "voice"
-                  ? "bg-emerald-50 text-emerald-600"
+                  ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"
                   : note.source === "story"
-                  ? "bg-indigo-50 text-indigo-600"
-                  : "bg-zinc-100 text-zinc-500"
+                  ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400"
+                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
               }`}
             >
               {note.source === "voice"
@@ -703,11 +703,11 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             <span>{new Date(note.createdAt).toLocaleString()}</span>
             <button
               onClick={() => setEditing(true)}
-              className="ml-auto text-indigo-600 hover:underline"
+              className="ml-auto text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               Edit
             </button>
-            <button onClick={remove} className="text-red-500 hover:underline">
+            <button onClick={remove} className="text-red-500 dark:text-red-400 hover:underline">
               Delete
             </button>
           </div>
@@ -785,7 +785,7 @@ function ProfileCard({
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5">
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">AI Profile</h2>
         <button
@@ -806,14 +806,14 @@ function ProfileCard({
           <div className="mt-3">
             <Markdown content={contact.profile} />
           </div>
-          <p className="mt-4 border-t border-zinc-100 pt-3 text-xs text-zinc-400">
+          <p className="mt-4 border-t border-zinc-100 dark:border-zinc-800 pt-3 text-xs text-zinc-400 dark:text-zinc-500">
             Model: {contact.profileModel || "—"}
             {contact.profileUpdatedAt &&
               ` · ${new Date(contact.profileUpdatedAt).toLocaleString()}`}
           </p>
         </>
       ) : (
-        <p className="mt-3 text-sm text-zinc-400">
+        <p className="mt-3 text-sm text-zinc-400 dark:text-zinc-500">
           No profile yet. Generate an AI-assisted profile from this contact’s
           details and notes.
         </p>
