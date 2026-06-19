@@ -20,26 +20,36 @@ function avatarColor(name: string): string {
   return AVATAR_COLORS[(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
 }
 
-// Bucket an already-name-sorted list into A–Z sections. Non-letter names fall
-// under "#". Relies on the API returning contacts in name order (sort=name).
+// Bucket contacts into A–Z sections. Non-letter names fall under "#".
+// Aggregates by letter (not by adjacency) so each letter is a single, unique
+// section regardless of input order — avoids duplicate React keys when the list
+// is briefly not fully name-sorted (e.g. during a sort-preference refetch).
 function groupByInitial(contacts: Contact[]): { letter: string; items: Contact[] }[] {
-  const groups: { letter: string; items: Contact[] }[] = [];
+  const byLetter = new Map<string, Contact[]>();
   for (const c of contacts) {
     const first = (c.name?.trim()?.[0] ?? "#").toUpperCase();
     const letter = /[A-Z]/.test(first) ? first : "#";
-    const last = groups[groups.length - 1];
-    if (last && last.letter === letter) last.items.push(c);
-    else groups.push({ letter, items: [c] });
+    const items = byLetter.get(letter);
+    if (items) items.push(c);
+    else byLetter.set(letter, [c]);
   }
-  return groups;
+  return [...byLetter.entries()]
+    .sort(([a], [b]) => (a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b)))
+    .map(([letter, items]) => ({ letter, items }));
 }
 
 const COLLAPSE_KEY = "networky:sidebar-collapsed";
+// Must match the keys the contacts page (app/contacts/page.tsx) writes to, so
+// the two views share one sort preference.
+type SortMode = "name" | "recent";
+const SORT_KEY = "networky:contacts-sort";
+const SORT_EVENT = "networky:contacts-sort-change";
 
 export default function ContactsSidebar() {
   const pathname = usePathname();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortMode>("name");
   const [collapsed, setCollapsed] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -52,6 +62,24 @@ export default function ContactsSidebar() {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
   }, []);
 
+  // Follow the sort preference set on the contacts page: read it on mount, then
+  // react to in-tab changes (custom event) and other-tab changes (storage).
+  useEffect(() => {
+    const read = () =>
+      setSort(localStorage.getItem(SORT_KEY) === "recent" ? "recent" : "name");
+    read();
+    const onCustom = (e: Event) => {
+      const next = (e as CustomEvent).detail;
+      setSort(next === "recent" ? "recent" : "name");
+    };
+    window.addEventListener(SORT_EVENT, onCustom);
+    window.addEventListener("storage", read);
+    return () => {
+      window.removeEventListener(SORT_EVENT, onCustom);
+      window.removeEventListener("storage", read);
+    };
+  }, []);
+
   function toggleCollapsed() {
     setCollapsed((prev) => {
       const next = !prev;
@@ -60,14 +88,17 @@ export default function ContactsSidebar() {
     });
   }
 
-  const fetchPage = useCallback(async (q: string, offset: number) => {
-    const res = await fetch(
-      `/api/contacts?q=${encodeURIComponent(q)}&sort=name&limit=${PAGE_SIZE}&offset=${offset}`
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as Contact[];
-    return { data, more: res.headers.get("X-Has-More") === "true" };
-  }, []);
+  const fetchPage = useCallback(
+    async (q: string, offset: number) => {
+      const res = await fetch(
+        `/api/contacts?q=${encodeURIComponent(q)}&sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Contact[];
+      return { data, more: res.headers.get("X-Has-More") === "true" };
+    },
+    [sort]
+  );
 
   const load = useCallback(
     async (q: string) => {
@@ -107,6 +138,43 @@ export default function ContactsSidebar() {
   }, [query, pathname, load]);
 
   const onDashboard = pathname === "/dashboard";
+
+  // A single contact row in the expanded list (shared by the A–Z and flat views).
+  const renderContactLink = (c: Contact) => {
+    const active = pathname === `/contacts/${c.id}`;
+    const initial = (c.name?.[0] ?? "?").toUpperCase();
+    return (
+      <Link
+        key={c.id}
+        href={`/contacts/${c.id}`}
+        className={`flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors ${
+          active
+            ? "bg-indigo-50 text-indigo-700"
+            : "text-zinc-700 hover:bg-zinc-50"
+        }`}
+      >
+        <span
+          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${avatarColor(
+            c.name ?? ""
+          )}`}
+        >
+          {initial}
+        </span>
+        <span className="min-w-0">
+          <span
+            className={`block truncate text-xs font-medium ${
+              active ? "text-indigo-700" : "text-zinc-800"
+            }`}
+          >
+            {c.name}
+          </span>
+          <span className="block truncate text-[10px] text-zinc-400">
+            {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
+          </span>
+        </span>
+      </Link>
+    );
+  };
 
   // ── Collapsed: thin icon rail ───────────────────────────────────────────────
   if (collapsed) {
@@ -222,48 +290,16 @@ export default function ContactsSidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 pb-3">
-        {groupByInitial(contacts).map((group) => (
-          <div key={group.letter}>
-            <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              {group.letter}
-            </p>
-            {group.items.map((c) => {
-              const active = pathname === `/contacts/${c.id}`;
-              const initial = (c.name?.[0] ?? "?").toUpperCase();
-              return (
-                <Link
-                  key={c.id}
-                  href={`/contacts/${c.id}`}
-                  className={`flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors ${
-                    active
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "text-zinc-700 hover:bg-zinc-50"
-                  }`}
-                >
-                  <span
-                    className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${avatarColor(
-                      c.name ?? ""
-                    )}`}
-                  >
-                    {initial}
-                  </span>
-                  <span className="min-w-0">
-                    <span
-                      className={`block truncate text-xs font-medium ${
-                        active ? "text-indigo-700" : "text-zinc-800"
-                      }`}
-                    >
-                      {c.name}
-                    </span>
-                    <span className="block truncate text-[10px] text-zinc-400">
-                      {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
-                    </span>
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {sort === "name"
+          ? groupByInitial(contacts).map((group) => (
+              <div key={group.letter}>
+                <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                  {group.letter}
+                </p>
+                {group.items.map(renderContactLink)}
+              </div>
+            ))
+          : contacts.map(renderContactLink)}
 
         {contacts.length === 0 && (
           <p className="px-2 py-3 text-xs text-zinc-400">

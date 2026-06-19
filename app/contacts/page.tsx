@@ -22,19 +22,79 @@ const MAX_IMAGE_DIM = 1568;
 
 type Attachment = { name: string; url: string };
 
-// Bucket an already-name-sorted list into A–Z sections for the contacts grid.
-// Names that don't start with a letter fall under "#". Relies on the server
-// returning contacts in name order (sort=name) so groups stay contiguous.
+// Bucket contacts into A–Z sections for the contacts grid. Names that don't
+// start with a letter fall under "#". Aggregates by letter (not by adjacency)
+// so each letter is a single, unique section regardless of input order — this
+// avoids duplicate React keys if the list is briefly not fully name-sorted.
 function groupByInitial(contacts: Contact[]): { letter: string; items: Contact[] }[] {
-  const groups: { letter: string; items: Contact[] }[] = [];
+  const byLetter = new Map<string, Contact[]>();
   for (const c of contacts) {
     const first = (c.name?.trim()?.[0] ?? "#").toUpperCase();
     const letter = /[A-Z]/.test(first) ? first : "#";
-    const last = groups[groups.length - 1];
-    if (last && last.letter === letter) last.items.push(c);
-    else groups.push({ letter, items: [c] });
+    const items = byLetter.get(letter);
+    if (items) items.push(c);
+    else byLetter.set(letter, [c]);
   }
-  return groups;
+  return [...byLetter.entries()]
+    .sort(([a], [b]) => (a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b)))
+    .map(([letter, items]) => ({ letter, items }));
+}
+
+// How the contacts list is ordered. Persisted per browser so the choice sticks
+// across visits, and shared with the sidebar via a custom event (see below).
+type SortMode = "name" | "recent";
+const SORT_KEY = "networky:contacts-sort";
+const SORT_EVENT = "networky:contacts-sort-change";
+
+function ContactCard({ c }: { c: Contact }) {
+  return (
+    <Link
+      href={`/contacts/${c.id}`}
+      className="block rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold">{c.name}</p>
+          <p className="text-sm text-zinc-500">
+            {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
+          </p>
+        </div>
+        {c.profile && (
+          <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+            AI profile
+          </span>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {(c.tags || "")
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+          .map((t) => (
+            <span
+              key={t}
+              className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+            >
+              {t}
+            </span>
+          ))}
+        {c._count && (
+          <span className="ml-auto text-xs text-zinc-400">
+            {c._count.notes} note{c._count.notes === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      {c.healthScore != null && c.healthTier && (
+        <span className="flex items-center gap-1 text-xs text-gray-500">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`}
+          />
+          <span className="font-medium">{c.healthTier}</span>
+          <span className="text-gray-400">({c.healthScore})</span>
+        </span>
+      )}
+    </Link>
+  );
 }
 
 // Read an image File and return a (possibly downscaled) data URL. Large photos
@@ -73,6 +133,7 @@ async function fileToDataUrl(file: File): Promise<string> {
 export default function HomePage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortMode>("name");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -312,15 +373,18 @@ export default function HomePage() {
   // One page of the grid. Search runs server-side via `q`; results are paged.
   const PAGE_SIZE = 24;
 
-  const fetchPage = useCallback(async (q: string, offset: number) => {
-    const res = await fetch(
-      `/api/contacts?q=${encodeURIComponent(q)}&sort=name&limit=${PAGE_SIZE}&offset=${offset}`
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as Contact[];
-    const more = res.headers.get("X-Has-More") === "true";
-    return { data, more };
-  }, []);
+  const fetchPage = useCallback(
+    async (q: string, offset: number) => {
+      const res = await fetch(
+        `/api/contacts?q=${encodeURIComponent(q)}&sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Contact[];
+      const more = res.headers.get("X-Has-More") === "true";
+      return { data, more };
+    },
+    [sort]
+  );
 
   const load = useCallback(
     async (q: string) => {
@@ -361,6 +425,19 @@ export default function HomePage() {
     const q = new URLSearchParams(window.location.search).get("q");
     if (q) setQuery(q);
   }, []);
+
+  // Restore the saved sort preference on mount.
+  useEffect(() => {
+    const saved = localStorage.getItem(SORT_KEY);
+    if (saved === "name" || saved === "recent") setSort(saved);
+  }, []);
+
+  // Persist the choice and tell the sidebar so the two views stay in sync.
+  function changeSort(next: SortMode) {
+    setSort(next);
+    localStorage.setItem(SORT_KEY, next);
+    window.dispatchEvent(new CustomEvent(SORT_EVENT, { detail: next }));
+  }
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
@@ -662,12 +739,36 @@ export default function HomePage() {
 
       <UpcomingBirthdays contacts={contacts} />
 
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by name, company, title, tag…"
-        className="input mb-4 w-full"
-      />
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, company, title, tag…"
+          className="input w-full"
+        />
+        <div className="flex shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 text-sm">
+          {(
+            [
+              ["name", "A–Z"],
+              ["recent", "Recent"],
+            ] as [SortMode, string][]
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => changeSort(mode)}
+              aria-pressed={sort === mode}
+              className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                sort === mode
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {loading ? (
         <p className="py-12 text-center text-sm text-zinc-400">Loading…</p>
@@ -689,7 +790,7 @@ export default function HomePage() {
             ? "No contacts match your search."
             : "No contacts yet. Add your first one above."}
         </p>
-      ) : (
+      ) : sort === "name" ? (
         <div className="space-y-6">
           {groupByInitial(contacts).map((group) => (
             <section key={group.letter}>
@@ -699,58 +800,21 @@ export default function HomePage() {
               <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {group.items.map((c) => (
                   <li key={c.id}>
-                    <Link
-                      href={`/contacts/${c.id}`}
-                      className="block rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-semibold">{c.name}</p>
-                          <p className="text-sm text-zinc-500">
-                            {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
-                          </p>
-                        </div>
-                        {c.profile && (
-                          <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
-                            AI profile
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                        {(c.tags || "")
-                          .split(",")
-                          .map((t) => t.trim())
-                          .filter(Boolean)
-                          .map((t) => (
-                            <span
-                              key={t}
-                              className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        {c._count && (
-                          <span className="ml-auto text-xs text-zinc-400">
-                            {c._count.notes} note{c._count.notes === 1 ? "" : "s"}
-                          </span>
-                        )}
-                      </div>
-                      {c.healthScore != null && c.healthTier && (
-                        <span className="flex items-center gap-1 text-xs text-gray-500">
-                          <span
-                            className={`inline-block h-2 w-2 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`}
-                          />
-                          <span className="font-medium">{c.healthTier}</span>
-                          <span className="text-gray-400">({c.healthScore})</span>
-                        </span>
-                      )}
-                    </Link>
+                    <ContactCard c={c} />
                   </li>
                 ))}
               </ul>
             </section>
           ))}
         </div>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {contacts.map((c) => (
+            <li key={c.id}>
+              <ContactCard c={c} />
+            </li>
+          ))}
+        </ul>
       )}
 
       {!loading && hasMore && (
