@@ -10,6 +10,7 @@ import { formatBirthday, normalizeBirthday, daysUntilBirthday } from "@/lib/birt
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
 import GiftSuggestions from "./GiftSuggestions";
+import { MeetingBriefingModal } from "@/components/MeetingBriefingModal";
 
 export default function ContactDetailPage({
   params,
@@ -259,6 +260,7 @@ function DetailsCard({
             </>
           ) : (
             <>
+              <MeetingBriefingModal contact={contact} />
               <button
                 id="edit-contact-btn"
                 onClick={() => setEditing(true)}
