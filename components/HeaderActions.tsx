@@ -278,16 +278,16 @@ export default function HeaderActions() {
                     <Link
                       href={n.href}
                       onClick={() => setOpen(null)}
-                      className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-zinc-50"
+                      className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
                     >
                       <span
                         className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${n.accent}`}
                       />
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-zinc-800">
+                        <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
                           {n.title}
                         </span>
-                        <span className="block truncate text-xs text-zinc-400">
+                        <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
                           {n.detail}
                         </span>
                       </span>
@@ -307,7 +307,7 @@ export default function HeaderActions() {
         {toasts.map((n) => (
           <div
             key={n.key}
-            className="fb-toast-enter pointer-events-auto overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg"
+            className="fb-toast-enter pointer-events-auto overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg"
           >
             <div className="flex items-start gap-3 p-3">
               <span
@@ -322,10 +322,10 @@ export default function HeaderActions() {
                 onClick={() => dismissToast(n.key)}
                 className="min-w-0 flex-1"
               >
-                <span className="block text-sm font-medium text-zinc-800">
+                <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">
                   {n.title}
                 </span>
-                <span className="block truncate text-xs text-zinc-500">
+                <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">
                   {n.detail}
                 </span>
               </Link>
@@ -333,7 +333,7 @@ export default function HeaderActions() {
                 type="button"
                 onClick={() => dismissToast(n.key)}
                 aria-label="Dismiss"
-                className="flex-shrink-0 text-zinc-400 transition-colors hover:text-zinc-600"
+                className="flex-shrink-0 text-zinc-400 dark:text-zinc-500 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                   <path d="M18 6 6 18M6 6l12 12" />
@@ -366,10 +366,10 @@ function MessageRow({ suggestion: s }: { suggestion: Suggestion }) {
         {(s.contact.name?.[0] ?? "?").toUpperCase()}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-zinc-800">
+        <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
           {s.contact.name}
         </span>
-        <span className="block truncate text-xs text-zinc-400">{s.reason}</span>
+        <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">{s.reason}</span>
       </span>
       {mailto ? (
         <a
@@ -381,7 +381,7 @@ function MessageRow({ suggestion: s }: { suggestion: Suggestion }) {
       ) : (
         <Link
           href={`/contacts/${s.contact.id}`}
-          className="flex-shrink-0 rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+          className="flex-shrink-0 rounded-md border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
         >
           Open
         </Link>
@@ -408,8 +408,8 @@ function IconButton({
       aria-haspopup="true"
       aria-expanded={active}
       onClick={onClick}
-      className={`relative flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 ${
-        active ? "bg-zinc-100 text-zinc-700" : ""
+      className={`relative flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-200 ${
+        active ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200" : ""
       }`}
     >
       {children}
@@ -427,13 +427,13 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
-      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-2.5">
-        <span className="text-sm font-semibold text-zinc-800">{title}</span>
+    <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg">
+      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 px-4 py-2.5">
+        <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{title}</span>
         <button
           type="button"
           onClick={onClose}
-          className="text-zinc-400 transition-colors hover:text-zinc-600"
+          className="text-zinc-400 dark:text-zinc-500 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
           aria-label="Close"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -447,7 +447,7 @@ function Panel({
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <p className="px-4 py-6 text-center text-sm text-zinc-400">{text}</p>;
+  return <p className="px-4 py-6 text-center text-sm text-zinc-400 dark:text-zinc-500">{text}</p>;
 }
 
 function firstName(name: string | null): string {

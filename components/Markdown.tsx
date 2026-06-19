@@ -43,7 +43,7 @@ export function Markdown({ content }: { content: string }) {
       blocks.push(
         <h3
           key={`h-${key++}`}
-          className="mt-4 mb-1 text-sm font-semibold uppercase tracking-wide text-indigo-600"
+          className="mt-4 mb-1 text-sm font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400"
         >
           {line.slice(4)}
         </h3>
@@ -53,7 +53,7 @@ export function Markdown({ content }: { content: string }) {
       blocks.push(
         <blockquote
           key={`bq-${key++}`}
-          className="my-2 border-l-2 border-zinc-300 pl-3 text-sm italic text-zinc-500"
+          className="my-2 border-l-2 border-zinc-300 dark:border-zinc-700 pl-3 text-sm italic text-zinc-500 dark:text-zinc-400"
         >
           {renderInline(line.slice(2), `bq-${key}`)}
         </blockquote>
@@ -71,5 +71,5 @@ export function Markdown({ content }: { content: string }) {
   }
   flushList();
 
-  return <div className="text-zinc-700">{blocks}</div>;
+  return <div className="text-zinc-700 dark:text-zinc-200">{blocks}</div>;
 }

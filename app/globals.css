@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `dark:` utilities respond to a `.dark` class on a
+   parent (set on <html> by the no-flash script + ThemeToggle) rather than the
+   OS `prefers-color-scheme`. This gives us an explicit, user-controlled toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -27,6 +37,11 @@ body {
 .input:focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 1px #6366f1;
+}
+.dark .input {
+  border-color: #3f3f46; /* zinc-700 */
+  background: #18181b; /* zinc-900 */
+  color: #f4f4f5; /* zinc-100 */
 }
 
 /* Confirmation modal animations */

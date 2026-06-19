@@ -96,19 +96,19 @@ export default function DashboardPage() {
   // Already ordered by updatedAt desc from the API.
   const recent = contacts.slice(0, 6);
 
-  if (loading) return <p className="text-sm text-zinc-400">Loading…</p>;
+  if (loading) return <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>;
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-5">
-        <h2 className="text-sm font-semibold text-red-800">
+      <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-5">
+        <h2 className="text-sm font-semibold text-red-800 dark:text-red-300">
           Couldn’t load your dashboard
         </h2>
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
+          className="mt-3 rounded-md border border-red-300 dark:border-red-900/50 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40"
         >
           Try again
         </button>
@@ -120,7 +120,7 @@ export default function DashboardPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
           An overview of your professional network.
         </p>
       </div>
@@ -133,10 +133,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Birthdays */}
-      <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+      <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
         <h2 className="mb-3 text-lg font-semibold">🎂 Birthdays</h2>
         {birthdays.length === 0 ? (
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">
             No upcoming birthdays in the next 60 days. Add a “Birthday” detail to
             a contact to see them here.
           </p>
@@ -146,7 +146,7 @@ export default function DashboardPage() {
               <li key={b.contact.id}>
                 <Link
                   href={`/contacts/${b.contact.id}`}
-                  className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50"
+                  className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 >
                   <span
                     className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarColor(
@@ -156,15 +156,15 @@ export default function DashboardPage() {
                     {(b.contact.name?.[0] ?? "?").toUpperCase()}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-zinc-800">
+                    <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
                       {b.contact.name}
                       {b.turningAge != null && (
-                        <span className="ml-2 text-xs font-normal text-zinc-400">
+                        <span className="ml-2 text-xs font-normal text-zinc-400 dark:text-zinc-500">
                           turns {b.turningAge}
                         </span>
                       )}
                     </span>
-                    <span className="block truncate text-xs text-zinc-400">
+                    <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
                       {b.next.toLocaleDateString(undefined, {
                         month: "long",
                         day: "numeric",
@@ -183,12 +183,12 @@ export default function DashboardPage() {
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Recently updated */}
-        <div className="rounded-xl border border-zinc-200 bg-white p-5">
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
           <h2 className="mb-3 text-lg font-semibold">Recently updated</h2>
           {recent.length === 0 ? (
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-zinc-400 dark:text-zinc-500">
               No contacts yet.{" "}
-              <Link href="/contacts" className="text-indigo-600 hover:underline">
+              <Link href="/contacts" className="text-indigo-600 dark:text-indigo-400 hover:underline">
                 Add your first one →
               </Link>
             </p>
@@ -198,7 +198,7 @@ export default function DashboardPage() {
                 <li key={c.id}>
                   <Link
                     href={`/contacts/${c.id}`}
-                    className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50"
+                    className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
                   >
                     <span
                       className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarColor(
@@ -208,14 +208,14 @@ export default function DashboardPage() {
                       {(c.name?.[0] ?? "?").toUpperCase()}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-zinc-800">
+                      <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
                         {c.name}
                       </span>
-                      <span className="block truncate text-xs text-zinc-400">
+                      <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
                         {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
                       </span>
                     </span>
-                    <span className="ml-auto flex-shrink-0 text-xs text-zinc-400">
+                    <span className="ml-auto flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
                       {c._count?.notes ?? 0} note
                       {(c._count?.notes ?? 0) !== 1 ? "s" : ""}
                     </span>
@@ -228,20 +228,20 @@ export default function DashboardPage() {
 
         {/* Top companies + tags */}
         <div className="space-y-6">
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
             <h2 className="mb-3 text-lg font-semibold">Top companies</h2>
             {stats.topCompanies.length === 0 ? (
-              <p className="text-sm text-zinc-400">No companies yet.</p>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">No companies yet.</p>
             ) : (
               <ul className="space-y-1">
                 {stats.topCompanies.map(([company, count]) => (
                   <li key={company}>
                     <Link
                       href={`/contacts?q=${encodeURIComponent(company)}`}
-                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-zinc-50"
+                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
                     >
-                      <span className="truncate text-zinc-700">{company}</span>
-                      <span className="ml-3 flex-shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
+                      <span className="truncate text-zinc-700 dark:text-zinc-200">{company}</span>
+                      <span className="ml-3 flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                         {count}
                       </span>
                     </Link>
@@ -251,17 +251,17 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
             <h2 className="mb-3 text-lg font-semibold">Top tags</h2>
             {stats.topTags.length === 0 ? (
-              <p className="text-sm text-zinc-400">No tags yet.</p>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">No tags yet.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {stats.topTags.map(([tag, count]) => (
                   <Link
                     key={tag}
                     href={`/contacts?q=${encodeURIComponent(tag)}`}
-                    className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
+                    className="rounded-full bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 transition-colors hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
                   >
                     {tag} · {count}
                   </Link>
@@ -281,16 +281,16 @@ function BirthdayBadge({ daysUntil }: { daysUntil: number }) {
 
   if (daysUntil === 0) {
     text = "Today 🎉";
-    className = "bg-indigo-100 text-indigo-700";
+    className = "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300";
   } else if (daysUntil === 1) {
     text = "Tomorrow";
-    className = "bg-amber-100 text-amber-700";
+    className = "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300";
   } else if (daysUntil <= 7) {
     text = `in ${daysUntil} days`;
-    className = "bg-emerald-100 text-emerald-700";
+    className = "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300";
   } else {
     text = `in ${daysUntil} days`;
-    className = "bg-zinc-100 text-zinc-500";
+    className = "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400";
   }
 
   return (
@@ -312,12 +312,12 @@ function StatCard({
   return (
     <Link
       href={href}
-      className="block rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:border-zinc-300 hover:shadow-sm"
+      className="block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 transition-shadow hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-sm"
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
         {label}
       </p>
-      <p className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900">
+      <p className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         {value}
       </p>
     </Link>
