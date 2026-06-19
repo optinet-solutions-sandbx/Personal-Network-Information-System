@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { Contact } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
 
 const AVATAR_COLORS = [
   "bg-indigo-500",
@@ -22,8 +23,12 @@ function avatarColor(name: string): string {
 
 export default function ContactsSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
+
+  // Don't render sidebar on auth pages
+  if (pathname === "/login" || pathname === "/signup") return null;
 
   useEffect(() => {
     fetch("/api/contacts")
@@ -41,6 +46,12 @@ export default function ContactsSidebar() {
           .includes(query.toLowerCase())
       )
     : contacts;
+
+  async function handleSignout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
     <aside className="flex w-56 flex-shrink-0 flex-col border-r border-zinc-200 bg-white">
@@ -106,6 +117,15 @@ export default function ContactsSidebar() {
           </p>
         )}
       </nav>
+
+      <div className="border-t border-zinc-200 px-3 py-3">
+        <button
+          onClick={handleSignout}
+          className="w-full rounded-md px-2 py-1.5 text-left text-xs text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
+        >
+          Sign out
+        </button>
+      </div>
     </aside>
   );
 }
