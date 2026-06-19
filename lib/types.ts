@@ -46,6 +46,21 @@ export type Contact = {
   _count?: { notes: number };
 };
 
+export type InsightType = "birthday" | "follow_up" | "introduction" | "enrichment"
+export type InsightPriority = 1 | 2 | 3
+
+export type InsightItem = {
+  type: InsightType
+  priority: InsightPriority
+  contactId: string
+  contactName: string
+  secondaryContactId?: string
+  secondaryContactName?: string
+  message: string
+  actionUrl: string
+  daysUntil?: number
+}
+
 export type ContactInput = {
   name: string;
   email?: string;
