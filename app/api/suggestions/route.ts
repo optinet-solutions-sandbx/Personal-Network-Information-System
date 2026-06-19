@@ -79,7 +79,6 @@ export async function POST() {
         rationale: c.rationale,
         score: c.score,
         generatedAt: new Date(),
-        status: "pending",
       },
       create: {
         userId: owner.userId,

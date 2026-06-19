@@ -32,6 +32,7 @@ export default function SuggestedIntroductions() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -48,19 +49,28 @@ export default function SuggestedIntroductions() {
   }, [load])
 
   async function handleAction(id: string, status: "accepted" | "dismissed") {
+    const snapshot = suggestions
     setSuggestions((prev) => prev.filter((s) => s.id !== id))
-    await fetch(`/api/suggestions/${id}`, {
+    const res = await fetch(`/api/suggestions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     })
+    if (!res.ok) setSuggestions(snapshot)
   }
 
   async function handleGenerate() {
     setGenerating(true)
+    setGenError(null)
     try {
-      await fetch("/api/suggestions", { method: "POST" })
+      const res = await fetch("/api/suggestions", { method: "POST" })
+      if (!res.ok) {
+        setGenError("Analysis failed — please try again.")
+        return
+      }
       await load()
+    } catch {
+      setGenError("Analysis failed — please try again.")
     } finally {
       setGenerating(false)
     }
@@ -78,6 +88,10 @@ export default function SuggestedIntroductions() {
           {generating ? "Analyzing…" : "Refresh"}
         </button>
       </div>
+
+      {genError && (
+        <p className="mb-2 text-xs text-red-500">{genError}</p>
+      )}
 
       {loading ? (
         <p className="text-sm text-zinc-400">Loading…</p>

@@ -20,17 +20,12 @@ export async function PATCH(
     )
   }
 
-  const suggestion = await prisma.suggestion.findFirst({
+  const result = await prisma.suggestion.updateMany({
     where: { id, ...ownerWhere(owner.userId) },
-  })
-  if (!suggestion) {
-    return NextResponse.json({ error: "not found" }, { status: 404 })
-  }
-
-  const updated = await prisma.suggestion.update({
-    where: { id },
     data: { status, respondedAt: new Date() },
   })
-
-  return NextResponse.json(updated)
+  if (result.count === 0) {
+    return NextResponse.json({ error: "not found" }, { status: 404 })
+  }
+  return NextResponse.json({ ok: true })
 }

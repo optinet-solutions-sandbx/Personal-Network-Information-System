@@ -159,7 +159,7 @@ Rules:
 
     const response = await client.messages.create({
       model,
-      max_tokens: 1024,
+      max_tokens: 2048,
       system:
         "You are a professional networking analyst. Identify genuinely valuable introduction opportunities between people in someone's network. Focus on complementary skills, shared professional interests, or mutual benefit. Return only valid JSON.",
       messages: [{ role: "user", content: userMessage }],
