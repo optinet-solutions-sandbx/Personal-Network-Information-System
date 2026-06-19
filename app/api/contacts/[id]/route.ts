@@ -48,12 +48,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: valid.error }, { status: 400 });
   }
 
-  const data: Record<string, string | null> = {};
+  const data: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(valid.data)) {
     if (key === "customFields") {
       data.customFields = value ? JSON.stringify(value) : null;
     } else {
-      data[key] = (value as string | null) ?? null;
+      data[key] = value ?? null;
     }
   }
 

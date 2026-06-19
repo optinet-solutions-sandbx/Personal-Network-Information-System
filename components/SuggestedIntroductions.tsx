@@ -115,14 +115,24 @@ export default function SuggestedIntroductions() {
             >
               <div className="mb-2 flex items-center gap-2">
                 <Avatar name={s.contactA.name} />
-                <span className="text-sm font-medium text-zinc-700">
-                  {s.contactA.name}
-                </span>
-                <span className="text-xs text-zinc-400">↔</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-zinc-700">{s.contactA.name}</p>
+                  {(s.contactA.title || s.contactA.company) && (
+                    <p className="truncate text-xs text-zinc-400">
+                      {[s.contactA.title, s.contactA.company].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                </div>
+                <span className="flex-shrink-0 text-xs text-zinc-400">↔</span>
                 <Avatar name={s.contactB.name} />
-                <span className="text-sm font-medium text-zinc-700">
-                  {s.contactB.name}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-zinc-700">{s.contactB.name}</p>
+                  {(s.contactB.title || s.contactB.company) && (
+                    <p className="truncate text-xs text-zinc-400">
+                      {[s.contactB.title, s.contactB.company].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                </div>
                 <span className="ml-auto flex-shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
                   {s.score.toFixed(1)}
                 </span>

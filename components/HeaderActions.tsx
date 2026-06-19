@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Contact } from "@/lib/types";
 import { computeUpcomingBirthdays } from "@/lib/birthdays";
+import { FollowUpDraftModal } from "@/components/FollowUpDraftModal";
 
 const AVATAR_COLORS = [
   "bg-indigo-500", "bg-emerald-500", "bg-amber-500", "bg-red-400",
@@ -15,6 +16,13 @@ function avatarColor(name: string): string {
 }
 
 const MS_PER_DAY = 86_400_000;
+
+const CADENCE_DAYS: Record<string, number> = {
+  weekly: 7,
+  monthly: 30,
+  quarterly: 90,
+  annually: 365,
+};
 
 type Notification = {
   key: string;
@@ -40,6 +48,7 @@ type Suggestion = {
 export default function HeaderActions() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [open, setOpen] = useState<"messages" | "bell" | null>(null);
+  const [modalIndex, setModalIndex] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -136,6 +145,62 @@ export default function HeaderActions() {
       });
     }
 
+    // Cadence-based follow-ups — contacts with a follow-up schedule that is now due.
+    for (const c of contacts) {
+      if (!c.followUpCadence) continue;
+      const cadDays =
+        c.followUpCadence === "custom"
+          ? (c.followUpCadenceDays ?? null)
+          : (CADENCE_DAYS[c.followUpCadence] ?? null);
+      if (!cadDays) continue;
+      const lastNoteAt = c.healthInputs?.lastNoteAt;
+      const daysSince = lastNoteAt
+        ? Math.floor((now.getTime() - new Date(lastNoteAt).getTime()) / MS_PER_DAY)
+        : 99999;
+      if (daysSince >= cadDays) {
+        const daysOverdue = Math.max(0, daysSince - cadDays);
+        notes.push({
+          key: `followup-${c.id}`,
+          contact: c,
+          title: `Follow up with ${c.name}`,
+          detail:
+            daysOverdue === 0
+              ? "Due today"
+              : `Overdue by ${daysOverdue} day${daysOverdue === 1 ? "" : "s"}`,
+          href: `/contacts/${c.id}`,
+          accent: "bg-orange-500",
+        });
+      }
+    }
+
+    // Health-based follow-ups — Dormant or Fading contacts (capped at 3, no duplicate with cadence).
+    const cadenceIds = new Set(notes.filter((n) => n.key.startsWith("followup-")).map((n) => n.key));
+    contacts
+      .filter(
+        (c) =>
+          (c.healthTier === "Dormant" || c.healthTier === "Fading") &&
+          !cadenceIds.has(`followup-${c.id}`)
+      )
+      .sort((a, b) => {
+        if (a.healthTier !== b.healthTier) return a.healthTier === "Dormant" ? -1 : 1;
+        return (a.healthScore ?? 0) - (b.healthScore ?? 0);
+      })
+      .slice(0, 3)
+      .forEach((c) => {
+        notes.push({
+          key: `health-${c.id}`,
+          contact: c,
+          title:
+            c.healthTier === "Dormant"
+              ? `Reconnect with ${c.name}`
+              : `Reach out to ${c.name}`,
+          detail:
+            c.healthTier === "Dormant" ? "No recent activity" : "Relationship is fading",
+          href: `/contacts/${c.id}`,
+          accent: "bg-orange-500",
+        });
+      });
+
     // "Keep in touch" message suggestions: birthdays make the best prompts.
     const suggestionList: Suggestion[] = birthdays
       .filter((b) => b.daysUntil <= 14)
@@ -160,7 +225,7 @@ export default function HeaderActions() {
     return { notifications: notes, suggestions: suggestionList };
   }, [contacts]);
 
-  // Badge counts only the time-sensitive items (today's birthdays + new connections).
+  // Badge counts time-sensitive items (today's birthdays, new connections, follow-ups due).
   const unreadCount = notifications.filter(
     (n) => n.accent !== "bg-amber-500"
   ).length;
@@ -185,8 +250,12 @@ export default function HeaderActions() {
               <EmptyState text="No outreach suggestions right now. As birthdays approach, message drafts will appear here." />
             ) : (
               <ul className="divide-y divide-zinc-100">
-                {suggestions.map((s) => (
-                  <MessageRow key={s.contact.id} suggestion={s} />
+                {suggestions.map((s, i) => (
+                  <MessageRow
+                    key={s.contact.id}
+                    suggestion={s}
+                    onMessage={() => { setOpen(null); setModalIndex(i); }}
+                  />
                 ))}
               </ul>
             )}
@@ -211,7 +280,7 @@ export default function HeaderActions() {
         {open === "bell" && (
           <Panel title="Notifications" onClose={() => setOpen(null)}>
             {notifications.length === 0 ? (
-              <EmptyState text="You're all caught up. Birthdays and new connections will show up here." />
+              <EmptyState text="You're all caught up. Birthdays, follow-ups, and new connections will show up here." />
             ) : (
               <ul className="divide-y divide-zinc-100">
                 {notifications.map((n) => (
@@ -240,18 +309,29 @@ export default function HeaderActions() {
           </Panel>
         )}
       </div>
+      {modalIndex !== null && suggestions[modalIndex] && (
+        <FollowUpDraftModal
+          contactId={suggestions[modalIndex].contact.id}
+          contactName={suggestions[modalIndex].contact.name}
+          contactEmail={suggestions[modalIndex].contact.email}
+          onClose={() => setModalIndex(null)}
+          current={modalIndex + 1}
+          total={suggestions.length}
+          onPrev={modalIndex > 0 ? () => setModalIndex(modalIndex - 1) : undefined}
+          onNext={modalIndex < suggestions.length - 1 ? () => setModalIndex(modalIndex + 1) : undefined}
+        />
+      )}
     </div>
   );
 }
 
-function MessageRow({ suggestion: s }: { suggestion: Suggestion }) {
-  const email = s.contact.email?.trim();
-  const mailto = email
-    ? `mailto:${email}?subject=${encodeURIComponent(
-        s.subject
-      )}&body=${encodeURIComponent(s.body)}`
-    : null;
-
+function MessageRow({
+  suggestion: s,
+  onMessage,
+}: {
+  suggestion: Suggestion;
+  onMessage: () => void;
+}) {
   return (
     <li className="flex items-center gap-3 px-4 py-3">
       <span
@@ -267,21 +347,12 @@ function MessageRow({ suggestion: s }: { suggestion: Suggestion }) {
         </span>
         <span className="block truncate text-xs text-zinc-400">{s.reason}</span>
       </span>
-      {mailto ? (
-        <a
-          href={mailto}
-          className="flex-shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-indigo-700"
-        >
-          Message
-        </a>
-      ) : (
-        <Link
-          href={`/contacts/${s.contact.id}`}
-          className="flex-shrink-0 rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
-        >
-          Open
-        </Link>
-      )}
+      <button
+        onClick={onMessage}
+        className="flex-shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-indigo-700"
+      >
+        Message
+      </button>
     </li>
   );
 }
