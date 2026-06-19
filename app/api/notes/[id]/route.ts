@@ -1,33 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 type Params = { params: Promise<{ id: string }> };
 
-// PATCH /api/notes/:id
 export async function PATCH(req: NextRequest, { params }: Params) {
+  const ctx = getWorkspaceContext(req);
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!body || typeof body.content !== "string" || !body.content.trim()) {
     return NextResponse.json({ error: "content is required" }, { status: 400 });
   }
-  try {
-    const note = await prisma.note.update({
-      where: { id },
-      data: { content: body.content.trim() },
-    });
-    return NextResponse.json(note);
-  } catch {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
+
+  // Verify the note's contact belongs to this workspace
+  const note = await prisma.note.findFirst({
+    where: { id, contact: { workspaceId: ctx.workspaceId } },
+  });
+  if (!note) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const updated = await prisma.note.update({
+    where: { id },
+    data: { content: body.content.trim() },
+  });
+  return NextResponse.json(updated);
 }
 
-// DELETE /api/notes/:id
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const ctx = getWorkspaceContext(req);
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
-  try {
-    await prisma.note.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
+  // Verify the note's contact belongs to this workspace
+  const note = await prisma.note.findFirst({
+    where: { id, contact: { workspaceId: ctx.workspaceId } },
+  });
+  if (!note) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  await prisma.note.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

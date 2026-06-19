@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateProfile } from "@/lib/profile";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 type Params = { params: Promise<{ id: string }> };
 
-// POST /api/contacts/:id/profile — generate (or regenerate) the AI-assisted profile
-export async function POST(_req: NextRequest, { params }: Params) {
-  const { id } = await params;
+export async function POST(req: NextRequest, { params }: Params) {
+  const ctx = getWorkspaceContext(req);
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { id } = await params;
   const contact = await prisma.contact.findUnique({
-    where: { id },
+    where: { id, workspaceId: ctx.workspaceId },
     include: { notes: { orderBy: { createdAt: "asc" } } },
   });
   if (!contact) {
