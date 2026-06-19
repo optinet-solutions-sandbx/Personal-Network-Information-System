@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
@@ -21,6 +22,66 @@ const MAX_ATTACHMENTS = 4;
 const MAX_IMAGE_DIM = 1568;
 
 type Attachment = { name: string; url: string };
+
+// Single-value standard fields we gap-fill when merging into an existing
+// contact: only filled when the existing value is empty, never overwritten.
+const MERGE_FILL_FIELDS = [
+  "email",
+  "phone",
+  "company",
+  "title",
+  "location",
+  "birthday",
+  "howWeMet",
+] as const;
+
+const splitTags = (s: string | null | undefined) =>
+  (s ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+// Build a non-destructive merge patch: gap-fill empty standard fields, union
+// tags (case-insensitively, preserving the existing order), and add new
+// custom-field keys without clobbering existing ones. The returned patch only
+// carries fields that actually change (plus `name`, which the API requires).
+function buildMergePatch(
+  existing: Contact,
+  incoming: ContactInput
+): ContactInput {
+  const patch: ContactInput = { name: existing.name };
+
+  for (const f of MERGE_FILL_FIELDS) {
+    const next = incoming[f]?.trim();
+    if (next && !existing[f]?.trim()) patch[f] = next;
+  }
+
+  if (incoming.tags?.trim()) {
+    const have = splitTags(existing.tags);
+    const seen = new Set(have.map((t) => t.toLowerCase()));
+    const merged = [...have];
+    for (const t of splitTags(incoming.tags)) {
+      if (!seen.has(t.toLowerCase())) {
+        seen.add(t.toLowerCase());
+        merged.push(t);
+      }
+    }
+    if (merged.length > have.length) patch.tags = merged.join(", ");
+  }
+
+  if (incoming.customFields) {
+    const cur = existing.customFields ?? {};
+    const adders: Record<string, string> = {};
+    for (const [k, v] of Object.entries(incoming.customFields)) {
+      if (!(k in cur) && v?.trim()) adders[k] = v;
+    }
+    if (Object.keys(adders).length > 0) {
+      patch.customFields = { ...cur, ...adders };
+    }
+  }
+
+  return patch;
+}
 
 // Bucket contacts into A–Z sections for the contacts grid. Names that don't
 // start with a letter fall under "#". Aggregates by letter (not by adjacency)
@@ -131,6 +192,7 @@ async function fileToDataUrl(file: File): Promise<string> {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("name");
@@ -447,50 +509,123 @@ export default function HomePage() {
     };
   }, [query, load]);
 
-  async function handleSave() {
-    if (!extracted?.name?.trim()) return;
-    setSaving(true);
+  // Attach the freeform story (if any) as a note on the given contact.
+  async function attachStoryNote(contactId: string) {
+    if (!story.trim()) return;
+    await fetch(`/api/contacts/${contactId}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: story, source: "story" }),
+    });
+  }
+
+  // Create a brand-new contact (the original save path).
+  async function createNewContact(input: ContactInput) {
     Swal.fire({
       title: "Saving Contact...",
-      html: `<p style="font-size:0.875rem;color:#6b7280">Adding <strong>${extracted.name}</strong> to your network</p>`,
+      html: `<p style="font-size:0.875rem;color:#6b7280">Adding <strong>${input.name}</strong> to your network</p>`,
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,
       didOpen: () => Swal.showLoading(),
     });
+    const res = await fetch("/api/contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error(`POST /api/contacts ${res.status}`);
+    const contact = (await res.json()) as { id: string };
+    await attachStoryNote(contact.id);
+    Swal.fire({
+      icon: "success",
+      title: "Contact Saved!",
+      html: `<p style="font-size:0.875rem;color:#6b7280"><strong>${input.name}</strong> has been added to your network.</p>`,
+      timer: 2000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    });
+    resetForm();
+    setShowForm(false);
+    setQuery("");
+  }
+
+  // Non-destructively merge the extracted details into an existing contact,
+  // then open that contact.
+  async function mergeIntoExisting(existing: Contact, input: ContactInput) {
+    Swal.fire({
+      title: "Merging...",
+      html: `<p style="font-size:0.875rem;color:#6b7280">Updating <strong>${existing.name}</strong></p>`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
+    const patch = buildMergePatch(existing, input);
+    const res = await fetch(`/api/contacts/${existing.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error(`PATCH /api/contacts ${res.status}`);
+    await attachStoryNote(existing.id);
+    resetForm();
+    setShowForm(false);
+    router.push(`/contacts/${existing.id}`);
+  }
+
+  async function handleSave() {
+    if (!extracted?.name?.trim()) return;
+    const input = extracted;
+    setSaving(true);
     try {
-      const res = await fetch("/api/contacts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(extracted),
-      });
-      if (res.ok) {
-        const contact = (await res.json()) as { id: string };
-        if (story.trim()) {
-          await fetch(`/api/contacts/${contact.id}/notes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content: story, source: "story" }),
-          });
-        }
-        Swal.fire({
-          icon: "success",
-          title: "Contact Saved!",
-          html: `<p style="font-size:0.875rem;color:#6b7280"><strong>${extracted.name}</strong> has been added to your network.</p>`,
-          timer: 2000,
-          timerProgressBar: true,
-          showConfirmButton: false,
-        });
-        resetForm();
-        setShowForm(false);
-        setQuery("");
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: "Save Failed",
-          text: "Something went wrong. Please try again.",
-        });
+      // Look for likely duplicates (case-insensitive exact name/email) before
+      // creating a new record. A failed check shouldn't block saving.
+      const params = new URLSearchParams({ name: input.name.trim() });
+      if (input.email?.trim()) params.set("email", input.email.trim());
+      let dupes: Contact[] = [];
+      try {
+        const checkRes = await fetch(`/api/contacts/check?${params}`);
+        if (checkRes.ok) dupes = (await checkRes.json()) as Contact[];
+      } catch {
+        /* network blip on the check — fall through to a normal create */
       }
+
+      if (dupes.length > 0) {
+        const existing = dupes[0];
+        const subtitle = [existing.title, existing.company]
+          .filter(Boolean)
+          .join(" · ");
+        const choice = await Swal.fire({
+          icon: "question",
+          title: "Possible duplicate",
+          html: `<p style="font-size:0.875rem;color:#6b7280">A contact named <strong>${existing.name}</strong>${
+            subtitle ? ` (${subtitle})` : ""
+          } already exists. Merge the new details into it, or save as a separate contact?</p>`,
+          showDenyButton: true,
+          showCancelButton: true,
+          confirmButtonText: "Merge",
+          denyButtonText: "Save as new",
+          cancelButtonText: "Cancel",
+          confirmButtonColor: "#4f46e5",
+          denyButtonColor: "#52525b",
+        });
+        if (choice.isConfirmed) {
+          await mergeIntoExisting(existing, input);
+        } else if (choice.isDenied) {
+          await createNewContact(input);
+        }
+        // Cancel/dismiss → leave the form as-is so nothing is lost.
+        return;
+      }
+
+      await createNewContact(input);
+    } catch {
+      Swal.fire({
+        icon: "error",
+        title: "Save Failed",
+        text: "Something went wrong. Please try again.",
+      });
     } finally {
       setSaving(false);
     }
