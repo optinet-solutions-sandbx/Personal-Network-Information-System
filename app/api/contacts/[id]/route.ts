@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,11 +15,13 @@ function parseCustomFields(c: Record<string, unknown>) {
   };
 }
 
-// GET /api/contacts/:id  (with notes)
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
+  const ctx = getWorkspaceContext(req);
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const contact = await prisma.contact.findUnique({
-    where: { id },
+    where: { id, workspaceId: ctx.workspaceId },
     include: { notes: { orderBy: { createdAt: "desc" } } },
   });
   if (!contact) {
@@ -40,8 +43,10 @@ const EDITABLE = [
   "howWeMet",
 ] as const;
 
-// PATCH /api/contacts/:id
 export async function PATCH(req: NextRequest, { params }: Params) {
+  const ctx = getWorkspaceContext(req);
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!body) {
@@ -59,7 +64,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "name cannot be empty" }, { status: 400 });
   }
 
-  // customFields is a JSON object, not a plain string — handle separately
   if ("customFields" in body) {
     if (
       body.customFields &&
@@ -73,7 +77,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const contact = await prisma.contact.update({ where: { id }, data });
+    const contact = await prisma.contact.update({
+      where: { id, workspaceId: ctx.workspaceId },
+      data,
+    });
     return NextResponse.json(
       parseCustomFields(contact as unknown as Record<string, unknown>)
     );
@@ -82,11 +89,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-// DELETE /api/contacts/:id
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const ctx = getWorkspaceContext(req);
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   try {
-    await prisma.contact.delete({ where: { id } });
+    await prisma.contact.delete({ where: { id, workspaceId: ctx.workspaceId } });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "not found" }, { status: 404 });
