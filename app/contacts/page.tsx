@@ -22,6 +22,21 @@ const MAX_IMAGE_DIM = 1568;
 
 type Attachment = { name: string; url: string };
 
+// Bucket an already-name-sorted list into A–Z sections for the contacts grid.
+// Names that don't start with a letter fall under "#". Relies on the server
+// returning contacts in name order (sort=name) so groups stay contiguous.
+function groupByInitial(contacts: Contact[]): { letter: string; items: Contact[] }[] {
+  const groups: { letter: string; items: Contact[] }[] = [];
+  for (const c of contacts) {
+    const first = (c.name?.trim()?.[0] ?? "#").toUpperCase();
+    const letter = /[A-Z]/.test(first) ? first : "#";
+    const last = groups[groups.length - 1];
+    if (last && last.letter === letter) last.items.push(c);
+    else groups.push({ letter, items: [c] });
+  }
+  return groups;
+}
+
 // Read an image File and return a (possibly downscaled) data URL. Large photos
 // are re-encoded as JPEG via a canvas; small ones pass through untouched.
 async function fileToDataUrl(file: File): Promise<string> {
@@ -299,7 +314,7 @@ export default function HomePage() {
 
   const fetchPage = useCallback(async (q: string, offset: number) => {
     const res = await fetch(
-      `/api/contacts?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${offset}`
+      `/api/contacts?q=${encodeURIComponent(q)}&sort=name&limit=${PAGE_SIZE}&offset=${offset}`
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as Contact[];
@@ -675,58 +690,67 @@ export default function HomePage() {
             : "No contacts yet. Add your first one above."}
         </p>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {contacts.map((c) => (
-            <li key={c.id}>
-              <Link
-                href={`/contacts/${c.id}`}
-                className="block rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{c.name}</p>
-                    <p className="text-sm text-zinc-500">
-                      {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
-                    </p>
-                  </div>
-                  {c.profile && (
-                    <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
-                      AI profile
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  {(c.tags || "")
-                    .split(",")
-                    .map((t) => t.trim())
-                    .filter(Boolean)
-                    .map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  {c._count && (
-                    <span className="ml-auto text-xs text-zinc-400">
-                      {c._count.notes} note{c._count.notes === 1 ? "" : "s"}
-                    </span>
-                  )}
-                </div>
-                {c.healthScore != null && c.healthTier && (
-                  <span className="flex items-center gap-1 text-xs text-gray-500">
-                    <span
-                      className={`inline-block h-2 w-2 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`}
-                    />
-                    <span className="font-medium">{c.healthTier}</span>
-                    <span className="text-gray-400">({c.healthScore})</span>
-                  </span>
-                )}
-              </Link>
-            </li>
+        <div className="space-y-6">
+          {groupByInitial(contacts).map((group) => (
+            <section key={group.letter}>
+              <h2 className="mb-2 border-b border-zinc-100 pb-1 text-sm font-semibold text-zinc-400">
+                {group.letter}
+              </h2>
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {group.items.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/contacts/${c.id}`}
+                      className="block rounded-xl border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold">{c.name}</p>
+                          <p className="text-sm text-zinc-500">
+                            {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
+                          </p>
+                        </div>
+                        {c.profile && (
+                          <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+                            AI profile
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                        {(c.tags || "")
+                          .split(",")
+                          .map((t) => t.trim())
+                          .filter(Boolean)
+                          .map((t) => (
+                            <span
+                              key={t}
+                              className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        {c._count && (
+                          <span className="ml-auto text-xs text-zinc-400">
+                            {c._count.notes} note{c._count.notes === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      </div>
+                      {c.healthScore != null && c.healthTier && (
+                        <span className="flex items-center gap-1 text-xs text-gray-500">
+                          <span
+                            className={`inline-block h-2 w-2 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`}
+                          />
+                          <span className="font-medium">{c.healthTier}</span>
+                          <span className="text-gray-400">({c.healthScore})</span>
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
 
       {!loading && hasMore && (

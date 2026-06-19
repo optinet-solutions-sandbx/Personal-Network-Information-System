@@ -84,14 +84,29 @@ export default function ContactDetailPage({
   async function handleDelete() {
     const result = await Swal.fire({
       title: "Delete Contact?",
-      html: `<p style="font-size:0.875rem;color:#6b7280">Are you sure you want to delete <strong>${contact!.name}</strong>? This cannot be undone.</p>`,
+      html: `<p style="font-size:0.875rem;color:#6b7280">This will permanently delete <strong>${contact!.name}</strong>. This cannot be undone.<br/><br/>Type <strong>delete</strong> below to confirm.</p>`,
       icon: "warning",
+      input: "text",
+      inputPlaceholder: "Type delete to confirm",
+      inputAttributes: {
+        autocapitalize: "off",
+        autocorrect: "off",
+        autocomplete: "off",
+      },
       showCancelButton: true,
       confirmButtonText: "Delete",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#6b7280",
       reverseButtons: true,
+      preConfirm: (value: string) => {
+        const v = (value ?? "").trim().toLowerCase();
+        if (v !== "delete" && v !== "confirm") {
+          Swal.showValidationMessage('Please type "delete" to confirm.');
+          return false;
+        }
+        return true;
+      },
     });
     if (!result.isConfirmed) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
