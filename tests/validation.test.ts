@@ -4,6 +4,7 @@ import {
   validateContact,
   validateCustomFields,
   validateNoteContent,
+  validateNoteImages,
   LIMITS,
 } from "@/lib/validation";
 
@@ -139,5 +140,31 @@ describe("validateNoteContent", () => {
   });
   it("rejects content past the cap", () => {
     expect(validateNoteContent("a".repeat(LIMITS.noteContent + 1)).ok).toBe(false);
+  });
+});
+
+describe("validateNoteImages", () => {
+  it("treats absent/null as an empty list", () => {
+    const a = validateNoteImages(undefined);
+    const b = validateNoteImages(null);
+    expect(a.ok && a.data.length === 0).toBe(true);
+    expect(b.ok && b.data.length === 0).toBe(true);
+  });
+  it("accepts image data URLs", () => {
+    const res = validateNoteImages(["data:image/png;base64,AAAA", "data:image/jpeg;base64,BBBB"]);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.length).toBe(2);
+  });
+  it("rejects non-arrays and non-image strings", () => {
+    expect(validateNoteImages("data:image/png;base64,AAAA").ok).toBe(false);
+    expect(validateNoteImages(["not-a-data-url"]).ok).toBe(false);
+    expect(validateNoteImages(["data:text/plain;base64,AAAA"]).ok).toBe(false);
+  });
+  it("rejects more than the per-note cap", () => {
+    const many = Array.from({ length: LIMITS.noteImageCount + 1 }, () => "data:image/png;base64,AAAA");
+    expect(validateNoteImages(many).ok).toBe(false);
+  });
+  it("rejects an oversized photo", () => {
+    expect(validateNoteImages(["data:image/png;base64," + "A".repeat(LIMITS.noteImageChars)]).ok).toBe(false);
   });
 });

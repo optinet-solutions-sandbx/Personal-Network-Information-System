@@ -9,6 +9,7 @@ export type Note = {
   contactId: string;
   content: string;
   source: NoteSource;
+  images: string[]; // photo attachments as data URLs (see lib/image.ts)
   createdAt: string;
   updatedAt: string;
 };

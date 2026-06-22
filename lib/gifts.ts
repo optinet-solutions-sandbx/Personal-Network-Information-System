@@ -103,15 +103,19 @@ function buildFallback(input: GiftsInput): GiftSuggestion[] {
   return suggestions.slice(0, 3);
 }
 
+// Suggestions plus the source that produced them, so the UI can attribute the
+// content ("rule-based" = the deterministic fallback, no AI call).
+export type GiftResult = { suggestions: GiftSuggestion[]; model: string };
+
 export async function generateGiftSuggestions(
   input: GiftsInput
-): Promise<GiftSuggestion[]> {
+): Promise<GiftResult> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return buildFallback(input);
+  if (!apiKey) return { suggestions: buildFallback(input), model: "rule-based" };
 
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
   try {
     const client = new OpenAI({ apiKey });
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.7,
@@ -121,14 +125,14 @@ export async function generateGiftSuggestions(
       ],
     });
     const text = completion.choices[0]?.message?.content?.trim();
-    if (!text) return buildFallback(input);
+    if (!text) return { suggestions: buildFallback(input), model: "rule-based" };
     const parsed = JSON.parse(text) as { suggestions: GiftSuggestion[] };
     if (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0) {
-      return buildFallback(input);
+      return { suggestions: buildFallback(input), model: "rule-based" };
     }
-    return parsed.suggestions.slice(0, 3);
+    return { suggestions: parsed.suggestions.slice(0, 3), model };
   } catch (err) {
     console.error("OpenAI gift generation failed, using fallback:", err);
-    return buildFallback(input);
+    return { suggestions: buildFallback(input), model: "rule-based" };
   }
 }

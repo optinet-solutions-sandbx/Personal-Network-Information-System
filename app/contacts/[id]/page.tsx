@@ -1,12 +1,13 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
 import { formatBirthday, normalizeBirthday, contactDaysUntilBirthday } from "@/lib/birthdays";
+import { fileToDataUrl, MAX_NOTE_IMAGES } from "@/lib/image";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
@@ -467,7 +468,10 @@ function NotesSection({
 }) {
   const notes = contact.notes ?? [];
   const [draft, setDraft] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [attaching, setAttaching] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 5;
   const totalPages = Math.max(1, Math.ceil(notes.length / PAGE_SIZE));
@@ -478,8 +482,30 @@ function NotesSection({
       setDraft((d) => (d ? `${d} ${text}` : text)),
   });
 
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const room = MAX_NOTE_IMAGES - images.length;
+    if (room <= 0) return;
+    const picked = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, room);
+    if (picked.length === 0) return;
+    setAttaching(true);
+    try {
+      const urls = await Promise.all(picked.map((f) => fileToDataUrl(f)));
+      setImages((prev) => [...prev, ...urls].slice(0, MAX_NOTE_IMAGES));
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't add photo",
+        text: "One of those images couldn't be read — try a different file.",
+      });
+    } finally {
+      setAttaching(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function addNote() {
-    if (!draft.trim()) return;
+    if (!draft.trim() && images.length === 0) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/contacts/${contact.id}/notes`, {
@@ -488,6 +514,7 @@ function NotesSection({
         body: JSON.stringify({
           content: draft,
           source: listening ? "voice" : "manual",
+          images,
         }),
       });
       if (!res.ok) {
@@ -500,6 +527,7 @@ function NotesSection({
         return;
       }
       setDraft("");
+      setImages([]);
       onChange();
     } catch {
       await Swal.fire({
@@ -521,31 +549,78 @@ function NotesSection({
           id="notes-textarea"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Type a note, or use the mic to dictate…"
+          placeholder="Type a note, use the mic to dictate, or attach a photo…"
           rows={3}
           className="w-full resize-y text-sm outline-none"
         />
+
+        {images.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {images.map((src, i) => (
+              <div key={i} className="relative h-16 w-16">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={`Attachment ${i + 1}`}
+                  className="h-16 w-16 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label="Remove photo"
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-xs text-white hover:bg-zinc-950"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
         <div className="mt-2 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={toggle}
-            disabled={!supported}
-            title={
-              supported
-                ? "Dictate with speech-to-text"
-                : "Speech recognition not supported in this browser (try Chrome)"
-            }
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              listening
-                ? "bg-red-600 text-white"
-                : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
-            }`}
-          >
-            <span>{listening ? "● Listening… stop" : "🎤 Dictate"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggle}
+              disabled={!supported}
+              title={
+                supported
+                  ? "Dictate with speech-to-text"
+                  : "Speech recognition not supported in this browser (try Chrome)"
+              }
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                listening
+                  ? "bg-red-600 text-white"
+                  : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+              }`}
+            >
+              <span>{listening ? "● Listening… stop" : "🎤 Dictate"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={attaching || images.length >= MAX_NOTE_IMAGES}
+              title={
+                images.length >= MAX_NOTE_IMAGES
+                  ? `Up to ${MAX_NOTE_IMAGES} photos per note`
+                  : "Attach a photo"
+              }
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+            >
+              <span>{attaching ? "Adding…" : "📷 Photo"}</span>
+            </button>
+          </div>
           <button
             onClick={addNote}
-            disabled={saving || !draft.trim()}
+            disabled={saving || (!draft.trim() && images.length === 0)}
             className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Add note"}
@@ -603,13 +678,14 @@ function NotesSection({
 function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(note.content);
+  const [imgs, setImgs] = useState<string[]>(note.images ?? []);
 
   async function save() {
     try {
       const res = await fetch(`/api/notes/${note.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, images: imgs }),
       });
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: "" }));
@@ -666,6 +742,28 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             rows={3}
             className="input w-full"
           />
+          {imgs.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {imgs.map((src, i) => (
+                <div key={i} className="relative h-16 w-16">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`Attachment ${i + 1}`}
+                    className="h-16 w-16 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setImgs((prev) => prev.filter((_, j) => j !== i))}
+                    aria-label="Remove photo"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-xs text-white hover:bg-zinc-950"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               onClick={save}
@@ -676,6 +774,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             <button
               onClick={() => {
                 setText(note.content);
+                setImgs(note.images ?? []);
                 setEditing(false);
               }}
               className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs"
@@ -686,7 +785,23 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
         </div>
       ) : (
         <>
-          <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
+          {note.content && (
+            <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
+          )}
+          {note.images?.length > 0 && (
+            <div className={`flex flex-wrap gap-2 ${note.content ? "mt-2" : ""}`}>
+              {note.images.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <a key={i} href={src} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={src}
+                    alt={`Attachment ${i + 1}`}
+                    className="h-24 w-24 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover transition-opacity hover:opacity-90"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
             <span
               className={`rounded-full px-1.5 py-0.5 ${

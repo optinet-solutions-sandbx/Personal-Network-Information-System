@@ -69,7 +69,10 @@ model Note {
   contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   content String
-  source  String @default("manual") // "manual" | "voice" | "story"
+  source  String @default("manual") // "manual" | "voice" | "story" | "gift"
+  // Photo attachments as downscaled JPEG data URLs (see lib/image.ts). Capped at
+  // MAX_NOTE_IMAGES client- and server-side. Empty array = a text-only note.
+  images  String[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recalculateHealth } from "@/lib/health";
 import { resolveOwner, ownerWhere } from "@/lib/auth";
-import { validateNoteContent } from "@/lib/validation";
+import { validateNoteContent, validateNoteImages } from "@/lib/validation";
 import type { NoteSource } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
@@ -36,9 +36,23 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json().catch(() => null);
 
-  const valid = validateNoteContent(body?.content);
-  if (!valid.ok) {
-    return NextResponse.json({ error: valid.error }, { status: 400 });
+  const imgs = validateNoteImages(body?.images);
+  if (!imgs.ok) {
+    return NextResponse.json({ error: imgs.error }, { status: 400 });
+  }
+
+  // A note may be photo-only: content is required unless at least one photo is
+  // attached, in which case empty content is allowed.
+  const rawContent = typeof body?.content === "string" ? body.content.trim() : "";
+  let content: string;
+  if (rawContent === "" && imgs.data.length > 0) {
+    content = "";
+  } else {
+    const valid = validateNoteContent(body?.content);
+    if (!valid.ok) {
+      return NextResponse.json({ error: valid.error }, { status: 400 });
+    }
+    content = valid.data;
   }
 
   const contact = await prisma.contact.findFirst({
@@ -60,7 +74,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   try {
     const note = await prisma.note.create({
-      data: { contactId: id, content: valid.data, source },
+      data: { contactId: id, content, source, images: imgs.data },
     });
     // touch the contact so it sorts to the top of the recently-updated list
     await prisma.contact.update({ where: { id }, data: { updatedAt: new Date() } });

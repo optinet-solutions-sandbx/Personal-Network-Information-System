@@ -23,6 +23,8 @@ export const LIMITS = {
   customFieldValue: 4000,
   customFieldCount: 50,
   noteContent: 20000,
+  noteImageCount: 4, // photos per note (mirror MAX_NOTE_IMAGES in lib/image.ts)
+  noteImageChars: 8_000_000, // ~6MB per downscaled data URL — generous upper bound
 } as const;
 
 // Loose, pragmatic email shape check (not full RFC). Empty is allowed upstream.
@@ -191,4 +193,25 @@ export function validateNoteContent(value: unknown): ValidationResult<string> {
     return { ok: false, error: "note is too long" };
   }
   return { ok: true, data: content };
+}
+
+// Photo attachments on a note: an array of image data URLs. Absent/empty is
+// valid (text-only note). Returns the cleaned array on success.
+export function validateNoteImages(value: unknown): ValidationResult<string[]> {
+  if (value == null) return { ok: true, data: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "images must be a list" };
+  if (value.length > LIMITS.noteImageCount) {
+    return { ok: false, error: `at most ${LIMITS.noteImageCount} photos per note` };
+  }
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !item.startsWith("data:image/")) {
+      return { ok: false, error: "each photo must be an image data URL" };
+    }
+    if (item.length > LIMITS.noteImageChars) {
+      return { ok: false, error: "a photo is too large" };
+    }
+    out.push(item);
+  }
+  return { ok: true, data: out };
 }
