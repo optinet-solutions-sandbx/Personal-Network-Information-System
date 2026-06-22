@@ -3,7 +3,7 @@
 // The AI narrative lives in generateNetworkNarrative below (optional, like the
 // other AI features).
 
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { Contact } from "./types";
 
 export type Tally = { label: string; count: number };
@@ -135,7 +135,7 @@ function buildFallbackNarrative(s: NetworkStats): string {
   if (topLoc) parts.push(`You're most concentrated in **${topLoc.label}**.`);
   const dormant = s.healthTiers.find((t) => t.label === "Dormant")?.count ?? 0;
   if (dormant > 0) parts.push(`${dormant} relationship${dormant === 1 ? " is" : "s are"} dormant — worth reconnecting.`);
-  parts.push("_Add an ANTHROPIC_API_KEY for a richer AI analysis._");
+  parts.push("_Add an OPENAI_API_KEY for a richer AI analysis._");
   return parts.join(" ");
 }
 
@@ -145,7 +145,7 @@ export async function generateNetworkNarrative(
   if (stats.totalContacts === 0) {
     return { narrative: buildFallbackNarrative(stats), model: "none" };
   }
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return { narrative: buildFallbackNarrative(stats), model: "fallback" };
 
   const fmt = (t: Tally[]) => t.map((x) => `${x.label} (${x.count})`).join(", ") || "none";
@@ -161,18 +161,23 @@ Relationship health: ${fmt(stats.healthTiers)}
 Contacts with notes: ${stats.withNotes}; with birthdays: ${stats.withBirthday}`;
 
   try {
-    const client = new Anthropic({ apiKey });
-    const model = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
-    const response = await client.messages.create({
+    const client = new OpenAI({ apiKey });
+    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+    const completion = await client.chat.completions.create({
       model,
-      max_tokens: 600,
-      system:
-        "You are a networking strategist. Given aggregate stats about someone's professional network, give a concise, specific, actionable read on its shape, strengths, and gaps. Plain markdown prose, no headings, no preamble.",
-      messages: [{ role: "user", content: userMessage }],
+      temperature: 0.5,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a networking strategist. Given aggregate stats about someone's professional network, give a concise, specific, actionable read on its shape, strengths, and gaps. Plain markdown prose, no headings, no preamble.",
+        },
+        { role: "user", content: userMessage },
+      ],
     });
-    const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+    const text = completion.choices[0]?.message?.content?.trim();
     if (!text) return { narrative: buildFallbackNarrative(stats), model: "fallback" };
-    return { narrative: text, model };
+    return { narrative: text, model: completion.model ?? model };
   } catch (err) {
     console.error("network narrative generation failed, using fallback:", err);
     return { narrative: buildFallbackNarrative(stats), model: "fallback" };

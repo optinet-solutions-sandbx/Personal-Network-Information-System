@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 import type { Contact } from "./types"
 
 export type IntroductionCandidate = {
@@ -106,10 +106,10 @@ export async function generateIntroductionSuggestions(
     .sort((x, y) => richness(y.a) + richness(y.b) - (richness(x.a) + richness(x.b)))
     .slice(0, 30)
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return buildFallback(top)
 
-  return callClaude(top, apiKey)
+  return callOpenAI(top, apiKey)
 }
 
 function formatSummary(c: Contact): string {
@@ -124,7 +124,7 @@ function formatSummary(c: Contact): string {
     .join(", ")
 }
 
-async function callClaude(candidates: Candidate[], apiKey: string): Promise<IntroductionCandidate[]> {
+async function callOpenAI(candidates: Candidate[], apiKey: string): Promise<IntroductionCandidate[]> {
   const pairList = candidates
     .map(
       (c, i) =>
@@ -136,7 +136,7 @@ async function callClaude(candidates: Candidate[], apiKey: string): Promise<Intr
 
 ${pairList}
 
-Return raw JSON only (no markdown fences):
+Return JSON only with this shape:
 {
   "suggestions": [
     {
@@ -154,19 +154,25 @@ Rules:
 - Order by score descending`
 
   try {
-    const client = new Anthropic({ apiKey })
-    const model = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001"
+    const client = new OpenAI({ apiKey })
+    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
 
-    const response = await client.messages.create({
+    const completion = await client.chat.completions.create({
       model,
-      max_tokens: 2048,
-      system:
-        "You are a professional networking analyst. Identify genuinely valuable introduction opportunities between people in someone's network. Focus on complementary skills, shared professional interests, or mutual benefit. Return only valid JSON.",
-      messages: [{ role: "user", content: userMessage }],
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a professional networking analyst. Identify genuinely valuable introduction opportunities between people in someone's network. Focus on complementary skills, shared professional interests, or mutual benefit. Return only valid JSON.",
+        },
+        { role: "user", content: userMessage },
+      ],
     })
 
-    const raw = response.content[0]?.type === "text" ? response.content[0].text.trim() : ""
-    // Strip markdown code fences if the model wraps the JSON
+    const raw = completion.choices[0]?.message?.content?.trim() ?? ""
+    // Strip markdown code fences in case the model wraps the JSON
     const jsonText = raw.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "")
     const parsed = JSON.parse(jsonText) as {
       suggestions: Array<{ pairIndex: number; score: number; rationale: string }>
@@ -180,7 +186,7 @@ Rules:
         return { contactAId: idA, contactBId: idB, rationale: s.rationale, score: s.score }
       })
   } catch (err) {
-    console.error("Claude introduction analysis failed, using fallback:", err)
+    console.error("OpenAI introduction analysis failed, using fallback:", err)
     return buildFallback(candidates)
   }
 }
