@@ -249,6 +249,18 @@ export default function ContactsSidebar() {
           <ChartIcon />
         </Link>
 
+        <Link
+          href="/import"
+          title="Import / export"
+          className={`mt-2 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+            pathname === "/import"
+              ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
+              : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <ImportIcon />
+        </Link>
+
         <div className="mt-2 h-px w-8 bg-zinc-100 dark:bg-zinc-800" />
 
         <nav className="mt-2 flex flex-1 flex-col items-center gap-1.5 overflow-y-auto">
@@ -311,6 +323,9 @@ export default function ContactsSidebar() {
         </NavLink>
         <NavLink href="/network-intel" active={pathname === "/network-intel"} icon={<ChartIcon />}>
           Network intel
+        </NavLink>
+        <NavLink href="/import" active={pathname === "/import"} icon={<ImportIcon />}>
+          Import / export
         </NavLink>
       </nav>
 
@@ -447,6 +462,15 @@ function ChartIcon() {
       <path d="M3 3v18h18" />
       <rect x="7" y="11" width="3" height="6" rx="0.5" />
       <rect x="13" y="7" width="3" height="10" rx="0.5" />
+    </svg>
+  );
+}
+
+function ImportIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M7 10l5 5 5-5M12 15V3" />
     </svg>
   );
 }
