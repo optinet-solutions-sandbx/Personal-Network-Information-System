@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
-import type { Contact, Note, HealthInputs } from "@/lib/types";
+import type { Contact, Note, HealthInputs, SentMessage } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
 import { formatBirthday, normalizeBirthday, daysUntilBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
@@ -143,6 +143,7 @@ export default function ContactDetailPage({
           </div>
         )}
         <NotesSection contact={contact} onChange={load} />
+        <SentMessagesList contactId={contact.id} />
       </div>
       <div className="lg:col-span-2">
         <ProfileCard contact={contact} onChange={load} />
@@ -451,6 +452,86 @@ function DetailsCard({
         )}
     </div>
   );
+}
+
+/* ---------------- Sent Messages ---------------- */
+
+function SentMessagesList({ contactId }: { contactId: string }) {
+  const [messages, setMessages] = useState<SentMessage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/contacts/${contactId}/sent-messages`)
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setMessages(data))
+      .finally(() => setLoading(false))
+  }, [contactId])
+
+  function copyMessage(msg: SentMessage) {
+    navigator.clipboard.writeText(msg.body).catch(() => {})
+    setCopiedId(msg.id)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  return (
+    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+      <h2 className="mb-3 text-lg font-semibold">Sent Messages</h2>
+      {loading ? (
+        <p className="text-sm text-zinc-400">Loading…</p>
+      ) : messages.length === 0 ? (
+        <p className="text-sm text-zinc-400 dark:text-zinc-500">No messages sent yet.</p>
+      ) : (
+        <ul className="space-y-3">
+          {messages.map((msg) => {
+            const expanded = expandedId === msg.id
+            const date = new Date(msg.sentAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+            return (
+              <li key={msg.id} className="rounded-lg border border-zinc-100 dark:border-zinc-800 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-400">{date}</span>
+                    <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                      {msg.method === "email" ? "Email" : "Copied"}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => copyMessage(msg)}
+                      className="rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      {copiedId === msg.id ? "Copied!" : "Copy"}
+                    </button>
+                    <button
+                      onClick={() => setExpandedId(expanded ? null : msg.id)}
+                      className="rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      {expanded ? "Collapse" : "View"}
+                    </button>
+                  </div>
+                </div>
+                {!expanded && (
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">
+                    {msg.body}
+                  </p>
+                )}
+                {expanded && (
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
+                    {msg.body}
+                  </p>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 /* ---------------- Notes (CRUD + STT) ---------------- */
