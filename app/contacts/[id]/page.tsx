@@ -160,6 +160,7 @@ export default function ContactDetailPage({
             contactId={contact.id}
             contactName={contact.name}
             daysUntil={daysUntil}
+            onNoteSaved={load}
           />
         )}
       </div>

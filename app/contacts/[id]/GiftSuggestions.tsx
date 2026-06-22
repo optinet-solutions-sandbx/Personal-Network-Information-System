@@ -6,9 +6,12 @@ interface Props {
   contactId: string;
   contactName: string;
   daysUntil: number;
+  // Called after a suggestion is saved as a note, so the parent can refresh the
+  // notes list without a browser reload.
+  onNoteSaved?: () => void;
 }
 
-export default function GiftSuggestions({ contactId, contactName, daysUntil }: Props) {
+export default function GiftSuggestions({ contactId, contactName, daysUntil, onNoteSaved }: Props) {
   const [suggestions, setSuggestions] = useState<GiftSuggestion[]>([]);
   const [model, setModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +52,7 @@ export default function GiftSuggestions({ contactId, contactName, daysUntil }: P
     });
     if (!res.ok) return;
     setSaved((prev) => new Set(prev).add(index));
+    onNoteSaved?.();
   }
 
   const countdownLabel =
