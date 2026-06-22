@@ -136,15 +136,15 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Contacts" value={stats.totalContacts} href="/" />
-        <StatCard label="Notes" value={stats.totalNotes} href="/notes" />
-        <StatCard label="Companies" value={stats.companies} href="/companies" />
-        <StatCard label="AI Profiles" value={stats.withProfile} href="/profiles" />
+        <StatCard label="Contacts" value={stats.totalContacts} href="/" accent="cyan" />
+        <StatCard label="Notes" value={stats.totalNotes} href="/notes" accent="violet" />
+        <StatCard label="Companies" value={stats.companies} href="/companies" accent="emerald" />
+        <StatCard label="AI Profiles" value={stats.withProfile} href="/profiles" accent="fuchsia" />
       </div>
 
       {/* Birthdays */}
-      <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-        <h2 className="mb-3 text-lg font-semibold">🎂 Birthdays</h2>
+      <div className="mt-6 rounded-xl border border-amber-400/30 bg-white dark:bg-zinc-900/60 bg-gradient-to-br from-amber-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(251,191,36,0.35)]">
+        <h2 className="mb-3 text-lg font-semibold text-amber-700 dark:text-amber-300">🎂 Birthdays</h2>
         {birthdays.length === 0 ? (
           <p className="text-sm text-zinc-400 dark:text-zinc-500">
             No upcoming birthdays in the next 60 days. Add a “Birthday” detail to
@@ -193,8 +193,8 @@ export default function DashboardPage() {
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Recently updated */}
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-          <h2 className="mb-3 text-lg font-semibold">Recently updated</h2>
+        <div className="rounded-xl border border-cyan-400/30 bg-white dark:bg-zinc-900/60 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(34,211,238,0.35)]">
+          <h2 className="mb-3 text-lg font-semibold text-cyan-700 dark:text-cyan-300">Recently updated</h2>
           {recent.length === 0 ? (
             <p className="text-sm text-zinc-400 dark:text-zinc-500">
               No contacts yet.{" "}
@@ -238,8 +238,8 @@ export default function DashboardPage() {
 
         {/* Top companies + tags */}
         <div className="space-y-6">
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-            <h2 className="mb-3 text-lg font-semibold">Top companies</h2>
+          <div className="rounded-xl border border-emerald-400/30 bg-white dark:bg-zinc-900/60 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(52,211,153,0.35)]">
+            <h2 className="mb-3 text-lg font-semibold text-emerald-700 dark:text-emerald-300">Top companies</h2>
             {stats.topCompanies.length === 0 ? (
               <p className="text-sm text-zinc-400 dark:text-zinc-500">No companies yet.</p>
             ) : (
@@ -261,8 +261,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-            <h2 className="mb-3 text-lg font-semibold">Top tags</h2>
+          <div className="rounded-xl border border-fuchsia-400/30 bg-white dark:bg-zinc-900/60 bg-gradient-to-br from-fuchsia-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(232,121,249,0.35)]">
+            <h2 className="mb-3 text-lg font-semibold text-fuchsia-700 dark:text-fuchsia-300">Top tags</h2>
             {stats.topTags.length === 0 ? (
               <p className="text-sm text-zinc-400 dark:text-zinc-500">No tags yet.</p>
             ) : (
@@ -310,24 +310,63 @@ function BirthdayBadge({ daysUntil }: { daysUntil: number }) {
   );
 }
 
+type Accent = "cyan" | "violet" | "emerald" | "fuchsia";
+
+// Each card gets its own neon accent: a tinted gradient surface, a glowing
+// border, and a value that lights up on hover for a futuristic feel.
+const ACCENTS: Record<
+  Accent,
+  { card: string; label: string; value: string; glow: string }
+> = {
+  cyan: {
+    card: "border-cyan-400/30 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent hover:border-cyan-400/60 hover:shadow-[0_0_24px_-4px_rgba(34,211,238,0.45)]",
+    label: "text-cyan-600 dark:text-cyan-400/80",
+    value: "text-cyan-700 dark:text-cyan-300",
+    glow: "group-hover:drop-shadow-[0_0_10px_rgba(34,211,238,0.55)]",
+  },
+  violet: {
+    card: "border-violet-400/30 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent hover:border-violet-400/60 hover:shadow-[0_0_24px_-4px_rgba(167,139,250,0.45)]",
+    label: "text-violet-600 dark:text-violet-400/80",
+    value: "text-violet-700 dark:text-violet-300",
+    glow: "group-hover:drop-shadow-[0_0_10px_rgba(167,139,250,0.55)]",
+  },
+  emerald: {
+    card: "border-emerald-400/30 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent hover:border-emerald-400/60 hover:shadow-[0_0_24px_-4px_rgba(52,211,153,0.45)]",
+    label: "text-emerald-600 dark:text-emerald-400/80",
+    value: "text-emerald-700 dark:text-emerald-300",
+    glow: "group-hover:drop-shadow-[0_0_10px_rgba(52,211,153,0.55)]",
+  },
+  fuchsia: {
+    card: "border-fuchsia-400/30 bg-gradient-to-br from-fuchsia-500/10 via-transparent to-transparent hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_-4px_rgba(232,121,249,0.45)]",
+    label: "text-fuchsia-600 dark:text-fuchsia-400/80",
+    value: "text-fuchsia-700 dark:text-fuchsia-300",
+    glow: "group-hover:drop-shadow-[0_0_10px_rgba(232,121,249,0.55)]",
+  },
+};
+
 function StatCard({
   label,
   value,
   href,
+  accent,
 }: {
   label: string;
   value: number;
   href: string;
+  accent: Accent;
 }) {
+  const a = ACCENTS[accent];
   return (
     <Link
       href={href}
-      className="block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 transition-shadow hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-sm"
+      className={`group block rounded-xl border bg-white dark:bg-zinc-900/60 p-5 backdrop-blur-sm transition-all duration-300 ${a.card}`}
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+      <p className={`text-xs font-medium uppercase tracking-wide ${a.label}`}>
         {label}
       </p>
-      <p className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <p
+        className={`mt-1 text-3xl font-semibold tracking-tight transition-all duration-300 ${a.value} ${a.glow}`}
+      >
         {value}
       </p>
     </Link>
