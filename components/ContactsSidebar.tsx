@@ -44,6 +44,9 @@ const COLLAPSE_KEY = "networky:sidebar-collapsed";
 type SortMode = "name" | "recent";
 const SORT_KEY = "networky:contacts-sort";
 const SORT_EVENT = "networky:contacts-sort-change";
+// Dispatched by the contacts page after a create/merge so the sidebar refetches
+// even though the route hasn't changed. Must match the page's constant.
+const CONTACTS_CHANGED_EVENT = "networky:contacts-changed";
 
 export default function ContactsSidebar() {
   const pathname = usePathname();
@@ -137,6 +140,14 @@ export default function ContactsSidebar() {
       if (debounce.current) clearTimeout(debounce.current);
     };
   }, [query, pathname, load]);
+
+  // Refetch when a contact is created/merged on the current page — that path
+  // doesn't change the route, so the navigation effect above wouldn't fire.
+  useEffect(() => {
+    const onChanged = () => load(query);
+    window.addEventListener(CONTACTS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(CONTACTS_CHANGED_EVENT, onChanged);
+  }, [query, load]);
 
   const onDashboard = pathname === "/dashboard";
 

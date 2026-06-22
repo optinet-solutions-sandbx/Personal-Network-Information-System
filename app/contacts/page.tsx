@@ -105,6 +105,9 @@ function groupByInitial(contacts: Contact[]): { letter: string; items: Contact[]
 type SortMode = "name" | "recent";
 const SORT_KEY = "networky:contacts-sort";
 const SORT_EVENT = "networky:contacts-sort-change";
+// Fired after a contact is created/merged so other views (e.g. the sidebar)
+// can refetch even when the route doesn't change. The sidebar listens for it.
+const CONTACTS_CHANGED_EVENT = "networky:contacts-changed";
 
 function ContactCard({ c }: { c: Contact }) {
   return (
@@ -530,6 +533,9 @@ export default function HomePage() {
     // so the debounced load wouldn't re-fire — reload explicitly.
     setQuery("");
     await load("");
+    // Tell the sidebar (which only refetches on navigation) to refresh too,
+    // since creating a contact keeps us on the same route.
+    window.dispatchEvent(new CustomEvent(CONTACTS_CHANGED_EVENT));
   }
 
   // Non-destructively merge the extracted details into an existing contact,
