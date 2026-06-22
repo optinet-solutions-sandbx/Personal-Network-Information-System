@@ -36,6 +36,7 @@ const HEADER_ALIASES: Record<string, (typeof STANDARD_FIELDS)[number]> = {
   title: "title",
   "job title": "title",
   role: "title",
+  position: "title", // LinkedIn connections export uses "Position" for job title
   location: "location",
   city: "location",
   address: "location",

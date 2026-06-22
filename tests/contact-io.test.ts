@@ -61,6 +61,22 @@ describe("CSV parse + mapping", () => {
     expect(inputs[0].customFields).toEqual({ "Favorite Color": "teal" });
   });
 
+  it("maps a LinkedIn connections export (Position -> title, URL -> custom)", () => {
+    const inputs = csvRowsToContactInputs(
+      parseCsv(
+        "First Name,Last Name,URL,Email Address,Company,Position,Connected On\n" +
+          "Ada,Lovelace,https://linkedin.com/in/ada,ada@x.io,Analytical Engines,Lead Engineer,01 Jan 2026"
+      )
+    );
+    expect(inputs[0]).toMatchObject({
+      name: "Ada Lovelace",
+      email: "ada@x.io",
+      company: "Analytical Engines",
+      title: "Lead Engineer",
+    });
+    expect(inputs[0].customFields).toMatchObject({ URL: "https://linkedin.com/in/ada" });
+  });
+
   it("combines First/Last name when no Name column", () => {
     const inputs = csvRowsToContactInputs(parseCsv("First Name,Last Name,Email\nAlan,Turing,alan@x.io"));
     expect(inputs[0].name).toBe("Alan Turing");
