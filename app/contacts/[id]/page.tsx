@@ -464,8 +464,9 @@ function SentMessagesList({ contactId }: { contactId: string }) {
 
   useEffect(() => {
     fetch(`/api/contacts/${contactId}/sent-messages`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : []))
       .then((data) => Array.isArray(data) && setMessages(data))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [contactId])
 
