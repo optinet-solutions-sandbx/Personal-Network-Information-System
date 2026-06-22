@@ -6,7 +6,7 @@ import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
-import { formatBirthday, normalizeBirthday, daysUntilBirthday } from "@/lib/birthdays";
+import { formatBirthday, normalizeBirthday, contactDaysUntilBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
@@ -116,7 +116,10 @@ export default function ContactDetailPage({
     router.push("/contacts");
   }
 
-  const daysUntil = contact.birthday ? daysUntilBirthday(contact.birthday) : null;
+  // Resolve the birthday the same way the dashboard bell does (structured field
+  // or a customFields fallback) so a "plan a gift" nudge always lands on a page
+  // that actually shows gift suggestions.
+  const daysUntil = contactDaysUntilBirthday(contact);
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -146,7 +149,7 @@ export default function ContactDetailPage({
       </div>
       <div className="lg:col-span-2">
         <ProfileCard contact={contact} onChange={load} />
-        {contact.birthday && daysUntil !== null && daysUntil <= 30 && (
+        {daysUntil !== null && daysUntil <= 30 && (
           <GiftSuggestions
             contactId={contact.id}
             contactName={contact.name}
