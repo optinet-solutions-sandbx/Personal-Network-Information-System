@@ -36,6 +36,9 @@ export function FollowUpDraftModal({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [sent, setSent] = useState(false)
+  const [msgTime] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  )
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -78,7 +81,6 @@ export function FollowUpDraftModal({
       body: JSON.stringify({ contactId, body: draft, method }),
     }).catch(() => {})
     setSent(true)
-    setTimeout(() => setSent(false), 2500)
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -155,8 +157,23 @@ export function FollowUpDraftModal({
             <p className="text-sm text-red-500">Couldn&apos;t generate a draft. Please try again.</p>
           ) : (
             <div className="flex justify-end">
-              <div className="max-w-xs rounded-2xl rounded-br-sm bg-indigo-600 px-4 py-2.5 text-sm text-white shadow-sm whitespace-pre-wrap">
-                {draft || <span className="opacity-50">Type a message…</span>}
+              <div className="max-w-xs rounded-2xl rounded-br-sm bg-indigo-600 px-4 pt-2.5 pb-1.5 text-sm text-white shadow-sm">
+                <p className="whitespace-pre-wrap">
+                  {draft || <span className="opacity-50">Type a message…</span>}
+                </p>
+                <div className="flex items-center justify-end gap-1 mt-1">
+                  <span className="text-[10px] text-white/60">{msgTime}</span>
+                  {sent ? (
+                    <svg width="16" height="10" viewBox="0 0 16 10" fill="none" className="text-white">
+                      <path d="M1 5l3 3 5-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M6 5l3 3 5-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : (
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="text-white/60">
+                      <path d="M1 5l3 3 5-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -198,8 +215,8 @@ export function FollowUpDraftModal({
             </div>
             <p className="mt-1.5 text-center text-[10px] text-zinc-400">
               {contactEmail
-                ? sent ? "Email client opened ✓" : "Opens your email app · Ctrl+Enter to send"
-                : sent ? "Copied to clipboard ✓" : "No email — Ctrl+Enter copies to clipboard"}
+                ? sent ? "Email client opened" : "Opens your email app · Ctrl+Enter to send"
+                : sent ? "Copied to clipboard" : "No email — Ctrl+Enter copies to clipboard"}
             </p>
           </div>
         )}
