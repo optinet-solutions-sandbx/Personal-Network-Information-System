@@ -8,7 +8,7 @@ import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
 import { formatBirthday, normalizeBirthday, contactDaysUntilBirthday } from "@/lib/birthdays";
 import { fileToDataUrl, MAX_NOTE_IMAGES } from "@/lib/image";
-import { resolveSocial } from "@/lib/socials";
+import { resolveSocial, phoneLinks } from "@/lib/socials";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
@@ -338,9 +338,7 @@ function DetailsCard({
                   onChange={set(key)}
                 />
               ) : (
-                <dd className="text-zinc-700 dark:text-zinc-200">
-                  {(contact[key] as string) || "—"}
-                </dd>
+                <StandardFieldValue fieldKey={key} value={contact[key] as string} />
               )}
             </div>
           ))}
@@ -677,6 +675,61 @@ function NotesSection({
       )}
     </div>
   );
+}
+
+// Render a standard contact field. Phone becomes click-to-call (tel:) plus a
+// WhatsApp shortcut, and email becomes a mailto: link — so a number or address
+// is actionable without copy/paste. Everything else stays plain text.
+function StandardFieldValue({
+  fieldKey,
+  value,
+}: {
+  fieldKey: keyof Contact;
+  value: string;
+}) {
+  const v = (value ?? "").trim();
+  if (!v) return <dd className="text-zinc-700 dark:text-zinc-200">—</dd>;
+
+  if (fieldKey === "phone") {
+    const links = phoneLinks(v);
+    if (!links) return <dd className="text-zinc-700 dark:text-zinc-200">{v}</dd>;
+    return (
+      <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <a
+          href={links.tel}
+          className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          <span aria-hidden>📞</span>
+          <span>{v}</span>
+        </a>
+        <a
+          href={links.whatsapp}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open in WhatsApp"
+          className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline"
+        >
+          <span aria-hidden>💬</span>
+          <span>WhatsApp</span>
+        </a>
+      </dd>
+    );
+  }
+
+  if (fieldKey === "email") {
+    return (
+      <dd>
+        <a
+          href={`mailto:${v}`}
+          className="break-all text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          {v}
+        </a>
+      </dd>
+    );
+  }
+
+  return <dd className="text-zinc-700 dark:text-zinc-200">{v}</dd>;
 }
 
 // Render a custom field's value. Social/messaging handles (and website URLs)

@@ -40,6 +40,18 @@ const PLATFORMS: PlatformDef[] = [
   { id: "website", label: "Website", icon: "🌐", keyRe: /web\s*site|^url$|home\s*page|^web$|^site$/i, build: (h) => (/^https?:\/\//i.test(h) ? h : `https://${h}`) },
 ];
 
+// Build clickable links for a raw phone number: a `tel:` URI for click-to-call
+// and a `wa.me` URL for WhatsApp. Returns null when there aren't enough digits
+// to be a dialable number. The WhatsApp link is best-effort — it only resolves
+// for an international number (with country code), same caveat as a WhatsApp
+// custom field; we keep a leading "+" on the tel: link to help dialers.
+export function phoneLinks(raw: string): { tel: string; whatsapp: string } | null {
+  const d = digits(raw);
+  if (d.length < 7) return null; // too short to be a real number
+  const plus = /^\s*\+/.test(raw) ? "+" : "";
+  return { tel: `tel:${plus}${d}`, whatsapp: `https://wa.me/${d}` };
+}
+
 // True when a custom-field key names a social platform. lib/extract.ts uses this
 // to ensure web enrichment can never inject a social handle — so any social on a
 // saved contact is primary-source and can be shown as "verified".

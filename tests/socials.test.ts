@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveSocial, isSocialKey } from "@/lib/socials";
+import { resolveSocial, isSocialKey, phoneLinks } from "@/lib/socials";
 
 describe("resolveSocial", () => {
   it("builds a Telegram link from a handle (the business-card case)", () => {
@@ -55,5 +55,24 @@ describe("isSocialKey", () => {
   it("rejects non-social keys (so web enrichment can still add them)", () => {
     expect(isSocialKey("Occupation")).toBe(false);
     expect(isSocialKey("Education")).toBe(false);
+  });
+});
+
+describe("phoneLinks", () => {
+  it("builds tel: and wa.me links, keeping a leading + on tel:", () => {
+    const r = phoneLinks("+1 (555) 123-4567");
+    expect(r).not.toBeNull();
+    expect(r!.tel).toBe("tel:+15551234567");
+    expect(r!.whatsapp).toBe("https://wa.me/15551234567");
+  });
+
+  it("omits the + when the number wasn't written with one", () => {
+    expect(phoneLinks("555 123 4567")!.tel).toBe("tel:5551234567");
+  });
+
+  it("returns null when there aren't enough digits to dial", () => {
+    expect(phoneLinks("123")).toBeNull();
+    expect(phoneLinks("ext. 42")).toBeNull();
+    expect(phoneLinks("")).toBeNull();
   });
 });
