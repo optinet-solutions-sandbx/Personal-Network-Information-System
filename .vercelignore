@@ -1,0 +1,6 @@
+# Never upload local env files to Vercel builds — production config must come
+# from Vercel's own Environment Variables, not a bundled .env. (Prevents the
+# CLI deploy from accidentally inlining local NEXT_PUBLIC_* vars.)
+.env
+.env.*
+!.env.example
