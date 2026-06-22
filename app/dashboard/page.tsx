@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Contact } from "@/lib/types";
 import { computeUpcomingBirthdays } from "@/lib/birthdays";
+import InsightsFeed from "@/components/InsightsFeed"
+import SuggestedIntroductions from "@/components/SuggestedIntroductions";
 
 const AVATAR_COLORS = [
   "bg-indigo-500",
@@ -123,6 +125,14 @@ export default function DashboardPage() {
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           An overview of your professional network.
         </p>
+      </div>
+
+      <div className="mb-6">
+        <InsightsFeed />
+      </div>
+
+      <div className="mb-6">
+        <SuggestedIntroductions />
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

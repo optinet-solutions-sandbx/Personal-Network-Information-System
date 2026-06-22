@@ -49,6 +49,8 @@ export type CleanContact = {
   birthday: string | null;
   howWeMet: string | null;
   customFields: Record<string, string> | null;
+  followUpCadence: string | null;
+  followUpCadenceDays: number | null;
 };
 
 const OPTIONAL_STRING_FIELDS = [
@@ -125,6 +127,26 @@ export function validateContact(
     const cf = validateCustomFields(b.customFields);
     if (!cf.ok) return cf;
     out.customFields = cf.data;
+  }
+
+  const VALID_CADENCES = ["weekly", "monthly", "quarterly", "annually", "custom"];
+  if (!opts.partial || "followUpCadence" in b) {
+    const val = clean(b.followUpCadence);
+    if (val && !VALID_CADENCES.includes(val)) {
+      return { ok: false, error: "invalid followUpCadence value" };
+    }
+    out.followUpCadence = val;
+  }
+
+  if (!opts.partial || "followUpCadenceDays" in b) {
+    const raw = b.followUpCadenceDays;
+    if (raw == null) {
+      out.followUpCadenceDays = null;
+    } else if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1 || raw > 3650) {
+      return { ok: false, error: "followUpCadenceDays must be an integer between 1 and 3650" };
+    } else {
+      out.followUpCadenceDays = raw;
+    }
   }
 
   return { ok: true, data: out };

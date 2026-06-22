@@ -45,8 +45,14 @@ model Contact {
   healthTier   String?
   healthInputs String?
 
-  notes     Note[]
-  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Follow-up cadence
+  followUpCadence     String?  // "weekly" | "monthly" | "quarterly" | "annually" | "custom"
+  followUpCadenceDays Int?     // days between follow-ups; only used when followUpCadence = "custom"
+
+  notes          Note[]
+  suggestionsAsA Suggestion[] @relation("SuggestionA")
+  suggestionsAsB Suggestion[] @relation("SuggestionB")
+  workspace      Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -69,6 +75,26 @@ model Note {
   updatedAt DateTime @updatedAt
 
   @@index([contactId])
+}
+
+model Suggestion {
+  id         String   @id @default(cuid())
+  userId     String?
+
+  contactAId String
+  contactBId String
+  contactA   Contact  @relation("SuggestionA", fields: [contactAId], references: [id], onDelete: Cascade)
+  contactB   Contact  @relation("SuggestionB", fields: [contactBId], references: [id], onDelete: Cascade)
+
+  rationale  String
+  score      Float
+  status     String   @default("pending")
+
+  generatedAt DateTime @default(now())
+  respondedAt DateTime?
+
+  @@unique([contactAId, contactBId])
+  @@index([userId, status])
 }
 
 // ---------------------------------------------------------------------------

@@ -9,7 +9,9 @@ import { Markdown } from "@/components/Markdown";
 import { formatBirthday, normalizeBirthday, daysUntilBirthday } from "@/lib/birthdays";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
+import { FollowUpCard } from "./FollowUpCard";
 import GiftSuggestions from "./GiftSuggestions";
+import { MeetingBriefingModal } from "@/components/MeetingBriefingModal";
 
 export default function ContactDetailPage({
   params,
@@ -135,6 +137,11 @@ export default function ContactDetailPage({
               />
             </div>
           )}
+        {contact.followUpCadence && (
+          <div className="mt-6">
+            <FollowUpCard contact={contact} />
+          </div>
+        )}
         <NotesSection contact={contact} onChange={load} />
       </div>
       <div className="lg:col-span-2">
@@ -204,6 +211,11 @@ function DetailsCard({
           birthday: birthdayInput,
           howWeMet: form.howWeMet,
           customFields: form.customFields,
+          followUpCadence: form.followUpCadence || null,
+          followUpCadenceDays:
+            form.followUpCadence === "custom"
+              ? (form.followUpCadenceDays ?? null)
+              : null,
         }),
       });
       if (!res.ok) {
@@ -282,6 +294,7 @@ function DetailsCard({
             </>
           ) : (
             <>
+              <MeetingBriefingModal contact={contact} />
               <button
                 id="edit-contact-btn"
                 onClick={() => setEditing(true)}
@@ -345,6 +358,47 @@ function DetailsCard({
                 {formatBirthday(contact.birthday) || "—"}
               </dd>
             )}
+          </div>
+        )}
+
+        {/* Follow-up cadence */}
+        {editing && (
+          <div className="col-span-2">
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              Follow-up cadence
+            </dt>
+            <div className="mt-1 flex items-center gap-2">
+              <select
+                className="input flex-1"
+                value={form.followUpCadence ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, followUpCadence: e.target.value || null })
+                }
+              >
+                <option value="">None</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="annually">Annually</option>
+                <option value="custom">Custom</option>
+              </select>
+              {form.followUpCadence === "custom" && (
+                <input
+                  type="number"
+                  min={1}
+                  max={3650}
+                  placeholder="days"
+                  className="input w-24"
+                  value={form.followUpCadenceDays ?? ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      followUpCadenceDays: e.target.value ? parseInt(e.target.value, 10) : null,
+                    })
+                  }
+                />
+              )}
+            </div>
           </div>
         )}
       </dl>
