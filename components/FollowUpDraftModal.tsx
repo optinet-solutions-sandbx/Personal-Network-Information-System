@@ -63,6 +63,7 @@ export function FollowUpDraftModal({
 
   function send() {
     if (!draft.trim()) return
+    const method: "email" | "clipboard" = contactEmail ? "email" : "clipboard"
     if (contactEmail) {
       window.open(
         `mailto:${contactEmail}?body=${encodeURIComponent(draft)}`,
@@ -71,6 +72,11 @@ export function FollowUpDraftModal({
     } else {
       navigator.clipboard.writeText(draft).catch(() => {})
     }
+    fetch("/api/sent-messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactId, body: draft, method }),
+    }).catch(() => {})
     setSent(true)
     setTimeout(() => setSent(false), 2500)
   }
@@ -173,20 +179,21 @@ export function FollowUpDraftModal({
               <button
                 onClick={send}
                 disabled={!draft.trim()}
-                className="flex-shrink-0 rounded-full bg-indigo-600 p-2 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                className="flex-shrink-0 flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-2 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
                 aria-label={contactEmail ? "Send email" : "Copy message"}
                 title={contactEmail ? "Send via email (Ctrl+Enter)" : "Copy to clipboard (Ctrl+Enter)"}
               >
                 {sent ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 2 11 13" />
                     <path d="M22 2 15 22 11 13 2 9l20-7z" />
                   </svg>
                 )}
+                <span className="text-sm font-medium">{sent ? "Sent" : "Send"}</span>
               </button>
             </div>
             <p className="mt-1.5 text-center text-[10px] text-zinc-400">
