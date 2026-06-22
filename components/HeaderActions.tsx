@@ -436,6 +436,7 @@ function MessageRow({
   suggestion: Suggestion;
   onMessage: () => void;
 }) {
+  const mailto = s.contact.email ? `mailto:${s.contact.email}` : null;
   return (
     <li className="flex items-center gap-3 px-4 py-3">
       <span
@@ -451,21 +452,12 @@ function MessageRow({
         </span>
         <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">{s.reason}</span>
       </span>
-      {mailto ? (
-        <a
-          href={mailto}
-          className="flex-shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-indigo-700"
-        >
-          Message
-        </a>
-      ) : (
-        <Link
-          href={`/contacts/${s.contact.id}`}
-          className="flex-shrink-0 rounded-md border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
-        >
-          Open
-        </Link>
-      )}
+      <button
+        onClick={onMessage}
+        className="flex-shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-indigo-700"
+      >
+        Message
+      </button>
     </li>
   );
 }
