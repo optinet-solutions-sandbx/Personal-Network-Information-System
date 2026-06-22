@@ -10,6 +10,8 @@ export type Note = {
   content: string;
   source: NoteSource;
   images: string[]; // photo attachments as data URLs (see lib/image.ts)
+  audioUrl: string | null; // voice recording in Supabase Storage (see lib/voice.ts)
+  summary: string | null; // AI summary of the transcript (voice notes)
   createdAt: string;
   updatedAt: string;
 };

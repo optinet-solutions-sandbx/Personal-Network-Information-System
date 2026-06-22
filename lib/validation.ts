@@ -23,6 +23,7 @@ export const LIMITS = {
   customFieldValue: 4000,
   customFieldCount: 50,
   noteContent: 20000,
+  noteAudioUrl: 2000, // Supabase Storage public URL for a voice recording
   noteImageCount: 4, // photos per note (mirror MAX_NOTE_IMAGES in lib/image.ts)
   noteImageChars: 8_000_000, // ~6MB per downscaled data URL — generous upper bound
   // Immutable creation-source archive (Contact.sourceText / sourceImages). Text
@@ -204,6 +205,25 @@ export function validateNoteContent(value: unknown): ValidationResult<string> {
 // valid (text-only note). Returns the cleaned array on success.
 export function validateNoteImages(value: unknown): ValidationResult<string[]> {
   return validateImageDataUrls(value, LIMITS.noteImageCount, "photos per note");
+}
+
+// Optional voice-recording URL on a note. Absent/empty -> null. Must be an
+// http(s) URL within the length cap (it points at Supabase Storage).
+export function validateNoteAudioUrl(
+  value: unknown
+): ValidationResult<string | null> {
+  if (value == null || value === "") return { ok: true, data: null };
+  if (typeof value !== "string") {
+    return { ok: false, error: "audioUrl must be a string" };
+  }
+  const url = value.trim();
+  if (url.length > LIMITS.noteAudioUrl) {
+    return { ok: false, error: "audioUrl is too long" };
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    return { ok: false, error: "audioUrl must be an http(s) URL" };
+  }
+  return { ok: true, data: url };
 }
 
 // Shared image-data-URL array validator. Each item must be an image data URL

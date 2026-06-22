@@ -10,6 +10,15 @@ import { formatBirthday, normalizeBirthday, contactDaysUntilBirthday } from "@/l
 import { fileToDataUrl, MAX_NOTE_IMAGES } from "@/lib/image";
 import { resolveSocial, phoneLinks } from "@/lib/socials";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import {
+  startRecording,
+  uploadVoiceRecording,
+  isRecordingSupported,
+  isVoiceStorageConfigured,
+  MAX_RECORDING_MS,
+  type Recorder,
+} from "@/lib/voice";
+import { ConnectionsSection } from "./ConnectionsSection";
 import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
 import GiftSuggestions from "./GiftSuggestions";
@@ -151,6 +160,7 @@ export default function ContactDetailPage({
           </div>
         )}
         <NotesSection contact={contact} onChange={load} />
+        <ConnectionsSection contact={contact} />
         <SourceCard contact={contact} />
       </div>
       <div className="lg:col-span-2">
@@ -463,6 +473,13 @@ function DetailsCard({
 
 /* ---------------- Notes (CRUD + STT) ---------------- */
 
+// mm:ss for the live recording timer.
+function fmtElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 function NotesSection({
   contact,
   onChange,
@@ -481,10 +498,86 @@ function NotesSection({
   const totalPages = Math.max(1, Math.ceil(notes.length / PAGE_SIZE));
   const visibleNotes = notes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const { listening, supported, toggle } = useSpeechRecognition({
+  const { listening, supported, start, stop, toggle } = useSpeechRecognition({
     onResult: (text) =>
       setDraft((d) => (d ? `${d} ${text}` : text)),
   });
+
+  // Voice recording: capture audio (MediaRecorder) + transcript (STT) together,
+  // upload the audio to Supabase Storage, then attach its URL to the next note.
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0); // seconds
+  const [processingAudio, setProcessingAudio] = useState(false);
+  const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
+  const recorderRef = useRef<Recorder | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Recording is only offered when the browser can record AND Storage is set up
+  // (otherwise it would be identical to plain "Dictate" — no audio kept).
+  const canRecord = isRecordingSupported() && isVoiceStorageConfigured();
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    setRecording(false);
+    stopTimer();
+    stop(); // stop STT
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    if (!recorder) return;
+    setProcessingAudio(true);
+    try {
+      const blob = await recorder.stop();
+      if (blob) {
+        const url = await uploadVoiceRecording(blob, contact.id);
+        setPendingAudioUrl(url);
+        if (!url) {
+          await Swal.fire({
+            icon: "info",
+            title: "Recording saved as transcript only",
+            text: "The audio couldn't be uploaded, but your dictated text was kept.",
+          });
+        }
+      }
+    } finally {
+      setProcessingAudio(false);
+    }
+  }, [stop, stopTimer, contact.id]);
+
+  async function startVoiceRecording() {
+    try {
+      const recorder = await startRecording();
+      recorderRef.current = recorder;
+      start(); // start STT alongside the audio capture
+      setRecording(true);
+      setElapsed(0);
+      timerRef.current = setInterval(() => {
+        setElapsed((e) => {
+          const next = e + 1;
+          if (next * 1000 >= MAX_RECORDING_MS) void stopRecording();
+          return next;
+        });
+      }, 1000);
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Microphone unavailable",
+        text: "Allow microphone access to record a voice note.",
+      });
+    }
+  }
+
+  // Clean up an in-flight recording if the section unmounts.
+  useEffect(() => {
+    return () => {
+      stopTimer();
+      recorderRef.current?.cancel();
+    };
+  }, [stopTimer]);
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
@@ -509,16 +602,18 @@ function NotesSection({
   }
 
   async function addNote() {
-    if (!draft.trim() && images.length === 0) return;
+    if (!draft.trim() && images.length === 0 && !pendingAudioUrl) return;
     setSaving(true);
     try {
+      const isVoice = Boolean(pendingAudioUrl) || listening;
       const res = await fetch(`/api/contacts/${contact.id}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: draft,
-          source: listening ? "voice" : "manual",
+          source: isVoice ? "voice" : "manual",
           images,
+          audioUrl: pendingAudioUrl ?? undefined,
         }),
       });
       if (!res.ok) {
@@ -532,6 +627,7 @@ function NotesSection({
       }
       setDraft("");
       setImages([]);
+      setPendingAudioUrl(null);
       onChange();
     } catch {
       await Swal.fire({
@@ -589,25 +685,69 @@ function NotesSection({
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
         />
+
+        {(pendingAudioUrl || processingAudio) && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">
+            <span aria-hidden>🎙️</span>
+            {processingAudio ? (
+              <span>Processing recording…</span>
+            ) : (
+              <>
+                <span className="font-medium">Recording attached</span>
+                <audio controls src={pendingAudioUrl!} className="h-7" />
+                <button
+                  type="button"
+                  onClick={() => setPendingAudioUrl(null)}
+                  aria-label="Remove recording"
+                  className="ml-auto text-emerald-700/70 hover:text-emerald-900 dark:text-emerald-300/70 dark:hover:text-emerald-100"
+                >
+                  Remove
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="mt-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={toggle}
-              disabled={!supported}
+              disabled={!supported || recording}
               title={
                 supported
-                  ? "Dictate with speech-to-text"
+                  ? "Dictate with speech-to-text (text only)"
                   : "Speech recognition not supported in this browser (try Chrome)"
               }
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                listening
+                listening && !recording
                   ? "bg-red-600 text-white"
                   : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
               }`}
             >
-              <span>{listening ? "● Listening… stop" : "🎤 Dictate"}</span>
+              <span>{listening && !recording ? "● Listening… stop" : "🎤 Dictate"}</span>
             </button>
+            {canRecord && (
+              <button
+                type="button"
+                onClick={recording ? stopRecording : startVoiceRecording}
+                disabled={processingAudio}
+                title="Record a voice note (audio + transcript)"
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  recording
+                    ? "bg-red-600 text-white"
+                    : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+                }`}
+              >
+                <span>
+                  {recording
+                    ? `● Recording ${fmtElapsed(elapsed)} — stop`
+                    : processingAudio
+                    ? "Uploading…"
+                    : "⏺ Record"}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -624,7 +764,12 @@ function NotesSection({
           </div>
           <button
             onClick={addNote}
-            disabled={saving || (!draft.trim() && images.length === 0)}
+            disabled={
+              saving ||
+              recording ||
+              processingAudio ||
+              (!draft.trim() && images.length === 0 && !pendingAudioUrl)
+            }
             className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Add note"}
@@ -937,6 +1082,21 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
         </div>
       ) : (
         <>
+          {note.summary && (
+            <p className="mb-2 flex items-start gap-1.5 rounded-md bg-indigo-50/70 dark:bg-indigo-950/30 px-2 py-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+              <span aria-hidden>✨</span>
+              <span><span className="font-semibold">Summary:</span> {note.summary}</span>
+            </p>
+          )}
+          {note.audioUrl && (
+            <audio
+              controls
+              src={note.audioUrl}
+              className="mb-2 h-9 w-full max-w-sm"
+            >
+              Your browser doesn&apos;t support audio playback.
+            </audio>
+          )}
           {note.content && (
             <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
           )}

@@ -225,6 +225,30 @@ export default function ContactsSidebar() {
           <PlusIcon />
         </Link>
 
+        <Link
+          href="/network"
+          title="Network map"
+          className={`mt-2 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+            pathname === "/network"
+              ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
+              : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <NetworkIcon />
+        </Link>
+
+        <Link
+          href="/network-intel"
+          title="Network intelligence"
+          className={`mt-2 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+            pathname === "/network-intel"
+              ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
+              : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <ChartIcon />
+        </Link>
+
         <div className="mt-2 h-px w-8 bg-zinc-100 dark:bg-zinc-800" />
 
         <nav className="mt-2 flex flex-1 flex-col items-center gap-1.5 overflow-y-auto">
@@ -280,6 +304,15 @@ export default function ContactsSidebar() {
           <ChevronIcon dir="left" />
         </button>
       </div>
+
+      <nav className="px-2 pt-1">
+        <NavLink href="/network" active={pathname === "/network"} icon={<NetworkIcon />}>
+          Network map
+        </NavLink>
+        <NavLink href="/network-intel" active={pathname === "/network-intel"} icon={<ChartIcon />}>
+          Network intel
+        </NavLink>
+      </nav>
 
       <div className="mt-1 flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800 px-4 py-3">
         <Link
@@ -366,7 +399,58 @@ export default function ContactsSidebar() {
   );
 }
 
+// Expanded-sidebar nav row (Network map / intel), styled like the Dashboard link.
+function NavLink({
+  href,
+  active,
+  icon,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`group relative flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
+        active
+          ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
+          : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/70"
+      }`}
+    >
+      {active && (
+        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-indigo-500" />
+      )}
+      {icon}
+      {children}
+    </Link>
+  );
+}
+
 // ── Icons (inline SVG, matching the stroke style used in HeaderActions) ─────────
+function NetworkIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+      <circle cx="5" cy="6" r="2.2" />
+      <circle cx="19" cy="6" r="2.2" />
+      <circle cx="12" cy="18" r="2.2" />
+      <path d="M6.8 7.3 10.6 16M17.2 7.3 13.4 16M7 6h10" />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+      <path d="M3 3v18h18" />
+      <rect x="7" y="11" width="3" height="6" rx="0.5" />
+      <rect x="13" y="7" width="3" height="10" rx="0.5" />
+    </svg>
+  );
+}
+
 function DashboardIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">

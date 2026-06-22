@@ -60,6 +60,8 @@ model Contact {
   notes          Note[]
   suggestionsAsA Suggestion[] @relation("SuggestionA")
   suggestionsAsB Suggestion[] @relation("SuggestionB")
+  relationshipsFrom Relationship[] @relation("RelFrom")
+  relationshipsTo   Relationship[] @relation("RelTo")
   workspace      Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -82,10 +84,49 @@ model Note {
   // MAX_NOTE_IMAGES client- and server-side. Empty array = a text-only note.
   images  String[] @default([])
 
+  // Voice recordings (Phase 3). audioUrl points at the recording in Supabase
+  // Storage (the "voice-notes" bucket — see lib/voice.ts); the audio bytes are
+  // NOT stored in this row (object storage keeps the DB lean). `summary` is an
+  // AI-generated condensation of the transcript (content), generated on create
+  // for voice notes; null when AI is unavailable or content is too short.
+  audioUrl String?
+  summary  String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([contactId])
+}
+
+// ---------------------------------------------------------------------------
+// Relationship mapping — "who knows whom" (Phase 3).
+// A directed edge between two contacts. "knows" reads as symmetric; directional
+// types (e.g. "introduced_by", "reports_to") read from -> to. The pair is
+// de-duplicated per (fromId, toId, type). Edges power the contact-page
+// Connections section and the /network graph.
+// ---------------------------------------------------------------------------
+model Relationship {
+  id     String  @id @default(cuid())
+  userId String? // owner scope, mirrors Contact.userId (null = open mode)
+
+  fromId String
+  toId   String
+  from   Contact @relation("RelFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to     Contact @relation("RelTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  // "knows" | "introduced_by" | "colleague" | "manager" | "report" | "family" |
+  // "friend" | "mentor" | "client" | "investor" | "partner" | "other"
+  type     String  @default("knows")
+  strength Int     @default(3) // 1 (weak) .. 5 (strong)
+  note     String? // optional context ("met at DevCon 2025")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fromId, toId, type])
+  @@index([userId])
+  @@index([fromId])
+  @@index([toId])
 }
 
 model Suggestion {
