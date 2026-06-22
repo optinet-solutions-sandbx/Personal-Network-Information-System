@@ -8,6 +8,7 @@ import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { computeUpcomingBirthdays, formatBirthday } from "@/lib/birthdays";
 import { fileToDataUrl, MAX_IMAGE_DIM } from "@/lib/image";
+import { resolveSocial } from "@/lib/socials";
 
 const TIER_DOT: Record<string, string> = {
   Strong: "bg-green-500",
@@ -1123,7 +1124,9 @@ function ExtractedCard({
   const detectedEntries = customEntries.filter(([k]) => !enrichedSet.has(k));
   const enrichedEntries = customEntries.filter(([k]) => enrichedSet.has(k));
 
-  const renderCustomRow = ([key, value]: [string, string]) => (
+  const renderCustomRow = ([key, value]: [string, string]) => {
+    const social = resolveSocial(key, value);
+    return (
     <div key={key} className="flex items-start gap-1.5">
       <div className="flex-1">
         <FieldRow
@@ -1137,6 +1140,20 @@ function ExtractedCard({
             setEditingField(null);
           }}
         />
+        {social && editingField !== `custom:${key}` && (
+          <a
+            href={social.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            <span aria-hidden>{social.icon}</span>
+            <span className="truncate">{social.url.replace(/^https?:\/\//, "")}</span>
+            <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              ✓ Verified
+            </span>
+          </a>
+        )}
       </div>
       <button
         type="button"
@@ -1147,7 +1164,8 @@ function ExtractedCard({
         ✕
       </button>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">

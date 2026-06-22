@@ -8,6 +8,7 @@ import type { Contact, Note, HealthInputs } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
 import { formatBirthday, normalizeBirthday, contactDaysUntilBirthday } from "@/lib/birthdays";
 import { fileToDataUrl, MAX_NOTE_IMAGES } from "@/lib/image";
+import { resolveSocial } from "@/lib/socials";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
@@ -445,7 +446,7 @@ function DetailsCard({
                         }
                       />
                     ) : (
-                      <dd className="text-zinc-700 dark:text-zinc-200">{(value as string) || "—"}</dd>
+                      <CustomFieldValue fieldKey={key} value={value as string} />
                     )}
                   </div>
                 )
@@ -672,6 +673,36 @@ function NotesSection({
         </div>
       )}
     </div>
+  );
+}
+
+// Render a custom field's value. Social/messaging handles (and website URLs)
+// become a clickable link with a ✓ Verified badge — verified because socials
+// only ever come from a primary source (the user's note / a scanned card);
+// web enrichment is blocked from producing them (see lib/extract.ts).
+function CustomFieldValue({ fieldKey, value }: { fieldKey: string; value: string }) {
+  const social = resolveSocial(fieldKey, value);
+  if (!social) {
+    return <dd className="text-zinc-700 dark:text-zinc-200">{value || "—"}</dd>;
+  }
+  return (
+    <dd>
+      <a
+        href={social.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex max-w-full items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:underline"
+      >
+        <span aria-hidden>{social.icon}</span>
+        <span className="truncate">{social.handle}</span>
+        <span
+          title="From a primary source (your note or a scanned card)"
+          className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+        >
+          ✓ Verified
+        </span>
+      </a>
+    </dd>
   );
 }
 

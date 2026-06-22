@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { ContactInput } from "@/lib/types";
+import { isSocialKey } from "@/lib/socials";
 
 export type Source = { title: string; url: string };
 
@@ -52,6 +53,13 @@ stated in the story. Be thorough; use clean, short Capitalized labels. Common la
 Research, Thesis, Studies, Education, Skills, Specialization, Industries, Interests,
 Hobbies, Languages, Personality, Relationship, Mutual Connection — and any other clearly
 stated detail.
+- Social & messaging handles: capture each under a customField keyed by its PLATFORM
+  NAME — "Telegram", "Instagram", "Facebook", "LinkedIn", "X" (for Twitter/X),
+  "WhatsApp", "GitHub", "YouTube", "TikTok", or "Website". On business cards the
+  platform is usually shown by an icon next to the handle (Telegram paper-plane,
+  Instagram camera, X bird, LinkedIn "in", Facebook "f", WhatsApp phone) — use that
+  icon/context to pick the platform name. Store the handle or URL exactly as shown
+  (e.g. "Telegram": "@PlayStar123"). Do NOT bucket these under a generic "Social" label.
 - "Age": ONLY if an age is explicitly stated (e.g. "she is 25"). Never estimate.
 - "Birth Year": ONLY when an explicit age/birth year is stated — compute from age + current
   year (age 25 in ${currentYear} → "${currentYear - 25}"). Do NOT infer it from graduation
@@ -164,6 +172,14 @@ function isContactKey(key: string): boolean {
   return /\b(e-?mail|phone|mobile|cell|whatsapp|telephone)\b/i.test(key);
 }
 
+// Keys that must NEVER come from web enrichment: private contact details (the
+// model fabricates them) AND social handles (we only trust socials from a
+// primary source — the user's note or a scanned card — so they can be shown as
+// "verified"; web-guessed socials are frequently the wrong person).
+function isEnrichmentBlocked(key: string): boolean {
+  return isContactKey(key) || isSocialKey(key);
+}
+
 export function normalize(raw: unknown): { fields: ContactInput; enriched: string[] } {
   const out = emptyFields();
   if (!raw || typeof raw !== "object") return { fields: out, enriched: [] };
@@ -181,7 +197,7 @@ export function normalize(raw: unknown): { fields: ContactInput; enriched: strin
   // always win on key collisions, and contact-detail keys are never enriched.
   const enriched: string[] = [];
   for (const [k, v] of Object.entries(toStringMap(obj.enrichment))) {
-    if (isContactKey(k) || k in custom) continue;
+    if (isEnrichmentBlocked(k) || k in custom) continue;
     custom[k] = v;
     enriched.push(k);
   }
@@ -404,7 +420,7 @@ async function enrichFromWeb(
       if (!item || typeof item !== "object") continue;
       const label = String((item as Record<string, unknown>).label ?? "").trim();
       const value = String((item as Record<string, unknown>).value ?? "").trim();
-      if (label && value && !isContactKey(label)) fields[label] = value;
+      if (label && value && !isEnrichmentBlocked(label)) fields[label] = value;
     }
   }
 
@@ -555,7 +571,7 @@ export async function extractContact(
 function mergeEnrichment(result: ExtractResult, enriched: Record<string, string>) {
   const custom = { ...(result.fields.customFields ?? {}) };
   for (const [k, v] of Object.entries(enriched)) {
-    if (isContactKey(k) || k in custom || !v.trim()) continue;
+    if (isEnrichmentBlocked(k) || k in custom || !v.trim()) continue;
     custom[k] = v.trim();
     result.enriched.push(k);
   }
