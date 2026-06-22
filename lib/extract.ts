@@ -40,7 +40,12 @@ Return ONLY a JSON object with these keys:
 STANDARD FIELDS — use "" for any you cannot determine:
 - name: full name (normalize to proper case)
 - title: job title or role
-- company: organization they work for
+- company: organization they work for. If no company is explicitly named but the
+  person has an email on a COMPANY domain (i.e. NOT a free provider like gmail,
+  outlook, yahoo, hotmail, icloud, proton), infer the organization name from that
+  domain — e.g. "meny@playstarmedia.com" → "Play Star Media". Use any other
+  visible branding or social handles (e.g. "@PlayStar") to get the correct word
+  spacing and capitalization. Do NOT infer a company from a free-provider email.
 - email: email address (repair speech-to-text: "at" → "@", "dot"/"period" → ".")
 - phone: phone number (digits + optional leading "+"; strip spaces/hyphens from dictation)
 - location: city, region, or country
@@ -66,7 +71,10 @@ stated detail.
   year, years of experience, or any other proxy. Otherwise OMIT both "Age" and "Birth Year".
 
 RULES:
-- Include only explicitly stated facts. The ONLY inference allowed is a stated age → birth year.
+- Include only explicitly stated facts. The ONLY inferences allowed are: (a) a stated
+  age → birth year, and (b) the employer's name from a company email domain (see the
+  "company" rule above). Never infer anything else — especially not from outside the
+  provided text/images.
 - Omit "customFields" entirely if nothing extra is mentioned.
 ${
   enrich
@@ -245,6 +253,19 @@ export function buildFallback(text: string): ContactInput {
     /\bis\s+(?:a|an)\s+[\w\s]+?\s+at\s+([A-Za-z][\w\s]+?)\s+(?:base|based|,|\.)/i
   );
   if (companyMatch) fields.company = companyMatch[1].trim();
+
+  // Fallback company: infer from a business email domain (e.g.
+  // "meny@playstarmedia.com" → "Playstarmedia"). Skips free providers. The AI
+  // path word-splits this more accurately ("Play Star Media"); this is a best
+  // effort for the no-API-key path.
+  if (!fields.company && fields.email) {
+    const domain = fields.email.split("@")[1]?.toLowerCase() ?? "";
+    const free = /^(gmail|outlook|hotmail|yahoo|icloud|proton(mail)?|aol|gmx|live|mail|yandex|zoho|msn)\./;
+    const core = domain.replace(/\.[a-z.]+$/, "");
+    if (domain && core && !free.test(domain)) {
+      fields.company = core.charAt(0).toUpperCase() + core.slice(1);
+    }
+  }
 
   // Location: "base/based on/in/at [City]"
   const locationMatch = text.match(
