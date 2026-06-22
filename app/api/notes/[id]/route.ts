@@ -6,9 +6,9 @@ import { validateNoteContent, validateNoteImages } from "@/lib/validation";
 
 type Params = { params: Promise<{ id: string }> };
 
-// Scope a note to the owner via its parent contact.
-function ownedNoteWhere(id: string, userId: string | null) {
-  return userId ? { id, contact: { userId } } : { id };
+// Scope a note to the owner's workspace via its parent contact.
+function ownedNoteWhere(id: string, workspaceId: string | null) {
+  return workspaceId ? { id, contact: { workspaceId } } : { id };
 }
 
 // PATCH /api/notes/:id
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (imagesProvided) data.images = imgs.data;
 
   const result = await prisma.note.updateMany({
-    where: ownedNoteWhere(id, owner.userId),
+    where: ownedNoteWhere(id, owner.workspaceId),
     data,
   });
   if (result.count === 0) {
@@ -64,11 +64,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   // capture the parent contact before deletion so we can refresh its health score
   const note = await prisma.note.findFirst({
-    where: ownedNoteWhere(id, owner.userId),
+    where: ownedNoteWhere(id, owner.workspaceId),
     select: { contactId: true },
   });
   const result = await prisma.note.deleteMany({
-    where: ownedNoteWhere(id, owner.userId),
+    where: ownedNoteWhere(id, owner.workspaceId),
   });
   if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });

@@ -9,7 +9,7 @@ export async function GET() {
   if (!owner.ok) return owner.response
 
   const rows = await prisma.contact.findMany({
-    where: ownerWhere(owner.userId),
+    where: ownerWhere(owner.workspaceId),
     select: {
       id: true,
       name: true,

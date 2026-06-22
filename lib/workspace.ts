@@ -15,9 +15,12 @@ export async function resolveOrCreateWorkspace(
   email: string,
   name?: string
 ): Promise<{ workspaceId: string }> {
-  // Fast path: user already has a personal workspace
+  // Fast path: user already belongs to a workspace (team OR personal). Earliest
+  // membership wins so a user added to the shared team workspace resolves to it
+  // rather than spinning up a private one.
   const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, workspace: { type: "personal" } },
+    where: { userId },
+    orderBy: { createdAt: "asc" },
     select: { workspaceId: true },
   });
   if (existing) return { workspaceId: existing.workspaceId };
@@ -44,7 +47,8 @@ export async function resolveOrCreateWorkspace(
   } catch {
     // Race condition: another concurrent request already created the workspace.
     const member = await prisma.workspaceMember.findFirst({
-      where: { userId, workspace: { type: "personal" } },
+      where: { userId },
+      orderBy: { createdAt: "asc" },
       select: { workspaceId: true },
     });
     if (member) return { workspaceId: member.workspaceId };

@@ -106,8 +106,9 @@ model Note {
 // Connections section and the /network graph.
 // ---------------------------------------------------------------------------
 model Relationship {
-  id     String  @id @default(cuid())
-  userId String? // owner scope, mirrors Contact.userId (null = open mode)
+  id          String  @id @default(cuid())
+  userId      String? // creator (kept for audit); scoping is by workspaceId
+  workspaceId String? // shared-team scope (see lib/auth.ts)
 
   fromId String
   toId   String
@@ -125,13 +126,15 @@ model Relationship {
 
   @@unique([fromId, toId, type])
   @@index([userId])
+  @@index([workspaceId])
   @@index([fromId])
   @@index([toId])
 }
 
 model Suggestion {
-  id         String   @id @default(cuid())
-  userId     String?
+  id          String  @id @default(cuid())
+  userId      String? // creator (kept for audit); scoping is by workspaceId
+  workspaceId String? // shared-team scope (see lib/auth.ts)
 
   contactAId String
   contactBId String
@@ -147,6 +150,7 @@ model Suggestion {
 
   @@unique([contactAId, contactBId])
   @@index([userId, status])
+  @@index([workspaceId])
 }
 
 // ---------------------------------------------------------------------------

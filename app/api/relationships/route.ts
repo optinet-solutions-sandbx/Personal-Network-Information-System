@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (contactId) {
     // Confirm the contact is owned before exposing its edges.
     const contact = await prisma.contact.findFirst({
-      where: { id: contactId, ...ownerWhere(owner.userId) },
+      where: { id: contactId, ...ownerWhere(owner.workspaceId) },
       select: { id: true },
     });
     if (!contact) {
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     const edges = await prisma.relationship.findMany({
       where: {
-        ...ownerWhere(owner.userId),
+        ...ownerWhere(owner.workspaceId),
         OR: [{ fromId: contactId }, { toId: contactId }],
       },
       include: { from: { select: CONTACT_SELECT }, to: { select: CONTACT_SELECT } },
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 
   if (graph) {
     const edges = await prisma.relationship.findMany({
-      where: ownerWhere(owner.userId),
+      where: ownerWhere(owner.workspaceId),
       select: { id: true, fromId: true, toId: true, type: true, strength: true, note: true, createdAt: true },
     });
 
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     }
     const contacts = ids.size
       ? await prisma.contact.findMany({
-          where: { id: { in: [...ids] }, ...ownerWhere(owner.userId) },
+          where: { id: { in: [...ids] }, ...ownerWhere(owner.workspaceId) },
           select: CONTACT_SELECT,
         })
       : [];
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
   }
 
   const edges = await prisma.relationship.findMany({
-    where: ownerWhere(owner.userId),
+    where: ownerWhere(owner.workspaceId),
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json(edges);
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
 
   // Both endpoints must be contacts the owner can see.
   const found = await prisma.contact.findMany({
-    where: { id: { in: [fromId, toId] }, ...ownerWhere(owner.userId) },
+    where: { id: { in: [fromId, toId] }, ...ownerWhere(owner.workspaceId) },
     select: { id: true },
   });
   if (found.length !== 2) {
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
     const edge = await prisma.relationship.upsert({
       where: { fromId_toId_type: { fromId, toId, type } },
       update: { strength, note },
-      create: { userId: owner.userId, fromId, toId, type, strength, note },
+      create: { userId: owner.userId, workspaceId: owner.workspaceId, fromId, toId, type, strength, note },
     });
     return NextResponse.json(edge, { status: 201 });
   } catch (err) {

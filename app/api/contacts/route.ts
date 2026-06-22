@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       : { updatedAt: "desc" };
 
   const where: Prisma.ContactWhereInput = {
-    ...ownerWhere(owner.userId),
+    ...ownerWhere(owner.workspaceId),
     ...(hasProfile ? { profile: { not: null } } : {}),
     ...(q
       ? {
@@ -144,6 +144,7 @@ export async function POST(req: NextRequest) {
     const contact = await prisma.contact.create({
       data: {
         userId: owner.userId,
+        workspaceId: owner.workspaceId,
         name: d.name!,
         email: d.email ?? null,
         phone: d.phone ?? null,

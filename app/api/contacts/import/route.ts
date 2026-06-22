@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   // Existing contacts for dedupe.
   const existing = await prisma.contact.findMany({
-    where: ownerWhere(owner.userId),
+    where: ownerWhere(owner.workspaceId),
     select: { name: true, email: true },
   });
   const seen = new Set(existing.map((c) => keyOf(c.name, c.email)));
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     seen.add(key);
     toCreate.push({
       userId: owner.userId,
+      workspaceId: owner.workspaceId,
       name: d.name,
       email: d.email ?? null,
       phone: d.phone ?? null,

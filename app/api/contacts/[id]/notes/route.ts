@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const contact = await prisma.contact.findFirst({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
     select: { id: true },
   });
   if (!contact) {
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const contact = await prisma.contact.findFirst({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
     select: { id: true },
   });
   if (!contact) {

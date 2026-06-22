@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const format = new URL(req.url).searchParams.get("format") === "vcf" ? "vcf" : "csv";
 
   const rows = await prisma.contact.findMany({
-    where: ownerWhere(owner.userId),
+    where: ownerWhere(owner.workspaceId),
     orderBy: { name: "asc" },
   });
 

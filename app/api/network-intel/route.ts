@@ -12,7 +12,7 @@ export async function GET() {
   const owner = await resolveOwner();
   if (!owner.ok) return owner.response;
 
-  const where = ownerWhere(owner.userId);
+  const where = ownerWhere(owner.workspaceId);
 
   const [rows, connections] = await Promise.all([
     prisma.contact.findMany({

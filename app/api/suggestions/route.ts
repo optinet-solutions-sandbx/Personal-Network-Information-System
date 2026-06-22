@@ -9,7 +9,7 @@ export async function GET() {
   if (!owner.ok) return owner.response
 
   const rows = await prisma.suggestion.findMany({
-    where: { ...ownerWhere(owner.userId), status: "pending" },
+    where: { ...ownerWhere(owner.workspaceId), status: "pending" },
     include: {
       contactA: { select: { id: true, name: true, title: true, company: true } },
       contactB: { select: { id: true, name: true, title: true, company: true } },
@@ -26,7 +26,7 @@ export async function POST() {
   if (!owner.ok) return owner.response
 
   const rows = await prisma.contact.findMany({
-    where: ownerWhere(owner.userId),
+    where: ownerWhere(owner.workspaceId),
     select: { id: true, name: true, title: true, company: true, tags: true, profile: true },
   })
 
@@ -58,7 +58,7 @@ export async function POST() {
   // Exclude pairs already accepted or dismissed from this generation run
   const responded = await prisma.suggestion.findMany({
     where: {
-      ...ownerWhere(owner.userId),
+      ...ownerWhere(owner.workspaceId),
       status: { in: ["dismissed", "accepted"] },
     },
     select: { contactAId: true, contactBId: true },
@@ -82,6 +82,7 @@ export async function POST() {
       },
       create: {
         userId: owner.userId,
+        workspaceId: owner.workspaceId,
         contactAId: c.contactAId,
         contactBId: c.contactBId,
         rationale: c.rationale,

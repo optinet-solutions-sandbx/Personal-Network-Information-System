@@ -21,7 +21,7 @@ export async function PATCH(
   }
 
   const result = await prisma.suggestion.updateMany({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
     data: { status, respondedAt: new Date() },
   })
   if (result.count === 0) {

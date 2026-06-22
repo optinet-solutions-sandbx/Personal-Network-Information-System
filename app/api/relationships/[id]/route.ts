@@ -11,7 +11,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const edge = await prisma.relationship.findFirst({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
     select: { id: true },
   });
   if (!edge) {
