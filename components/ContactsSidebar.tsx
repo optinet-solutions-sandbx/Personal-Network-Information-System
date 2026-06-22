@@ -91,7 +91,8 @@ export default function ContactsSidebar() {
   const fetchPage = useCallback(
     async (q: string, offset: number) => {
       const res = await fetch(
-        `/api/contacts?q=${encodeURIComponent(q)}&sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`
+        `/api/contacts?q=${encodeURIComponent(q)}&sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`,
+        { cache: "no-store" }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as Contact[];

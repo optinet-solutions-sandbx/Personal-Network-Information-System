@@ -115,7 +115,10 @@ export default function ContactDetailPage({
     });
     if (!result.isConfirmed) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+    // Invalidate the client router cache so the contacts list (and sidebar)
+    // re-fetch and drop the deleted contact instead of showing a stale page.
     router.push("/contacts");
+    router.refresh();
   }
 
   // Resolve the birthday the same way the dashboard bell does (structured field
