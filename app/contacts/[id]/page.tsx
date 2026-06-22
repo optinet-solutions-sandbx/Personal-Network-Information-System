@@ -151,6 +151,7 @@ export default function ContactDetailPage({
           </div>
         )}
         <NotesSection contact={contact} onChange={load} />
+        <SourceCard contact={contact} />
       </div>
       <div className="lg:col-span-2">
         <ProfileCard contact={contact} onChange={load} />
@@ -671,6 +672,69 @@ function NotesSection({
               Next →
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Original input (immutable creation source) ---------------- */
+
+// Read-only archive of the raw input the contact was created from (the add-flow
+// text + photos). Captured once at creation and never edited — the safety net
+// behind the editable "story" note, so the original is always recoverable.
+// Collapsed by default to stay out of the way; renders nothing when empty
+// (contacts created before this feature have no source).
+function SourceCard({ contact }: { contact: Contact }) {
+  const text = contact.sourceText?.trim() ?? "";
+  const images = contact.sourceImages ?? [];
+  const [open, setOpen] = useState(false);
+  if (!text && images.length === 0) return null;
+
+  return (
+    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 p-5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span className="flex items-center gap-2">
+          <span aria-hidden>🗄️</span>
+          <span className="text-lg font-semibold">Original input</span>
+          <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            read-only
+          </span>
+        </span>
+        <span className="text-sm text-indigo-600 dark:text-indigo-400">
+          {open ? "Hide" : "Show"}
+        </span>
+      </button>
+      <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+        What this contact was created from — kept unchanged so it can always be
+        recovered.
+      </p>
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          {text && (
+            <p className="whitespace-pre-wrap break-words text-sm text-zinc-700 dark:text-zinc-200">
+              {text}
+            </p>
+          )}
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {images.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <a key={i} href={src} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={src}
+                    alt={`Original photo ${i + 1}`}
+                    className="h-24 w-24 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover transition-opacity hover:opacity-90"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

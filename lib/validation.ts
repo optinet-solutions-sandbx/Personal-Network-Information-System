@@ -25,6 +25,11 @@ export const LIMITS = {
   noteContent: 20000,
   noteImageCount: 4, // photos per note (mirror MAX_NOTE_IMAGES in lib/image.ts)
   noteImageChars: 8_000_000, // ~6MB per downscaled data URL — generous upper bound
+  // Immutable creation-source archive (Contact.sourceText / sourceImages). Text
+  // matches the note cap; image count is more generous than a note (the add flow
+  // can span several messages) but still bounded so a row can't grow unboundedly.
+  sourceText: 20000,
+  sourceImageCount: 10,
 } as const;
 
 // Loose, pragmatic email shape check (not full RFC). Empty is allowed upstream.
@@ -198,10 +203,20 @@ export function validateNoteContent(value: unknown): ValidationResult<string> {
 // Photo attachments on a note: an array of image data URLs. Absent/empty is
 // valid (text-only note). Returns the cleaned array on success.
 export function validateNoteImages(value: unknown): ValidationResult<string[]> {
+  return validateImageDataUrls(value, LIMITS.noteImageCount, "photos per note");
+}
+
+// Shared image-data-URL array validator. Each item must be an image data URL
+// within the per-image size cap; the array is bounded by `maxCount`.
+function validateImageDataUrls(
+  value: unknown,
+  maxCount: number,
+  label: string
+): ValidationResult<string[]> {
   if (value == null) return { ok: true, data: [] };
   if (!Array.isArray(value)) return { ok: false, error: "images must be a list" };
-  if (value.length > LIMITS.noteImageCount) {
-    return { ok: false, error: `at most ${LIMITS.noteImageCount} photos per note` };
+  if (value.length > maxCount) {
+    return { ok: false, error: `at most ${maxCount} ${label}` };
   }
   const out: string[] = [];
   for (const item of value) {
@@ -214,4 +229,35 @@ export function validateNoteImages(value: unknown): ValidationResult<string[]> {
     out.push(item);
   }
   return { ok: true, data: out };
+}
+
+// The immutable creation-source archive (Contact.sourceText / sourceImages),
+// accepted only at create time. Both parts are optional; returns cleaned values
+// (text trimmed/capped, images validated). Validated separately from
+// validateContact so the source can never be mutated through a PATCH.
+export function validateContactSource(
+  body: unknown
+): ValidationResult<{ sourceText: string | null; sourceImages: string[] }> {
+  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+
+  let sourceText: string | null = null;
+  if (b.sourceText != null) {
+    if (typeof b.sourceText !== "string") {
+      return { ok: false, error: "sourceText must be a string" };
+    }
+    const trimmed = b.sourceText.trim();
+    if (trimmed.length > LIMITS.sourceText) {
+      return { ok: false, error: "sourceText is too long" };
+    }
+    sourceText = trimmed.length > 0 ? trimmed : null;
+  }
+
+  const imgs = validateImageDataUrls(
+    b.sourceImages,
+    LIMITS.sourceImageCount,
+    "source photos"
+  );
+  if (!imgs.ok) return imgs;
+
+  return { ok: true, data: { sourceText, sourceImages: imgs.data } };
 }

@@ -7,7 +7,7 @@ import Swal from "sweetalert2";
 import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { computeUpcomingBirthdays, formatBirthday } from "@/lib/birthdays";
-import { fileToDataUrl, MAX_IMAGE_DIM } from "@/lib/image";
+import { fileToDataUrl, MAX_IMAGE_DIM, MAX_NOTE_IMAGES } from "@/lib/image";
 import { resolveSocial } from "@/lib/socials";
 
 const TIER_DOT: Record<string, string> = {
@@ -19,6 +19,11 @@ const TIER_DOT: Record<string, string> = {
 
 // How many photos the composer accepts per contact.
 const MAX_ATTACHMENTS = 4;
+
+// Cap on photos archived in the immutable creation source (Contact.sourceImages).
+// Mirrors LIMITS.sourceImageCount server-side; more generous than a single note
+// because the add flow can span several messages.
+const MAX_SOURCE_IMAGES = 10;
 
 type Attachment = { name: string; url: string };
 
@@ -490,13 +495,35 @@ export default function HomePage() {
     };
   }, [query, load]);
 
-  // Attach the freeform story (if any) as a note on the given contact.
+  // Reconstruct the full creation input from the chat-style composer: it moves
+  // every sent message into `messages` and clears `story`, so the raw record is
+  // the whole thread (plus any text/photos typed but never sent). Text is capped
+  // to the server's noteContent/sourceText limit; images are returned uncapped
+  // and each caller slices to its own limit.
+  function buildRawSource() {
+    const text = [...messages.map((m) => m.text), story]
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(0, 20000);
+    const images = [
+      ...messages.flatMap((m) => m.attachments.map((a) => a.url)),
+      ...attachments.map((a) => a.url),
+    ];
+    return { text, images };
+  }
+
+  // Preserve the creation conversation as an editable note, so each contact
+  // keeps a working record of what it was created from. Stays "story"-sourced so
+  // it gets the 📖 badge in the notes list.
   async function attachStoryNote(contactId: string) {
-    if (!story.trim()) return;
+    const { text, images } = buildRawSource();
+    const noteImages = images.slice(0, MAX_NOTE_IMAGES);
+    if (!text && noteImages.length === 0) return;
     await fetch(`/api/contacts/${contactId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: story, source: "story" }),
+      body: JSON.stringify({ content: text, source: "story", images: noteImages }),
     });
   }
 
@@ -510,10 +537,18 @@ export default function HomePage() {
       showConfirmButton: false,
       didOpen: () => Swal.showLoading(),
     });
+    // Archive the original input on the contact itself (immutable), alongside
+    // the editable story note. This is the safety net for a future
+    // re-analyze/reset — it survives even if the note is edited or deleted.
+    const { text: sourceText, images } = buildRawSource();
     const res = await fetch("/api/contacts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        ...input,
+        sourceText: sourceText || undefined,
+        sourceImages: images.slice(0, MAX_SOURCE_IMAGES),
+      }),
     });
     if (!res.ok) throw new Error(`POST /api/contacts ${res.status}`);
     const contact = (await res.json()) as { id: string };

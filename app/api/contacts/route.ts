@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recalculateHealth } from "@/lib/health";
 import { resolveOwner, ownerWhere } from "@/lib/auth";
-import { validateContact } from "@/lib/validation";
+import { validateContact, validateContactSource } from "@/lib/validation";
 
 // Case-insensitive substring search (Postgres ILIKE under the hood).
 const insensitive = (q: string) => ({ contains: q, mode: Prisma.QueryMode.insensitive });
@@ -71,6 +71,9 @@ export async function GET(req: NextRequest) {
     where,
     orderBy,
     include: { _count: { select: { notes: true } } },
+    // The raw-source archive (esp. sourceImages data URLs) is large and only
+    // ever read on the contact detail page — keep it out of the list payload.
+    omit: { sourceText: true, sourceImages: true },
   };
   if (limit != null) {
     findArgs.skip = offset;
@@ -131,6 +134,12 @@ export async function POST(req: NextRequest) {
   }
   const d = valid.data;
 
+  // Optional immutable archive of the raw input this contact was created from.
+  const src = validateContactSource(body);
+  if (!src.ok) {
+    return NextResponse.json({ error: src.error }, { status: 400 });
+  }
+
   try {
     const contact = await prisma.contact.create({
       data: {
@@ -145,6 +154,8 @@ export async function POST(req: NextRequest) {
         birthday: d.birthday ?? null,
         howWeMet: d.howWeMet ?? null,
         customFields: d.customFields ? JSON.stringify(d.customFields) : null,
+        sourceText: src.data.sourceText,
+        sourceImages: src.data.sourceImages,
       },
     });
 

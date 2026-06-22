@@ -35,6 +35,14 @@ model Contact {
   howWeMet     String? // context: where/how the connection was made
   customFields String? // JSON: AI-detected extra fields {"Interests": "...", "Hobbies": "..."}
 
+  // Immutable archive of the raw input this contact was created from (the
+  // freeform add-flow conversation + any attached photos), captured once at
+  // creation and never edited afterwards. Kept separate from the editable
+  // "story" Note so the original is always recoverable for a future
+  // re-analyze/reset, even if the note is changed or deleted.
+  sourceText   String?  // the original typed/dictated text, joined across messages
+  sourceImages String[] @default([]) // original photos as data URLs (see lib/image.ts)
+
   // AI-assisted profile
   profile          String?
   profileModel     String?
