@@ -78,6 +78,16 @@ export type Suggestion = {
   respondedAt: string | null;
 };
 
+export type SentMessage = {
+  id: string
+  userId: string | null
+  contactId: string
+  body: string
+  method: "email" | "clipboard"
+  sentAt: string
+  contact?: { id: string; name: string }
+}
+
 export type ContactInput = {
   name: string;
   email?: string;

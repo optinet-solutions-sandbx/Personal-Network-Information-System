@@ -47,6 +47,7 @@ model Contact {
   notes          Note[]
   suggestionsAsA Suggestion[] @relation("SuggestionA")
   suggestionsAsB Suggestion[] @relation("SuggestionB")
+  sentMessages   SentMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -88,4 +89,19 @@ model Suggestion {
 
   @@unique([contactAId, contactBId])
   @@index([userId, status])
+}
+
+model SentMessage {
+  id        String   @id @default(cuid())
+  userId    String?
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  body      String
+  method    String   // "email" | "clipboard"
+
+  sentAt    DateTime @default(now())
+
+  @@index([contactId])
+  @@index([userId, sentAt(sort: Desc)])
 }

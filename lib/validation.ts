@@ -192,3 +192,29 @@ export function validateNoteContent(value: unknown): ValidationResult<string> {
   }
   return { ok: true, data: content };
 }
+
+export function validateSentMessageBody(body: unknown):
+  | { ok: true; data: { contactId: string; body: string; method: "email" | "clipboard" } }
+  | { ok: false; error: string } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "Invalid request body" }
+  }
+  const b = body as Record<string, unknown>
+  if (typeof b.contactId !== "string" || !b.contactId.trim()) {
+    return { ok: false, error: "contactId is required" }
+  }
+  if (typeof b.body !== "string" || !b.body.trim()) {
+    return { ok: false, error: "body is required" }
+  }
+  if (b.method !== "email" && b.method !== "clipboard") {
+    return { ok: false, error: 'method must be "email" or "clipboard"' }
+  }
+  return {
+    ok: true,
+    data: {
+      contactId: b.contactId.trim(),
+      body: b.body.trim(),
+      method: b.method,
+    },
+  }
+}
