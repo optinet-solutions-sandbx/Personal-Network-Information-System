@@ -287,8 +287,17 @@ export function detectFormat(filename: string, content: string): "vcf" | "csv" {
   return "csv";
 }
 
+// LinkedIn's exported CSV has a "Notes:" preamble before the real header row.
+// Strip everything up to (but not including) the first line that starts with
+// a recognized column name so the parser sees the correct header.
+function stripCsvPreamble(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const idx = lines.findIndex((l) => /^"?first\s+name"?/i.test(l.trim()));
+  return idx > 0 ? lines.slice(idx).join("\n") : text;
+}
+
 export function parseContactsFile(filename: string, content: string): ContactInput[] {
   return detectFormat(filename, content) === "vcf"
     ? parseVcf(content)
-    : csvRowsToContactInputs(parseCsv(content));
+    : csvRowsToContactInputs(parseCsv(stripCsvPreamble(content)));
 }

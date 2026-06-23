@@ -37,6 +37,10 @@ yarn-error.log*
 # PMS OpenAPI spec (local reference for the ticket integration; not source)
 api-1.json
 
+# personal Claude Code config + hooks (not shared with the team)
+.claude/settings.local.json
+.claude/hooks/
+
 # vercel
 .vercel
 
