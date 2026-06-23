@@ -261,6 +261,18 @@ export default function ContactsSidebar() {
           <ImportIcon />
         </Link>
 
+        <Link
+          href="/connections"
+          title="Connections"
+          className={`mt-2 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+            pathname === "/connections"
+              ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
+              : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <PlugIcon />
+        </Link>
+
         <div className="mt-2 h-px w-8 bg-zinc-100 dark:bg-zinc-800" />
 
         <nav className="mt-2 flex flex-1 flex-col items-center gap-1.5 overflow-y-auto">
@@ -326,6 +338,9 @@ export default function ContactsSidebar() {
         </NavLink>
         <NavLink href="/import" active={pathname === "/import"} icon={<ImportIcon />}>
           Import / export
+        </NavLink>
+        <NavLink href="/connections" active={pathname === "/connections"} icon={<PlugIcon />}>
+          Connections
         </NavLink>
       </nav>
 
@@ -471,6 +486,16 @@ function ImportIcon() {
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <path d="M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  );
+}
+
+function PlugIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+      <path d="M9 2v6M15 2v6" />
+      <path d="M6 8h12v3a6 6 0 0 1-12 0V8Z" />
+      <path d="M12 17v5" />
     </svg>
   );
 }

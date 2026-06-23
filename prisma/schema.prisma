@@ -35,6 +35,15 @@ model Contact {
   howWeMet     String? // context: where/how the connection was made
   customFields String? // JSON: AI-detected extra fields {"Interests": "...", "Hobbies": "..."}
 
+  // Provenance for synced/imported contacts (Phase 3 connectors). `source` is the
+  // origin system ("manual" default | "csv" | "hubspot" | "google" | "salesforce"
+  // | "linkedin"); `externalId` is that system's record id. Together with
+  // workspaceId they let a re-sync UPDATE the existing row instead of creating a
+  // duplicate (see lib/connectors/sync.ts). Both nullable so existing/manual rows
+  // stay valid.
+  source       String? @default("manual")
+  externalId   String?
+
   // Immutable archive of the raw input this contact was created from (the
   // freeform add-flow conversation + any attached photos), captured once at
   // creation and never edited afterwards. Kept separate from the editable
@@ -71,6 +80,9 @@ model Contact {
   @@index([company])
   @@index([userId])
   @@index([workspaceId])
+  // Fast lookup for re-sync dedupe: find an existing contact by its origin id
+  // within a workspace.
+  @@index([workspaceId, source, externalId])
 }
 
 model Note {
@@ -218,4 +230,40 @@ enum MemberRole {
   owner
   admin
   member
+}
+
+// ---------------------------------------------------------------------------
+// Connected accounts — Phase 3 CRM/contact integrations (D7).
+// One row per (workspace, provider): the OAuth grant for an external contact
+// source (HubSpot, Google Contacts, Salesforce, …). Tokens are stored
+// ENCRYPTED at rest (AES-256-GCM, see lib/crypto.ts) — never plaintext. Scoped
+// to a workspace like the rest of the data; nullable workspaceId keeps open
+// mode working. The sync runner (lib/connectors/sync.ts) reads a connection,
+// pulls contacts from the provider, and upserts them into Contact keyed on
+// (workspaceId, source, externalId).
+// ---------------------------------------------------------------------------
+model Connection {
+  id          String  @id @default(cuid())
+  userId      String? // who connected it (audit); scoping is by workspaceId
+  workspaceId String?
+
+  provider     String // "hubspot" | "google" | "salesforce"
+  accessToken  String // ENCRYPTED (see lib/crypto.ts)
+  refreshToken String? // ENCRYPTED
+  expiresAt    DateTime? // access-token expiry; refreshed lazily before a sync
+  scope        String? // space-delimited granted scopes
+
+  externalAccountId String? // provider account/portal id (for display + sanity)
+  accountLabel      String? // human label: portal name / signed-in email
+
+  status       String    @default("connected") // "connected" | "error"
+  lastError    String? // last sync/refresh error message (when status = "error")
+  lastSyncedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, provider])
+  @@index([workspaceId])
+  @@index([userId])
 }
