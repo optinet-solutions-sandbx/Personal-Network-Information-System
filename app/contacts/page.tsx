@@ -201,6 +201,11 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Upload a pre-recorded audio file → server-side transcript → composer. Lets
+  // you dictate offline on a phone recorder and add the contact later online.
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [transcribing, setTranscribing] = useState(false);
+
   // Live-camera capture ("Take photo").
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -260,6 +265,42 @@ export default function HomePage() {
 
   function removeAttachment(index: number) {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Transcribe an uploaded recording and append the text to the composer, the
+  // same place live dictation lands — then you review and send as usual.
+  async function handleAudioFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setMenuOpen(false);
+    setExtractError(null);
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        setExtractError(
+          error ||
+            (res.status === 429
+              ? "You're going a bit fast — please wait a moment and try again."
+              : "Couldn't transcribe that recording — try again.")
+        );
+        return;
+      }
+      const { text } = (await res.json()) as { text?: string };
+      const transcript = (text ?? "").trim();
+      if (!transcript) {
+        setExtractError("No speech was detected in that recording.");
+        return;
+      }
+      setStory((t) => (t ? `${t} ${transcript}` : transcript));
+    } catch {
+      setExtractError("Couldn't transcribe that recording — try again.");
+    } finally {
+      setTranscribing(false);
+    }
   }
 
   // Open the live camera modal (works on desktop + mobile via getUserMedia).
@@ -799,9 +840,11 @@ export default function HomePage() {
                   handleExtract();
                 }
               }}
-              disabled={extracting}
+              disabled={extracting || transcribing}
               placeholder={
-                messages.length > 0
+                transcribing
+                  ? "Transcribing your recording…"
+                  : messages.length > 0
                   ? "Add more details, or correct something…"
                   : "Tell me about this person — how you met, what they do, where they work…"
               }
@@ -815,7 +858,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setMenuOpen((o) => !o)}
-                  disabled={extracting}
+                  disabled={extracting || transcribing}
                   title="Add photos & files"
                   className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 dark:border-zinc-700 text-xl leading-none text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
                 >
@@ -842,6 +885,16 @@ export default function HomePage() {
                     >
                       <span aria-hidden>📷</span> Take photo
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        audioInputRef.current?.click();
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+                    >
+                      <span aria-hidden>🎙️</span> Upload recording
+                    </button>
                   </div>
                 )}
               </div>
@@ -849,7 +902,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={toggle}
-                disabled={!supported || extracting}
+                disabled={!supported || extracting || transcribing}
                 title={
                   supported
                     ? "Dictate with speech-to-text"
@@ -863,6 +916,13 @@ export default function HomePage() {
               >
                 {listening ? "● Listening… stop" : "🎤"}
               </button>
+
+              {transcribing && (
+                <span className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-400/40 border-t-zinc-500" />
+                  Transcribing…
+                </span>
+              )}
 
               <div className="ml-auto flex items-center gap-2">
                 {!extracting &&
@@ -882,7 +942,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={handleExtract}
-                  disabled={extracting || (!story.trim() && attachments.length === 0)}
+                  disabled={extracting || transcribing || (!story.trim() && attachments.length === 0)}
                   title={messages.length > 0 ? "Send" : "Analyze story"}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
                 >
@@ -905,6 +965,16 @@ export default function HomePage() {
               className="hidden"
               onChange={(e) => {
                 handleFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={audioInputRef}
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              onChange={(e) => {
+                handleAudioFile(e.target.files);
                 e.target.value = "";
               }}
             />
