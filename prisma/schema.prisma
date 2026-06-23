@@ -108,7 +108,7 @@ model Note {
 model Relationship {
   id          String  @id @default(cuid())
   userId      String? // creator (kept for audit); scoping is by workspaceId
-  workspaceId String? // shared-team scope (see lib/auth.ts)
+  workspaceId String? // per-account personal-workspace scope (see lib/auth.ts)
 
   fromId String
   toId   String
@@ -134,7 +134,7 @@ model Relationship {
 model Suggestion {
   id          String  @id @default(cuid())
   userId      String? // creator (kept for audit); scoping is by workspaceId
-  workspaceId String? // shared-team scope (see lib/auth.ts)
+  workspaceId String? // per-account personal-workspace scope (see lib/auth.ts)
 
   contactAId String
   contactBId String
