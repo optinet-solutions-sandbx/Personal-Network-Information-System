@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const { contactId, body, method } = valid.data
 
   const contact = await prisma.contact.findFirst({
-    where: { id: contactId, ...ownerWhere(owner.userId) },
+    where: { id: contactId, ...ownerWhere(owner.workspaceId) },
     select: { id: true },
   })
   if (!contact) {
@@ -41,7 +41,7 @@ export async function GET() {
   if (!owner.ok) return owner.response
 
   const messages = await prisma.sentMessage.findMany({
-    where: ownerWhere(owner.userId),
+    where: { userId: owner.userId },
     orderBy: { sentAt: "desc" },
     take: 20,
     include: { contact: { select: { id: true, name: true } } },
