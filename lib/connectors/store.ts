@@ -138,9 +138,14 @@ export async function getValidAccessToken(
 export function appOrigin(req: { url: string; headers: { get(n: string): string | null } }): string {
   const override = process.env.APP_ORIGIN?.trim();
   if (override) return override.replace(/\/$/, "");
-  const proto = req.headers.get("x-forwarded-proto");
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  if (host) return `${proto || "https"}://${host}`;
+  // Behind a proxy (Vercel), trust the forwarded host/proto. Locally there's no
+  // x-forwarded-host, so fall back to the request URL's own origin — which keeps
+  // the correct http://localhost:3000 scheme for dev (don't assume https).
+  const fwdHost = req.headers.get("x-forwarded-host");
+  if (fwdHost) {
+    const proto = req.headers.get("x-forwarded-proto") || "https";
+    return `${proto}://${fwdHost}`;
+  }
   return new URL(req.url).origin;
 }
 

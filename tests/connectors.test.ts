@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { __test as hubspot } from "@/lib/connectors/hubspot";
+import { __test as google } from "@/lib/connectors/google";
 import { planSync, type ExistingContact } from "@/lib/connectors/sync";
 import type { ImportedContact } from "@/lib/connectors/types";
 
@@ -40,6 +41,35 @@ describe("HubSpot contact mapping", () => {
 
   it("skips a record with neither name nor email", () => {
     expect(hubspot.toImportedContact({ id: "8", properties: {} })).toBeNull();
+  });
+});
+
+describe("Google Contacts mapping", () => {
+  it("maps People API fields and uses resourceName as the externalId", () => {
+    const mapped = google.toImportedContact({
+      resourceName: "people/c123",
+      names: [{ displayName: "Katherine Johnson" }],
+      emailAddresses: [{ value: "katherine@nasa.gov" }],
+      phoneNumbers: [{ value: "+1 555 0188" }],
+      organizations: [{ name: "NASA", title: "Mathematician" }],
+      addresses: [{ city: "Hampton" }],
+    });
+    expect(mapped).toEqual({
+      externalId: "people/c123",
+      name: "Katherine Johnson",
+      email: "katherine@nasa.gov",
+      phone: "+1 555 0188",
+      company: "NASA",
+      title: "Mathematician",
+      location: "Hampton",
+    });
+  });
+
+  it("falls back to the email when there's no name, and skips when neither exists", () => {
+    expect(
+      google.toImportedContact({ resourceName: "people/c9", emailAddresses: [{ value: "x@y.com" }] })?.name
+    ).toBe("x@y.com");
+    expect(google.toImportedContact({ resourceName: "people/c0" })).toBeNull();
   });
 });
 
