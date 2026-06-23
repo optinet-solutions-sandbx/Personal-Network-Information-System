@@ -98,7 +98,7 @@ export default function ContactDetailPage({
   async function handleDelete() {
     const result = await Swal.fire({
       title: "Delete Contact?",
-      html: `<p style="font-size:0.875rem;color:#6b7280">This will permanently delete <strong>${contact!.name}</strong>. This cannot be undone.<br/><br/>Type <strong>delete</strong> below to confirm.</p>`,
+      html: `<p style="font-size:0.875rem">This will permanently delete <strong>${contact!.name}</strong>. This cannot be undone.<br/><br/>Type <strong>delete</strong> below to confirm.</p>`,
       icon: "warning",
       input: "text",
       inputPlaceholder: "Type delete to confirm",
@@ -1006,7 +1006,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
   async function remove() {
     const result = await Swal.fire({
       title: "Delete Note?",
-      html: '<p style="font-size:0.875rem;color:#6b7280">Are you sure you want to delete this note? This cannot be undone.</p>',
+      html: '<p style="font-size:0.875rem">Are you sure you want to delete this note? This cannot be undone.</p>',
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Delete",
@@ -1162,7 +1162,7 @@ function ProfileCard({
     if (contact.profile) {
       const result = await Swal.fire({
         title: "Profile Already Generated",
-        html: `<p style="font-size:0.875rem;color:#6b7280">An AI profile for <strong>${contact.name}</strong> already exists. Do you want to regenerate it? This will overwrite the current profile.</p>`,
+        html: `<p style="font-size:0.875rem">An AI profile for <strong>${contact.name}</strong> already exists. Do you want to regenerate it? This will overwrite the current profile.</p>`,
         icon: "info",
         showCancelButton: true,
         confirmButtonText: "Regenerate",
@@ -1176,7 +1176,7 @@ function ProfileCard({
     setGenerating(true);
     Swal.fire({
       title: "Generating AI Profile...",
-      html: `<p style="font-size:0.875rem;color:#6b7280">Analysing details and notes for <strong>${contact.name}</strong></p>`,
+      html: `<p style="font-size:0.875rem">Analysing details and notes for <strong>${contact.name}</strong></p>`,
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,

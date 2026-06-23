@@ -572,7 +572,7 @@ export default function HomePage() {
   async function createNewContact(input: ContactInput) {
     Swal.fire({
       title: "Saving Contact...",
-      html: `<p style="font-size:0.875rem;color:#6b7280">Adding <strong>${input.name}</strong> to your network</p>`,
+      html: `<p style="font-size:0.875rem">Adding <strong>${input.name}</strong> to your network</p>`,
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,
@@ -597,7 +597,7 @@ export default function HomePage() {
     Swal.fire({
       icon: "success",
       title: "Contact Saved!",
-      html: `<p style="font-size:0.875rem;color:#6b7280"><strong>${input.name}</strong> has been added to your network.</p>`,
+      html: `<p style="font-size:0.875rem"><strong>${input.name}</strong> has been added to your network.</p>`,
       timer: 2000,
       timerProgressBar: true,
       showConfirmButton: false,
@@ -619,7 +619,7 @@ export default function HomePage() {
   async function mergeIntoExisting(existing: Contact, input: ContactInput) {
     Swal.fire({
       title: "Merging...",
-      html: `<p style="font-size:0.875rem;color:#6b7280">Updating <strong>${existing.name}</strong></p>`,
+      html: `<p style="font-size:0.875rem">Updating <strong>${existing.name}</strong></p>`,
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,
@@ -663,7 +663,7 @@ export default function HomePage() {
         const choice = await Swal.fire({
           icon: "question",
           title: "Possible duplicate",
-          html: `<p style="font-size:0.875rem;color:#6b7280">A contact named <strong>${existing.name}</strong>${
+          html: `<p style="font-size:0.875rem">A contact named <strong>${existing.name}</strong>${
             subtitle ? ` (${subtitle})` : ""
           } already exists. Merge the new details into it, or save as a separate contact?</p>`,
           showDenyButton: true,

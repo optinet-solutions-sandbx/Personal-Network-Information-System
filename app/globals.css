@@ -100,3 +100,88 @@ body {
 .fb-toast-enter {
   animation: fb-toast-in 0.3s cubic-bezier(0.34, 1.2, 0.64, 1) both;
 }
+
+/* ── SweetAlert2 theming ──────────────────────────────────────────────
+   SweetAlert2 ships its own light theme and ignores our Tailwind `.dark`
+   class, so its dialogs (delete contact, regenerate, import) looked like a
+   foreign light-mode widget. Re-skin the popup to match the app's surfaces:
+   rounded-2xl cards, indigo-glow shadow, and a blurred dark backdrop. */
+.swal2-container {
+  backdrop-filter: blur(6px);
+}
+.swal2-container.swal2-backdrop-show {
+  background: rgba(15, 15, 30, 0.55);
+}
+.swal2-popup {
+  border-radius: 1rem; /* rounded-2xl */
+  border: 1px solid var(--nk-border);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  box-shadow:
+    0 24px 64px -12px rgba(99, 102, 241, 0.22),
+    0 8px 24px -4px rgba(0, 0, 0, 0.12);
+}
+.swal2-title {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.swal2-html-container {
+  color: var(--nk-muted);
+}
+.swal2-input,
+.swal2-textarea {
+  border-radius: 0.5rem;
+}
+.swal2-input:focus,
+.swal2-textarea:focus {
+  border-color: #3451d1;
+  box-shadow: 0 0 0 1px #3451d1;
+}
+.swal2-actions {
+  gap: 0.625rem;
+}
+.swal2-styled {
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: filter 0.15s, box-shadow 0.15s;
+}
+.swal2-styled:focus {
+  box-shadow: none;
+}
+
+/* Dark + futuristic: glassy near-black surface, indigo ring + glow, brighter
+   type, and a dark input that mirrors `.dark .input`. */
+.dark .swal2-popup {
+  background: linear-gradient(180deg, #16161c 0%, #101014 100%);
+  border-color: rgba(99, 102, 241, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.12),
+    0 24px 70px -12px rgba(79, 70, 229, 0.45),
+    0 8px 24px -4px rgba(0, 0, 0, 0.6);
+}
+.dark .swal2-title {
+  color: #f4f4f5; /* zinc-100 */
+}
+.dark .swal2-html-container {
+  color: #a1a1aa; /* zinc-400 */
+}
+.dark .swal2-html-container strong {
+  color: #e4e4e7; /* zinc-200 */
+}
+.dark .swal2-input,
+.dark .swal2-textarea {
+  border-color: #3f3f46; /* zinc-700 */
+  background: #18181b; /* zinc-900 */
+  color: #f4f4f5; /* zinc-100 */
+}
+.dark .swal2-input::placeholder {
+  color: #71717a; /* zinc-500 */
+}
+.dark .swal2-validation-message {
+  background: rgba(127, 29, 29, 0.25);
+  color: #fca5a5; /* red-300 */
+}
+/* Soften the warning icon for the dark surface */
+.dark .swal2-icon.swal2-warning {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #fbbf24; /* amber-400 */
+}
