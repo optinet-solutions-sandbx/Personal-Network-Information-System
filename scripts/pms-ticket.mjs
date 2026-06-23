@@ -13,6 +13,8 @@
 //   --column "<name|id>"    target column; defaults to PMS_DONE_COLUMN_ID ("Done")
 //   --assignee "<id>"       assignee user id; defaults to PMS_ASSIGNEE_ID
 //   --priority LOW|MEDIUM|HIGH|URGENT   (default MEDIUM)
+//   --due <YYYY-MM-DD>      date stamped on the ticket; defaults to today (UTC)
+//   --no-due                skip stamping a date
 //   --dry-run               print the payload without posting
 //
 // Description may also be piped on stdin when neither --desc nor --desc-file is given.
@@ -26,7 +28,7 @@ function parseArgs(argv) {
     if (a.startsWith("--")) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (key === "dry-run") out[key] = true;
+      if (key === "dry-run" || key === "no-due") out[key] = true;
       else { out[key] = next; i++; }
     } else out._.push(a);
   }
@@ -60,6 +62,21 @@ if (description.length > 5000) die("description exceeds 5000 chars.");
 
 const assigneeId = args.assignee || process.env.PMS_ASSIGNEE_ID;
 const priority = (args.priority || "MEDIUM").toUpperCase();
+
+// Date stamped on the ticket so the PMS board keeps a trackable date. Defaults
+// to today (midnight UTC); pass --due YYYY-MM-DD to override, or --no-due to skip.
+function resolveDueDate() {
+  if (args["no-due"]) return null;
+  const raw = args.due;
+  if (raw) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+    if (!m) die("--due must be YYYY-MM-DD.");
+    return `${m[1]}-${m[2]}-${m[3]}T00:00:00.000Z`;
+  }
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
+}
+const dueDate = resolveDueDate();
 
 const headers = {
   Authorization: `Bearer ${token}`,
@@ -105,7 +122,7 @@ const payload = {
 };
 
 if (args["dry-run"]) {
-  console.log(JSON.stringify(payload, null, 2));
+  console.log(JSON.stringify({ ...payload, ...(dueDate ? { dueDate } : {}) }, null, 2));
   process.exit(0);
 }
 
@@ -115,5 +132,27 @@ const task = await api(`/api/projects/${projectId}/tasks`, {
 });
 
 const id = task?.id || task?.task?.id || "?";
-console.log(`✓ Created PMS ticket ${id}: "${title}" → column ${columnId}`);
+
+// Stamp the date as a follow-up PATCH (the create endpoint doesn't take dueDate;
+// the update endpoint does). Best-effort: the ticket is already created, so a
+// failure here must NOT fail the whole command — just warn.
+// NB: use a raw fetch here, not api() — api() calls process.exit on a non-ok
+// response, which a try/catch can't intercept and would abort after the ticket
+// already exists.
+let dated = false;
+if (dueDate && id !== "?") {
+  try {
+    const res = await fetch(`${base}/api/tasks/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ dueDate }),
+    });
+    if (res.ok) dated = true;
+    else console.error(`  ⚠ could not stamp date (ticket still created): ${res.status}`);
+  } catch (err) {
+    console.error(`  ⚠ could not stamp date (ticket still created): ${err.message ?? err}`);
+  }
+}
+
+console.log(`✓ Created PMS ticket ${id}: "${title}" → column ${columnId}${dated ? ` (dated ${dueDate.slice(0, 10)})` : ""}`);
 console.log(`  ${base}/projects/${projectId}?task=${id}`);

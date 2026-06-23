@@ -636,6 +636,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loadError, setLoadError] = useState(false);
   // Table interactions: per-column sort, row selection, and quick filters.
   // These all operate over the currently-loaded contacts (client-side).
@@ -949,7 +950,8 @@ export default function HomePage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as Contact[];
       const more = res.headers.get("X-Has-More") === "true";
-      return { data, more };
+      const total = Number(res.headers.get("X-Total-Count") ?? NaN);
+      return { data, more, total: isNaN(total) ? null : total };
     },
     [sort]
   );
@@ -959,9 +961,10 @@ export default function HomePage() {
       setLoading(true);
       setLoadError(false);
       try {
-        const { data, more } = await fetchPage(q, 0);
+        const { data, more, total } = await fetchPage(q, 0);
         setContacts(data);
         setHasMore(more);
+        if (total !== null) setTotalCount(total);
         setSelected(new Set());
       } catch {
         setContacts([]);
@@ -1054,16 +1057,36 @@ export default function HomePage() {
       return next;
     });
 
-  // Select-all toggles every currently-visible row (respecting filters).
-  const toggleSelectAll = () =>
+  // Select-all: if there are more pages, load them all first so every contact
+  // is covered. Then toggle selection over the visible (filtered) set.
+  const toggleSelectAll = useCallback(async () => {
+    let allContacts = contacts;
+    if (hasMore) {
+      let accumulated = [...contacts];
+      let offset = contacts.length;
+      let more = true;
+      while (more) {
+        const { data, more: nextMore } = await fetchPage(query, offset);
+        accumulated = [...accumulated, ...data];
+        offset += data.length;
+        more = nextMore;
+      }
+      setContacts(accumulated);
+      setHasMore(false);
+      allContacts = accumulated;
+    }
+    const ids = allContacts
+      .filter((c) => !tierFilter || c.healthTier === tierFilter)
+      .filter((c) => !tagFilter || splitTags(c.tags).some((t) => t.toLowerCase() === tagFilter.toLowerCase()))
+      .map((c) => c.id);
     setSelected((prev) => {
-      const ids = visible.map((c) => c.id);
       const allSel = ids.length > 0 && ids.every((id) => prev.has(id));
       const next = new Set(prev);
       if (allSel) ids.forEach((id) => next.delete(id));
       else ids.forEach((id) => next.add(id));
       return next;
     });
+  }, [contacts, hasMore, fetchPage, query, tierFilter, tagFilter]);
 
   const clearSelection = () => setSelected(new Set());
 
@@ -1080,19 +1103,37 @@ export default function HomePage() {
     const res = await Swal.fire({
       icon: "warning",
       title: `Delete ${ids.length} contact${ids.length === 1 ? "" : "s"}?`,
-      text: "This permanently removes them and their notes. This can't be undone.",
+      html: `This permanently removes them and their notes. This can't be undone.<br/><br/>Type <strong>delete</strong> to confirm.`,
+      input: "text",
+      inputPlaceholder: "delete",
+      inputAttributes: { autocomplete: "off", spellcheck: "false" },
       showCancelButton: true,
       confirmButtonText: "Delete",
       confirmButtonColor: "#dc2626",
       cancelButtonText: "Cancel",
+      preConfirm: (value: string) => {
+        if (value.trim().toLowerCase() !== "delete") {
+          Swal.showValidationMessage('Type "delete" to confirm');
+          return false;
+        }
+        return true;
+      },
     });
     if (!res.isConfirmed) return;
     setBulkBusy(true);
+    Swal.fire({
+      title: `Deleting ${ids.length} contact${ids.length === 1 ? "" : "s"}…`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
     try {
       await Promise.all(ids.map((id) => fetch(`/api/contacts/${id}`, { method: "DELETE" })));
       clearSelection();
       await load(query);
       window.dispatchEvent(new CustomEvent(CONTACTS_CHANGED_EVENT));
+      Swal.fire({ icon: "success", title: "Deleted", timer: 1500, showConfirmButton: false });
     } catch {
       Swal.fire({ icon: "error", title: "Delete failed", text: "Some contacts couldn't be deleted." });
     } finally {
@@ -1362,7 +1403,14 @@ export default function HomePage() {
       </Link>
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
+            {totalCount !== null && (
+              <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2.5 py-0.5 text-sm font-medium tabular-nums text-zinc-600 dark:text-zinc-300">
+                {totalCount}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Your professional network, enriched with AI.
           </p>
@@ -1500,6 +1548,20 @@ export default function HomePage() {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleExtract();
+                }
+              }}
+              onPaste={(e) => {
+                // Let an image copied to the clipboard (e.g. a screenshot, or
+                // "Copy image" from a browser) drop straight into the composer
+                // as an attachment — same path as the file picker. Plain-text
+                // pastes fall through to the default textarea behaviour.
+                const files = e.clipboardData?.files;
+                if (
+                  files?.length &&
+                  Array.from(files).some((f) => f.type.startsWith("image/"))
+                ) {
+                  e.preventDefault();
+                  handleFiles(files);
                 }
               }}
               disabled={extracting || transcribing}
@@ -1859,7 +1921,7 @@ export default function HomePage() {
               disabled={bulkBusy}
               className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
             >
-              Delete
+              {bulkBusy ? "Deleting…" : "Delete"}
             </button>
             <button
               type="button"

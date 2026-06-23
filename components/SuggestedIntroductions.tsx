@@ -28,12 +28,16 @@ function Avatar({ name }: { name: string }) {
   )
 }
 
+// Per-card UI state while an introduction is being made / confirmed.
+type ActionState = "introducing" | "introduced" | "error"
+
 export default function SuggestedIntroductions() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
+  const [actionState, setActionState] = useState<Record<string, ActionState>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -49,15 +53,53 @@ export default function SuggestedIntroductions() {
     load()
   }, [load])
 
-  async function handleAction(id: string, status: "accepted" | "dismissed") {
+  async function handleDismiss(id: string) {
     const snapshot = suggestions
     setSuggestions((prev) => prev.filter((s) => s.id !== id))
     const res = await fetch(`/api/suggestions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status: "dismissed" }),
     })
     if (!res.ok) setSuggestions(snapshot)
+  }
+
+  // Introduce = mark the suggestion accepted AND create a real connection edge
+  // between the two contacts, so they show as connected on each contact's page
+  // and in the /network graph. We show an inline confirmation, then clear the
+  // card so it doesn't resurface.
+  async function handleIntroduce(s: Suggestion) {
+    setActionState((prev) => ({ ...prev, [s.id]: "introducing" }))
+    try {
+      const [accept, connect] = await Promise.all([
+        fetch(`/api/suggestions/${s.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "accepted" }),
+        }),
+        fetch("/api/relationships", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromId: s.contactAId,
+            toId: s.contactBId,
+            type: "knows",
+            note: "Introduced via Suggested Introductions",
+          }),
+        }),
+      ])
+      if (!accept.ok || !connect.ok) {
+        setActionState((prev) => ({ ...prev, [s.id]: "error" }))
+        return
+      }
+      setActionState((prev) => ({ ...prev, [s.id]: "introduced" }))
+      // Leave the confirmation visible briefly, then remove the card.
+      setTimeout(() => {
+        setSuggestions((prev) => prev.filter((x) => x.id !== s.id))
+      }, 2500)
+    } catch {
+      setActionState((prev) => ({ ...prev, [s.id]: "error" }))
+    }
   }
 
   async function handleGenerate() {
@@ -140,20 +182,33 @@ export default function SuggestedIntroductions() {
                 </span>
               </div>
               <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{s.rationale}</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleAction(s.id, "accepted")}
-                  className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                >
-                  ✓ Introduce
-                </button>
-                <button
-                  onClick={() => handleAction(s.id, "dismissed")}
-                  className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                >
-                  Dismiss
-                </button>
-              </div>
+              {actionState[s.id] === "introduced" ? (
+                <p className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  ✓ {s.contactA.name} and {s.contactB.name} are now connected.
+                </p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleIntroduce(s)}
+                    disabled={actionState[s.id] === "introducing"}
+                    className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-900/40 disabled:opacity-60"
+                  >
+                    {actionState[s.id] === "introducing" ? "Connecting…" : "✓ Introduce"}
+                  </button>
+                  <button
+                    onClick={() => handleDismiss(s.id)}
+                    disabled={actionState[s.id] === "introducing"}
+                    className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-60"
+                  >
+                    Dismiss
+                  </button>
+                  {actionState[s.id] === "error" && (
+                    <span className="text-xs text-red-500 dark:text-red-400">
+                      Couldn’t connect — try again.
+                    </span>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
