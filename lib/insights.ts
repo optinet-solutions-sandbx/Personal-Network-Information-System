@@ -109,6 +109,7 @@ export function computeInsights(contacts: Contact[], now: Date = new Date()): In
       contactName: c.name,
       message: msg,
       actionUrl: `/contacts/${c.id}`,
+      draftable: true,
     })
   }
 
