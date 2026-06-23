@@ -141,10 +141,66 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Contacts" value={stats.totalContacts} href="/" accent="cyan" />
-        <StatCard label="Notes" value={stats.totalNotes} href="/notes" accent="violet" />
-        <StatCard label="Companies" value={stats.companies} href="/companies" accent="emerald" />
-        <StatCard label="AI Profiles" value={stats.withProfile} href="/profiles" accent="fuchsia" />
+        {([
+          {
+            label: "Contacts",
+            value: stats.totalContacts,
+            href: "/",
+            delay: 0,
+            labelCls: "text-violet-500 dark:text-violet-400",
+            accentBar: "bg-violet-500",
+            borderCls: "border-violet-100 dark:border-violet-900/30 hover:border-violet-300 dark:hover:border-violet-700",
+            icon: (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            ),
+          },
+          {
+            label: "Notes",
+            value: stats.totalNotes,
+            href: "/notes",
+            delay: 100,
+            labelCls: "text-amber-500 dark:text-amber-400",
+            accentBar: "bg-amber-500",
+            borderCls: "border-amber-100 dark:border-amber-900/30 hover:border-amber-300 dark:hover:border-amber-700",
+            icon: (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            ),
+          },
+          {
+            label: "Companies",
+            value: stats.companies,
+            href: "/companies",
+            delay: 200,
+            labelCls: "text-sky-500 dark:text-sky-400",
+            accentBar: "bg-sky-500",
+            borderCls: "border-sky-100 dark:border-sky-900/30 hover:border-sky-300 dark:hover:border-sky-700",
+            icon: (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            ),
+          },
+          {
+            label: "AI Profiles",
+            value: stats.withProfile,
+            href: "/profiles",
+            delay: 300,
+            labelCls: "text-emerald-500 dark:text-emerald-400",
+            accentBar: "bg-emerald-500",
+            borderCls: "border-emerald-100 dark:border-emerald-900/30 hover:border-emerald-300 dark:hover:border-emerald-700",
+            icon: (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+            ),
+          },
+        ]).map((card) => (
+          <StatCard key={card.label} {...card} />
+        ))}
       </div>
 
       {/* Birthdays */}
@@ -315,64 +371,66 @@ function BirthdayBadge({ daysUntil }: { daysUntil: number }) {
   );
 }
 
-type Accent = "cyan" | "violet" | "emerald" | "fuchsia";
-
-// Each card gets its own neon accent: a tinted gradient surface, a glowing
-// border, and a value that lights up on hover for a futuristic feel.
-const ACCENTS: Record<
-  Accent,
-  { card: string; label: string; value: string; glow: string }
-> = {
-  cyan: {
-    card: "border-cyan-400/30 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent hover:border-cyan-400/60 hover:shadow-[0_0_24px_-4px_rgba(34,211,238,0.45)]",
-    label: "text-cyan-600 dark:text-cyan-400/80",
-    value: "text-cyan-700 dark:text-cyan-300",
-    glow: "group-hover:drop-shadow-[0_0_10px_rgba(34,211,238,0.55)]",
-  },
-  violet: {
-    card: "border-violet-400/30 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent hover:border-violet-400/60 hover:shadow-[0_0_24px_-4px_rgba(167,139,250,0.45)]",
-    label: "text-violet-600 dark:text-violet-400/80",
-    value: "text-violet-700 dark:text-violet-300",
-    glow: "group-hover:drop-shadow-[0_0_10px_rgba(167,139,250,0.55)]",
-  },
-  emerald: {
-    card: "border-emerald-400/30 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent hover:border-emerald-400/60 hover:shadow-[0_0_24px_-4px_rgba(52,211,153,0.45)]",
-    label: "text-emerald-600 dark:text-emerald-400/80",
-    value: "text-emerald-700 dark:text-emerald-300",
-    glow: "group-hover:drop-shadow-[0_0_10px_rgba(52,211,153,0.55)]",
-  },
-  fuchsia: {
-    card: "border-fuchsia-400/30 bg-gradient-to-br from-fuchsia-500/10 via-transparent to-transparent hover:border-fuchsia-400/60 hover:shadow-[0_0_24px_-4px_rgba(232,121,249,0.45)]",
-    label: "text-fuchsia-600 dark:text-fuchsia-400/80",
-    value: "text-fuchsia-700 dark:text-fuchsia-300",
-    glow: "group-hover:drop-shadow-[0_0_10px_rgba(232,121,249,0.55)]",
-  },
-};
+function useCountUp(target: number, duration = 700, delay = 0) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let raf: number;
+    const timeout = setTimeout(() => {
+      const start = performance.now();
+      const step = (now: number) => {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setCount(Math.round(eased * target));
+        if (progress < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    }, delay);
+    return () => {
+      clearTimeout(timeout);
+      cancelAnimationFrame(raf);
+    };
+  }, [target, duration, delay]);
+  return count;
+}
 
 function StatCard({
   label,
   value,
   href,
-  accent,
+  icon,
+  labelCls,
+  accentBar,
+  borderCls,
+  delay = 0,
 }: {
   label: string;
   value: number;
   href: string;
-  accent: Accent;
+  icon: JSX.Element;
+  labelCls: string;
+  accentBar: string;
+  borderCls: string;
+  delay?: number;
 }) {
-  const a = ACCENTS[accent];
+  const displayValue = useCountUp(value, 700, delay);
   return (
     <Link
       href={href}
-      className={`group block rounded-xl border bg-white dark:bg-zinc-900/60 p-5 backdrop-blur-sm transition-all duration-300 ${a.card}`}
+      className={`group relative block overflow-hidden rounded-xl border bg-white dark:bg-zinc-900 p-5 transition-all duration-200 hover:shadow-md ${borderCls}`}
     >
-      <p className={`text-xs font-medium uppercase tracking-wide ${a.label}`}>
-        {label}
+      <span className={`absolute inset-y-0 left-0 w-[3px] rounded-l-xl ${accentBar}`} />
+      <div className="flex items-start justify-between">
+        <p className={`text-[10px] font-semibold uppercase tracking-widest ${labelCls}`}>
+          {label}
+        </p>
+        <span className="opacity-20">{icon}</span>
+      </div>
+      <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-50">
+        {displayValue}
       </p>
-      <p
-        className={`mt-1 text-3xl font-semibold tracking-tight transition-all duration-300 ${a.value} ${a.glow}`}
-      >
-        {value}
+      <p className="mt-2 text-[11px] font-medium text-zinc-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100 dark:text-zinc-500">
+        View all →
       </p>
     </Link>
   );
