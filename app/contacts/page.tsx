@@ -17,6 +17,23 @@ const TIER_DOT: Record<string, string> = {
   Dormant: "bg-gray-400",
 };
 
+// Deterministic avatar tint per contact, matching the sidebar's palette so the
+// same person reads the same color in both views.
+const AVATAR_COLORS = [
+  "bg-indigo-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-red-400",
+  "bg-sky-500",
+  "bg-violet-500",
+  "bg-pink-500",
+  "bg-teal-500",
+];
+
+function avatarColor(name: string): string {
+  return AVATAR_COLORS[(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
+}
+
 // How many photos the composer accepts per contact.
 const MAX_ATTACHMENTS = 4;
 
@@ -87,10 +104,44 @@ function buildMergePatch(
   return patch;
 }
 
-// Bucket contacts into A–Z sections for the contacts grid. Names that don't
-// start with a letter fall under "#". Aggregates by letter (not by adjacency)
-// so each letter is a single, unique section regardless of input order — this
-// avoids duplicate React keys if the list is briefly not fully name-sorted.
+// How the contacts list is ordered. Persisted per browser so the choice sticks
+// across visits, and shared with the sidebar via a custom event (see below).
+type SortMode = "name" | "recent";
+const SORT_KEY = "networky:contacts-sort";
+const SORT_EVENT = "networky:contacts-sort-change";
+// Fired after a contact is created/merged so other views (e.g. the sidebar)
+// can refetch even when the route doesn't change. The sidebar listens for it.
+const CONTACTS_CHANGED_EVENT = "networky:contacts-changed";
+
+// Compact date like "Jun 17, 2026"; em-dash placeholder when missing/unparseable.
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// Date + time like "Jun 17, 2026, 3:45 PM" for columns that want a timestamp.
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+// Bucket contacts into A–Z sections for the grouped table view. Non-letter names
+// fall under "#". Aggregates by letter (not adjacency) so each letter is a single
+// section regardless of input order, avoiding duplicate React keys.
 function groupByInitial(contacts: Contact[]): { letter: string; items: Contact[] }[] {
   const byLetter = new Map<string, Contact[]>();
   for (const c of contacts) {
@@ -105,63 +156,411 @@ function groupByInitial(contacts: Contact[]): { letter: string; items: Contact[]
     .map(([letter, items]) => ({ letter, items }));
 }
 
-// How the contacts list is ordered. Persisted per browser so the choice sticks
-// across visits, and shared with the sidebar via a custom event (see below).
-type SortMode = "name" | "recent";
-const SORT_KEY = "networky:contacts-sort";
-const SORT_EVENT = "networky:contacts-sort-change";
-// Fired after a contact is created/merged so other views (e.g. the sidebar)
-// can refetch even when the route doesn't change. The sidebar listens for it.
-const CONTACTS_CHANGED_EVENT = "networky:contacts-changed";
+// ── Table sorting / filtering ───────────────────────────────────────────────
 
-function ContactCard({ c }: { c: Contact }) {
+type SortKey =
+  | "name"
+  | "email"
+  | "phone"
+  | "howWeMet"
+  | "company"
+  | "updatedAt"
+  | "healthTier"
+  | "createdAt";
+
+type ColSort = { key: SortKey; dir: "asc" | "desc" };
+
+const COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "name", label: "Name" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone Number" },
+  { key: "howWeMet", label: "Referral" },
+  { key: "company", label: "Company" },
+  { key: "updatedAt", label: "Last Activity" },
+  { key: "healthTier", label: "Relationship" },
+  { key: "createdAt", label: "Create Date" },
+];
+
+// +1 for the leading selection checkbox column.
+const COLUMN_SPAN = COLUMNS.length + 1;
+
+const TIERS = ["Strong", "Active", "Fading", "Dormant"];
+const TIER_ORDER: Record<string, number> = { Strong: 0, Active: 1, Fading: 2, Dormant: 3 };
+
+// Glowing relationship pill per tier — soft tinted fill, matching ring, and a
+// colored bloom shadow for the "futuristic" feel. Dormant stays neutral.
+const TIER_PILL: Record<string, string> = {
+  Strong:
+    "bg-green-500/10 text-green-600 dark:text-green-400 ring-1 ring-green-500/30 shadow-[0_0_12px_-3px_rgba(34,197,94,0.6)]",
+  Active:
+    "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/30 shadow-[0_0_12px_-3px_rgba(59,130,246,0.6)]",
+  Fading:
+    "bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/30 shadow-[0_0_12px_-3px_rgba(245,158,11,0.55)]",
+  Dormant: "bg-zinc-400/10 text-zinc-500 dark:text-zinc-400 ring-1 ring-zinc-400/30",
+};
+
+// Compare two contacts by a column key. String columns sort case-insensitively
+// with empties last; date columns by timestamp; relationship by tier strength.
+function compareBy(a: Contact, b: Contact, key: SortKey): number {
+  if (key === "updatedAt" || key === "createdAt") {
+    const ta = new Date(a[key] ?? 0).getTime();
+    const tb = new Date(b[key] ?? 0).getTime();
+    return (Number.isNaN(ta) ? 0 : ta) - (Number.isNaN(tb) ? 0 : tb);
+  }
+  if (key === "healthTier") {
+    const oa = a.healthTier ? TIER_ORDER[a.healthTier] ?? 99 : 100;
+    const ob = b.healthTier ? TIER_ORDER[b.healthTier] ?? 99 : 100;
+    return oa - ob;
+  }
+  const va = (a[key] ?? "") as string;
+  const vb = (b[key] ?? "") as string;
+  if (!va && vb) return 1;
+  if (va && !vb) return -1;
+  return va.localeCompare(vb, undefined, { sensitivity: "base" });
+}
+
+// Sortable column header — click to cycle asc → desc → unsorted.
+function SortHeader({
+  col,
+  sort,
+  onSort,
+}: {
+  col: { key: SortKey; label: string };
+  sort: ColSort | null;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sort?.key === col.key;
   return (
-    <Link
-      href={`/contacts/${c.id}`}
-      className="block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 transition-shadow hover:shadow-sm"
+    <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-left">
+      <button
+        type="button"
+        onClick={() => onSort(col.key)}
+        className={`group/sort inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+          active
+            ? "text-indigo-600 dark:text-indigo-400"
+            : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+        }`}
+      >
+        {col.label}
+        <SortArrow dir={active ? sort!.dir : null} />
+      </button>
+    </th>
+  );
+}
+
+function SortArrow({ dir }: { dir: "asc" | "desc" | null }) {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`transition-opacity ${dir ? "opacity-100" : "opacity-0 group-hover/sort:opacity-40"}`}
+      aria-hidden
     >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold">{c.name}</p>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {[c.title, c.company].filter(Boolean).join(" · ") || "—"}
-          </p>
-        </div>
-        {c.profile && (
-          <span className="shrink-0 rounded-full bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400">
-            AI profile
-          </span>
+      {dir === "desc" ? <path d="M6 9l6 6 6-6" /> : <path d="M18 15l-6-6-6 6" />}
+    </svg>
+  );
+}
+
+// Pill-style quick-filter chip.
+function FilterChip({
+  active,
+  onClick,
+  dot,
+  children,
+}: {
+  active?: boolean;
+  onClick: () => void;
+  dot?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300"
+          : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+      }`}
+    >
+      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
+      {children}
+    </button>
+  );
+}
+
+function Cell({
+  children,
+  muted = false,
+}: {
+  children: React.ReactNode;
+  muted?: boolean;
+}) {
+  return (
+    <td
+      className={`whitespace-nowrap px-4 py-3 text-sm ${
+        muted ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-700 dark:text-zinc-200"
+      }`}
+    >
+      {children}
+    </td>
+  );
+}
+
+const EMPTY = <span className="text-zinc-300 dark:text-zinc-600">—</span>;
+
+// Futuristic checkbox: the native input is hidden (kept for a11y/keyboard) and
+// a glowing indigo box with an animated check / indeterminate dash sits on top.
+function Checkbox({
+  checked,
+  indeterminate = false,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <label className="relative inline-flex cursor-pointer items-center justify-center">
+      <input
+        type="checkbox"
+        checked={checked}
+        ref={(el) => {
+          if (el) el.indeterminate = indeterminate;
+        }}
+        onChange={onChange}
+        aria-label={ariaLabel}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden
+        className="flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border border-zinc-300 bg-white text-white transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-500 peer-indeterminate:border-indigo-500 peer-indeterminate:bg-indigo-500 peer-checked:shadow-[0_0_11px_-1px_rgba(99,102,241,0.9)] peer-indeterminate:shadow-[0_0_11px_-1px_rgba(99,102,241,0.9)] peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500/50 peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-white peer-hover:border-indigo-400 dark:border-zinc-600 dark:bg-zinc-800/70 dark:peer-focus-visible:ring-offset-zinc-900"
+      >
+        {indeterminate ? (
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round">
+            <path d="M6 12h12" />
+          </svg>
+        ) : (
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`transition-all duration-150 ${checked ? "scale-100 opacity-100" : "scale-50 opacity-0"}`}
+          >
+            <path d="M5 13l4 4L19 7" />
+          </svg>
         )}
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        {(c.tags || "")
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean)
-          .map((t) => (
-            <span
-              key={t}
-              className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300"
-            >
-              {t}
-            </span>
-          ))}
-        {c._count && (
-          <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500">
-            {c._count.notes} note{c._count.notes === 1 ? "" : "s"}
-          </span>
-        )}
-      </div>
-      {c.healthScore != null && c.healthTier && (
-        <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-zinc-400">
+      </span>
+    </label>
+  );
+}
+
+// One contact as a table row. The whole name cell links to the detail page;
+// email/phone are their own mailto/tel links. A leading checkbox selects the row.
+function ContactRow({
+  c,
+  selected,
+  onToggle,
+}: {
+  c: Contact;
+  selected: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const initial = (c.name?.[0] ?? "?").toUpperCase();
+  return (
+    <tr
+      className={`group/row border-b border-zinc-100 transition-colors last:border-0 dark:border-zinc-800/60 ${
+        selected
+          ? "bg-indigo-50/70 dark:bg-indigo-500/10"
+          : "hover:bg-zinc-50 dark:hover:bg-indigo-500/[0.05]"
+      }`}
+    >
+      <td className="relative w-10 px-4 py-3">
+        <span
+          className={`absolute left-0 top-0 h-full w-0.5 bg-indigo-500 transition-opacity dark:shadow-[0_0_10px_rgba(99,102,241,0.9)] ${
+            selected ? "opacity-100" : "opacity-0 group-hover/row:opacity-70"
+          }`}
+        />
+        <Checkbox
+          checked={selected}
+          onChange={() => onToggle(c.id)}
+          ariaLabel={`Select ${c.name}`}
+        />
+      </td>
+
+      <td className="px-4 py-3">
+        <Link href={`/contacts/${c.id}`} className="group flex items-center gap-3">
           <span
-            className={`inline-block h-2 w-2 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`}
-          />
-          <span className="font-medium">{c.healthTier}</span>
-          <span className="text-gray-400 dark:text-zinc-500">({c.healthScore})</span>
-        </span>
-      )}
-    </Link>
+            className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm ring-1 ring-black/5 transition-all group-hover/row:ring-2 group-hover/row:ring-indigo-400/60 group-hover/row:shadow-[0_0_16px_-2px_rgba(99,102,241,0.75)] dark:ring-white/10 ${avatarColor(
+              c.name ?? ""
+            )}`}
+          >
+            {initial}
+          </span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5">
+              <span className="truncate font-medium text-zinc-900 group-hover:text-indigo-700 group-hover:underline dark:text-zinc-100 dark:group-hover:text-indigo-300">
+                {c.name}
+              </span>
+              {c.profile && (
+                <span className="flex-shrink-0 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+                  AI
+                </span>
+              )}
+            </span>
+            {c.title && (
+              <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
+                {c.title}
+              </span>
+            )}
+          </span>
+        </Link>
+      </td>
+
+      <Cell>
+        {c.email ? (
+          <a href={`mailto:${c.email}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+            {c.email}
+          </a>
+        ) : (
+          EMPTY
+        )}
+      </Cell>
+
+      <Cell>
+        {c.phone ? (
+          <a href={`tel:${c.phone}`} className="hover:underline">
+            {c.phone}
+          </a>
+        ) : (
+          EMPTY
+        )}
+      </Cell>
+
+      <Cell>
+        {c.howWeMet ? (
+          <span className="block max-w-[16rem] truncate" title={c.howWeMet}>
+            {c.howWeMet}
+          </span>
+        ) : (
+          EMPTY
+        )}
+      </Cell>
+
+      <Cell>{c.company || EMPTY}</Cell>
+
+      <Cell muted>{formatDate(c.updatedAt)}</Cell>
+
+      <Cell>
+        {c.healthTier ? (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
+              TIER_PILL[c.healthTier] ?? TIER_PILL.Dormant
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${TIER_DOT[c.healthTier] ?? "bg-gray-400"}`} />
+            {c.healthTier}
+          </span>
+        ) : (
+          EMPTY
+        )}
+      </Cell>
+
+      <Cell muted>{formatDateTime(c.createdAt)}</Cell>
+    </tr>
+  );
+}
+
+// Full-width contacts table. Scrolls within its own region (sticky header stays
+// pinned) and horizontally on narrow viewports. When `grouped` (A–Z sort, no
+// active column sort), rows are bucketed under letter header rows.
+function ContactsTable({
+  contacts,
+  grouped,
+  sort,
+  onSort,
+  selectedIds,
+  onToggle,
+  onToggleAll,
+}: {
+  contacts: Contact[];
+  grouped: boolean;
+  sort: ColSort | null;
+  onSort: (key: SortKey) => void;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: () => void;
+}) {
+  const allSelected = contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id));
+  const someSelected = contacts.some((c) => selectedIds.has(c.id));
+
+  return (
+    <div className="max-h-[calc(100vh-15rem)] overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-indigo-500/15 dark:bg-gradient-to-b dark:from-zinc-900 dark:to-zinc-950 dark:shadow-[0_0_0_1px_rgba(99,102,241,0.06),0_24px_70px_-24px_rgba(79,70,229,0.4)]">
+      <table className="w-full min-w-[1040px] border-collapse">
+        <thead>
+          <tr className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50/90 backdrop-blur-md dark:border-indigo-500/20 dark:bg-zinc-950/80 dark:shadow-[0_1px_0_0_rgba(99,102,241,0.15)]">
+            <th className="w-10 px-4 py-2.5">
+              <Checkbox
+                checked={allSelected}
+                indeterminate={!allSelected && someSelected}
+                onChange={onToggleAll}
+                ariaLabel="Select all contacts"
+              />
+            </th>
+            {COLUMNS.map((col) => (
+              <SortHeader key={col.key} col={col} sort={sort} onSort={onSort} />
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {grouped
+            ? groupByInitial(contacts).map((group) => (
+                <Fragment key={group.letter}>
+                  <tr className="border-y border-zinc-100 bg-zinc-50/70 dark:border-indigo-500/10 dark:bg-indigo-500/[0.04]">
+                    <td colSpan={COLUMN_SPAN} className="px-4 py-1.5">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-3 w-0.5 rounded-full bg-indigo-500 dark:shadow-[0_0_8px_rgba(99,102,241,0.85)]" />
+                        <span className="font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-indigo-500 dark:text-indigo-400">
+                          {group.letter}
+                        </span>
+                      </span>
+                    </td>
+                  </tr>
+                  {group.items.map((c) => (
+                    <ContactRow
+                      key={c.id}
+                      c={c}
+                      selected={selectedIds.has(c.id)}
+                      onToggle={onToggle}
+                    />
+                  ))}
+                </Fragment>
+              ))
+            : contacts.map((c) => (
+                <ContactRow
+                  key={c.id}
+                  c={c}
+                  selected={selectedIds.has(c.id)}
+                  onToggle={onToggle}
+                />
+              ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -238,6 +637,13 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // Table interactions: per-column sort, row selection, and quick filters.
+  // These all operate over the currently-loaded contacts (client-side).
+  const [colSort, setColSort] = useState<ColSort | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tierFilter, setTierFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [extracted, setExtracted] = useState<ContactInput | null>(null);
   const [saving, setSaving] = useState(false);
@@ -556,6 +962,7 @@ export default function HomePage() {
         const { data, more } = await fetchPage(q, 0);
         setContacts(data);
         setHasMore(more);
+        setSelected(new Set());
       } catch {
         setContacts([]);
         setHasMore(false);
@@ -595,10 +1002,175 @@ export default function HomePage() {
   }, []);
 
   // Persist the choice and tell the sidebar so the two views stay in sync.
+  // Picking A–Z / Recent also clears any active column sort so the toggle takes
+  // effect (and A–Z grouping can resume).
   function changeSort(next: SortMode) {
     setSort(next);
+    setColSort(null);
     localStorage.setItem(SORT_KEY, next);
     window.dispatchEvent(new CustomEvent(SORT_EVENT, { detail: next }));
+  }
+
+  // Click a column header: cycle asc → desc → unsorted (back to A–Z/Recent).
+  function handleColSort(key: SortKey) {
+    setColSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  }
+
+  // Tags present across the loaded contacts, for the quick-filter chips.
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of contacts) for (const t of splitTags(c.tags)) s.add(t);
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [contacts]);
+
+  // The rows actually shown: loaded contacts narrowed by the quick filters and
+  // (when a column header is active) re-sorted client-side.
+  const visible = useMemo(() => {
+    let list = contacts;
+    if (tierFilter) list = list.filter((c) => c.healthTier === tierFilter);
+    if (tagFilter)
+      list = list.filter((c) =>
+        splitTags(c.tags).some((t) => t.toLowerCase() === tagFilter.toLowerCase())
+      );
+    if (colSort) {
+      const dir = colSort.dir === "asc" ? 1 : -1;
+      list = [...list].sort((a, b) => compareBy(a, b, colSort.key) * dir);
+    }
+    return list;
+  }, [contacts, tierFilter, tagFilter, colSort]);
+
+  // Group under A–Z letters only in the default name order (no column sort).
+  const grouped = !colSort && sort === "name";
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // Select-all toggles every currently-visible row (respecting filters).
+  const toggleSelectAll = () =>
+    setSelected((prev) => {
+      const ids = visible.map((c) => c.id);
+      const allSel = ids.length > 0 && ids.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allSel) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+
+  const clearSelection = () => setSelected(new Set());
+
+  const clearFilters = () => {
+    setTierFilter(null);
+    setTagFilter(null);
+    setColSort(null);
+  };
+
+  // ── Bulk actions over the current selection ────────────────────────────────
+  async function bulkDelete() {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const res = await Swal.fire({
+      icon: "warning",
+      title: `Delete ${ids.length} contact${ids.length === 1 ? "" : "s"}?`,
+      text: "This permanently removes them and their notes. This can't be undone.",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      confirmButtonColor: "#dc2626",
+      cancelButtonText: "Cancel",
+    });
+    if (!res.isConfirmed) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(ids.map((id) => fetch(`/api/contacts/${id}`, { method: "DELETE" })));
+      clearSelection();
+      await load(query);
+      window.dispatchEvent(new CustomEvent(CONTACTS_CHANGED_EVENT));
+    } catch {
+      Swal.fire({ icon: "error", title: "Delete failed", text: "Some contacts couldn't be deleted." });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  // Download the selected contacts as a CSV (client-side, no server round-trip).
+  function bulkExport() {
+    const rows = visible.filter((c) => selected.has(c.id));
+    if (!rows.length) return;
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Referral",
+      "Company",
+      "Title",
+      "Relationship",
+      "Created",
+      "Last Activity",
+    ];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [
+      headers.join(","),
+      ...rows.map((c) =>
+        [c.name, c.email, c.phone, c.howWeMet, c.company, c.title, c.healthTier, c.createdAt, c.updatedAt]
+          .map(esc)
+          .join(",")
+      ),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `networky-contacts-${rows.length}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Add a tag to every selected contact (skips ones that already have it).
+  async function bulkTag() {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const { value: input } = await Swal.fire({
+      title: `Add a tag to ${ids.length} contact${ids.length === 1 ? "" : "s"}`,
+      input: "text",
+      inputPlaceholder: "e.g. investor",
+      showCancelButton: true,
+      confirmButtonText: "Add tag",
+      confirmButtonColor: "#4f46e5",
+      inputValidator: (v) => (!v?.trim() ? "Enter a tag" : undefined),
+    });
+    const tag = (input ?? "").trim();
+    if (!tag) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        ids.map((id) => {
+          const c = contacts.find((x) => x.id === id);
+          if (!c) return Promise.resolve();
+          const have = splitTags(c.tags);
+          if (have.some((t) => t.toLowerCase() === tag.toLowerCase())) return Promise.resolve();
+          return fetch(`/api/contacts/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: c.name, tags: [...have, tag].join(", ") }),
+          });
+        })
+      );
+      clearSelection();
+      await load(query);
+      window.dispatchEvent(new CustomEvent(CONTACTS_CHANGED_EVENT));
+    } catch {
+      Swal.fire({ icon: "error", title: "Couldn't add tag", text: "Please try again." });
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -1147,6 +1719,57 @@ export default function HomePage() {
         </div>
       </div>
 
+      {!loading && !loadError && contacts.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Relationship</span>
+          <FilterChip active={tierFilter === null} onClick={() => setTierFilter(null)}>
+            All
+          </FilterChip>
+          {TIERS.map((t) => (
+            <FilterChip
+              key={t}
+              active={tierFilter === t}
+              onClick={() => setTierFilter(tierFilter === t ? null : t)}
+              dot={TIER_DOT[t]}
+            >
+              {t}
+            </FilterChip>
+          ))}
+
+          {allTags.length > 0 && (
+            <>
+              <span className="ml-2 text-xs font-medium text-zinc-400 dark:text-zinc-500">Tag</span>
+              {tagFilter ? (
+                <FilterChip active onClick={() => setTagFilter(null)}>
+                  {tagFilter} ✕
+                </FilterChip>
+              ) : (
+                allTags.slice(0, 8).map((tag) => (
+                  <FilterChip key={tag} onClick={() => setTagFilter(tag)}>
+                    {tag}
+                  </FilterChip>
+                ))
+              )}
+            </>
+          )}
+
+          {(tierFilter || tagFilter || colSort) && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-xs font-medium text-indigo-600 transition-colors hover:text-indigo-700 dark:text-indigo-400"
+            >
+              Clear all
+            </button>
+          )}
+
+          <span className="ml-auto text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
+            Showing {visible.length} of {contacts.length}
+            {hasMore ? "+" : ""}
+          </span>
+        </div>
+      )}
+
       {loading ? (
         <p className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>
       ) : loadError && contacts.length === 0 ? (
@@ -1167,31 +1790,28 @@ export default function HomePage() {
             ? "No contacts match your search."
             : "No contacts yet. Add your first one above."}
         </p>
-      ) : sort === "name" ? (
-        <div className="space-y-6">
-          {groupByInitial(contacts).map((group) => (
-            <section key={group.letter}>
-              <h2 className="mb-2 border-b border-zinc-100 dark:border-zinc-800 pb-1 text-sm font-semibold text-zinc-400 dark:text-zinc-500">
-                {group.letter}
-              </h2>
-              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {group.items.map((c) => (
-                  <li key={c.id}>
-                    <ContactCard c={c} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+      ) : visible.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">
+            No contacts match the current filters.
+          </p>
+          <button
+            onClick={clearFilters}
+            className="mt-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          >
+            Clear filters
+          </button>
         </div>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {contacts.map((c) => (
-            <li key={c.id}>
-              <ContactCard c={c} />
-            </li>
-          ))}
-        </ul>
+        <ContactsTable
+          contacts={visible}
+          grouped={grouped}
+          sort={colSort}
+          onSort={handleColSort}
+          selectedIds={selected}
+          onToggle={toggleSelect}
+          onToggleAll={toggleSelectAll}
+        />
       )}
 
       {!loading && hasMore && (
@@ -1203,6 +1823,55 @@ export default function HomePage() {
           >
             {loadingMore ? "Loading…" : "Load more"}
           </button>
+        </div>
+      )}
+
+      {/* Floating bulk-action bar — appears while rows are selected */}
+      {selected.size > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+          <div
+            className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white/95 px-3 py-2 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95"
+            style={{ boxShadow: "0 12px 44px -10px rgba(99,102,241,0.4), 0 4px 14px -4px rgba(0,0,0,0.25)" }}
+          >
+            <span className="px-2 text-sm font-semibold tabular-nums text-zinc-700 dark:text-zinc-100">
+              {selected.size} selected
+            </span>
+            <span className="mx-1 h-5 w-px bg-zinc-200 dark:bg-zinc-700" />
+            <button
+              type="button"
+              onClick={bulkTag}
+              disabled={bulkBusy}
+              className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              + Tag
+            </button>
+            <button
+              type="button"
+              onClick={bulkExport}
+              disabled={bulkBusy}
+              className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={bulkDelete}
+              disabled={bulkBusy}
+              className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              aria-label="Clear selection"
+              className="ml-1 rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
