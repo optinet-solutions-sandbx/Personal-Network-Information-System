@@ -6,10 +6,14 @@ interface Props {
   contactId: string;
   contactName: string;
   daysUntil: number;
+  // Called after a suggestion is saved as a note, so the parent can refresh the
+  // notes list without a browser reload.
+  onNoteSaved?: () => void;
 }
 
-export default function GiftSuggestions({ contactId, contactName, daysUntil }: Props) {
+export default function GiftSuggestions({ contactId, contactName, daysUntil, onNoteSaved }: Props) {
   const [suggestions, setSuggestions] = useState<GiftSuggestion[]>([]);
+  const [model, setModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [saved, setSaved] = useState<Set<number>>(new Set());
@@ -18,12 +22,14 @@ export default function GiftSuggestions({ contactId, contactName, daysUntil }: P
     setLoading(true);
     setError(false);
     setSuggestions([]);
+    setModel(null);
     setSaved(new Set());
     try {
       const res = await fetch(`/api/contacts/${contactId}/gifts`, { method: "POST" });
       if (!res.ok) throw new Error("non-ok response");
-      const data = (await res.json()) as { suggestions: GiftSuggestion[] };
+      const data = (await res.json()) as { suggestions: GiftSuggestion[]; model?: string };
       setSuggestions(data.suggestions ?? []);
+      setModel(data.model ?? null);
     } catch {
       setError(true);
     } finally {
@@ -46,6 +52,7 @@ export default function GiftSuggestions({ contactId, contactName, daysUntil }: P
     });
     if (!res.ok) return;
     setSaved((prev) => new Set(prev).add(index));
+    onNoteSaved?.();
   }
 
   const countdownLabel =
@@ -88,6 +95,7 @@ export default function GiftSuggestions({ contactId, contactName, daysUntil }: P
       )}
 
       {!loading && !error && suggestions.length > 0 && (
+        <>
         <ul className="space-y-2">
           {suggestions.map((s, i) => {
             const isSaved = saved.has(i);
@@ -114,6 +122,14 @@ export default function GiftSuggestions({ contactId, contactName, daysUntil }: P
             );
           })}
         </ul>
+        {model && (
+          <p className="mt-3 text-[11px] text-amber-700/70 dark:text-amber-300/60">
+            {model === "rule-based"
+              ? "Rule-based suggestions (no AI)"
+              : `✨ AI-generated · ${model}`}
+          </p>
+        )}
+        </>
       )}
     </div>
   );

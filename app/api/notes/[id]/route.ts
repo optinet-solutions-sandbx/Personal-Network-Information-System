@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recalculateHealth } from "@/lib/health";
 import { resolveOwner } from "@/lib/auth";
-import { validateNoteContent } from "@/lib/validation";
+import { validateNoteContent, validateNoteImages } from "@/lib/validation";
 
 type Params = { params: Promise<{ id: string }> };
 
-// Scope a note to the owner via its parent contact.
-function ownedNoteWhere(id: string, userId: string | null) {
-  return userId ? { id, contact: { userId } } : { id };
+// Scope a note to the owner's workspace via its parent contact.
+function ownedNoteWhere(id: string, workspaceId: string | null) {
+  return workspaceId ? { id, contact: { workspaceId } } : { id };
 }
 
 // PATCH /api/notes/:id
@@ -19,14 +19,33 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json().catch(() => null);
 
-  const valid = validateNoteContent(body?.content);
-  if (!valid.ok) {
-    return NextResponse.json({ error: valid.error }, { status: 400 });
+  // `images` is only touched when the caller sends the key, so a plain text
+  // edit leaves existing photos intact.
+  const imagesProvided = body != null && "images" in body;
+  const imgs = validateNoteImages(imagesProvided ? body.images : null);
+  if (!imgs.ok) {
+    return NextResponse.json({ error: imgs.error }, { status: 400 });
   }
 
+  // Content is required unless the resulting note still has at least one photo.
+  const rawContent = typeof body?.content === "string" ? body.content.trim() : "";
+  let content: string;
+  if (rawContent === "" && imagesProvided && imgs.data.length > 0) {
+    content = "";
+  } else {
+    const valid = validateNoteContent(body?.content);
+    if (!valid.ok) {
+      return NextResponse.json({ error: valid.error }, { status: 400 });
+    }
+    content = valid.data;
+  }
+
+  const data: { content: string; images?: string[] } = { content };
+  if (imagesProvided) data.images = imgs.data;
+
   const result = await prisma.note.updateMany({
-    where: ownedNoteWhere(id, owner.userId),
-    data: { content: valid.data },
+    where: ownedNoteWhere(id, owner.workspaceId),
+    data,
   });
   if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -45,11 +64,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   // capture the parent contact before deletion so we can refresh its health score
   const note = await prisma.note.findFirst({
-    where: ownedNoteWhere(id, owner.userId),
+    where: ownedNoteWhere(id, owner.workspaceId),
     select: { contactId: true },
   });
   const result = await prisma.note.deleteMany({
-    where: ownedNoteWhere(id, owner.userId),
+    where: ownedNoteWhere(id, owner.workspaceId),
   });
   if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });

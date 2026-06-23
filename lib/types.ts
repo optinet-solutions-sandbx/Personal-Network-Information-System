@@ -9,6 +9,9 @@ export type Note = {
   contactId: string;
   content: string;
   source: NoteSource;
+  images: string[]; // photo attachments as data URLs (see lib/image.ts)
+  audioUrl: string | null; // voice recording in Supabase Storage (see lib/voice.ts)
+  summary: string | null; // AI summary of the transcript (voice notes)
   createdAt: string;
   updatedAt: string;
 };
@@ -34,6 +37,10 @@ export type Contact = {
   birthday: string | null; // "YYYY-MM-DD" or "--MM-DD" (year unknown)
   howWeMet: string | null;
   customFields: Record<string, string> | null;
+  // Immutable archive of the original add-flow input (text + photos), captured
+  // at creation. Present on the detail endpoint; omitted from the list endpoint.
+  sourceText?: string | null;
+  sourceImages?: string[];
   profile: string | null;
   profileModel: string | null;
   profileUpdatedAt: string | null;

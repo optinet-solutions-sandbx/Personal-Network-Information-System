@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { ContactInput } from "@/lib/types";
+import { isSocialKey } from "@/lib/socials";
 
 export type Source = { title: string; url: string };
 
@@ -39,7 +40,12 @@ Return ONLY a JSON object with these keys:
 STANDARD FIELDS — use "" for any you cannot determine:
 - name: full name (normalize to proper case)
 - title: job title or role
-- company: organization they work for
+- company: organization they work for. If no company is explicitly named but the
+  person has an email on a COMPANY domain (i.e. NOT a free provider like gmail,
+  outlook, yahoo, hotmail, icloud, proton), infer the organization name from that
+  domain — e.g. "meny@playstarmedia.com" → "Play Star Media". Use any other
+  visible branding or social handles (e.g. "@PlayStar") to get the correct word
+  spacing and capitalization. Do NOT infer a company from a free-provider email.
 - email: email address (repair speech-to-text: "at" → "@", "dot"/"period" → ".")
 - phone: phone number (digits + optional leading "+"; strip spaces/hyphens from dictation)
 - location: city, region, or country
@@ -52,13 +58,23 @@ stated in the story. Be thorough; use clean, short Capitalized labels. Common la
 Research, Thesis, Studies, Education, Skills, Specialization, Industries, Interests,
 Hobbies, Languages, Personality, Relationship, Mutual Connection — and any other clearly
 stated detail.
+- Social & messaging handles: capture each under a customField keyed by its PLATFORM
+  NAME — "Telegram", "Instagram", "Facebook", "LinkedIn", "X" (for Twitter/X),
+  "WhatsApp", "GitHub", "YouTube", "TikTok", or "Website". On business cards the
+  platform is usually shown by an icon next to the handle (Telegram paper-plane,
+  Instagram camera, X bird, LinkedIn "in", Facebook "f", WhatsApp phone) — use that
+  icon/context to pick the platform name. Store the handle or URL exactly as shown
+  (e.g. "Telegram": "@PlayStar123"). Do NOT bucket these under a generic "Social" label.
 - "Age": ONLY if an age is explicitly stated (e.g. "she is 25"). Never estimate.
 - "Birth Year": ONLY when an explicit age/birth year is stated — compute from age + current
   year (age 25 in ${currentYear} → "${currentYear - 25}"). Do NOT infer it from graduation
   year, years of experience, or any other proxy. Otherwise OMIT both "Age" and "Birth Year".
 
 RULES:
-- Include only explicitly stated facts. The ONLY inference allowed is a stated age → birth year.
+- Include only explicitly stated facts. The ONLY inferences allowed are: (a) a stated
+  age → birth year, and (b) the employer's name from a company email domain (see the
+  "company" rule above). Never infer anything else — especially not from outside the
+  provided text/images.
 - Omit "customFields" entirely if nothing extra is mentioned.
 ${
   enrich
@@ -164,6 +180,14 @@ function isContactKey(key: string): boolean {
   return /\b(e-?mail|phone|mobile|cell|whatsapp|telephone)\b/i.test(key);
 }
 
+// Keys that must NEVER come from web enrichment: private contact details (the
+// model fabricates them) AND social handles (we only trust socials from a
+// primary source — the user's note or a scanned card — so they can be shown as
+// "verified"; web-guessed socials are frequently the wrong person).
+function isEnrichmentBlocked(key: string): boolean {
+  return isContactKey(key) || isSocialKey(key);
+}
+
 export function normalize(raw: unknown): { fields: ContactInput; enriched: string[] } {
   const out = emptyFields();
   if (!raw || typeof raw !== "object") return { fields: out, enriched: [] };
@@ -181,7 +205,7 @@ export function normalize(raw: unknown): { fields: ContactInput; enriched: strin
   // always win on key collisions, and contact-detail keys are never enriched.
   const enriched: string[] = [];
   for (const [k, v] of Object.entries(toStringMap(obj.enrichment))) {
-    if (isContactKey(k) || k in custom) continue;
+    if (isEnrichmentBlocked(k) || k in custom) continue;
     custom[k] = v;
     enriched.push(k);
   }
@@ -229,6 +253,19 @@ export function buildFallback(text: string): ContactInput {
     /\bis\s+(?:a|an)\s+[\w\s]+?\s+at\s+([A-Za-z][\w\s]+?)\s+(?:base|based|,|\.)/i
   );
   if (companyMatch) fields.company = companyMatch[1].trim();
+
+  // Fallback company: infer from a business email domain (e.g.
+  // "meny@playstarmedia.com" → "Playstarmedia"). Skips free providers. The AI
+  // path word-splits this more accurately ("Play Star Media"); this is a best
+  // effort for the no-API-key path.
+  if (!fields.company && fields.email) {
+    const domain = fields.email.split("@")[1]?.toLowerCase() ?? "";
+    const free = /^(gmail|outlook|hotmail|yahoo|icloud|proton(mail)?|aol|gmx|live|mail|yandex|zoho|msn)\./;
+    const core = domain.replace(/\.[a-z.]+$/, "");
+    if (domain && core && !free.test(domain)) {
+      fields.company = core.charAt(0).toUpperCase() + core.slice(1);
+    }
+  }
 
   // Location: "base/based on/in/at [City]"
   const locationMatch = text.match(
@@ -404,7 +441,7 @@ async function enrichFromWeb(
       if (!item || typeof item !== "object") continue;
       const label = String((item as Record<string, unknown>).label ?? "").trim();
       const value = String((item as Record<string, unknown>).value ?? "").trim();
-      if (label && value && !isContactKey(label)) fields[label] = value;
+      if (label && value && !isEnrichmentBlocked(label)) fields[label] = value;
     }
   }
 
@@ -555,7 +592,7 @@ export async function extractContact(
 function mergeEnrichment(result: ExtractResult, enriched: Record<string, string>) {
   const custom = { ...(result.fields.customFields ?? {}) };
   for (const [k, v] of Object.entries(enriched)) {
-    if (isContactKey(k) || k in custom || !v.trim()) continue;
+    if (isEnrichmentBlocked(k) || k in custom || !v.trim()) continue;
     custom[k] = v.trim();
     result.enriched.push(k);
   }

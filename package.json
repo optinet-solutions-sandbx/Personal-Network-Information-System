@@ -18,10 +18,10 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "node prisma/seed.mjs",
     "db:reset": "node prisma/reset.mjs",
+    "setup:storage": "prisma db execute --schema prisma/schema.prisma --file prisma/storage-setup.sql",
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.105.0",
     "@prisma/client": "^6.19.3",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",

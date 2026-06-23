@@ -14,7 +14,7 @@ export async function GET() {
 
   try {
     const notes = await prisma.note.findMany({
-      where: { contact: ownerWhere(owner.userId) },
+      where: { contact: ownerWhere(owner.workspaceId) },
       orderBy: { createdAt: "desc" },
       include: {
         contact: {

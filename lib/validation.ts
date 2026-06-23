@@ -23,6 +23,14 @@ export const LIMITS = {
   customFieldValue: 4000,
   customFieldCount: 50,
   noteContent: 20000,
+  noteAudioUrl: 2000, // Supabase Storage public URL for a voice recording
+  noteImageCount: 4, // photos per note (mirror MAX_NOTE_IMAGES in lib/image.ts)
+  noteImageChars: 8_000_000, // ~6MB per downscaled data URL — generous upper bound
+  // Immutable creation-source archive (Contact.sourceText / sourceImages). Text
+  // matches the note cap; image count is more generous than a note (the add flow
+  // can span several messages) but still bounded so a row can't grow unboundedly.
+  sourceText: 20000,
+  sourceImageCount: 10,
 } as const;
 
 // Loose, pragmatic email shape check (not full RFC). Empty is allowed upstream.
@@ -217,4 +225,75 @@ export function validateSentMessageBody(body: unknown):
       method: b.method,
     },
   }
+}
+
+export function validateNoteImages(value: unknown): ValidationResult<string[]> {
+  return validateImageDataUrls(value, LIMITS.noteImageCount, "photos per note");
+}
+
+export function validateNoteAudioUrl(
+  value: unknown
+): ValidationResult<string | null> {
+  if (value == null || value === "") return { ok: true, data: null };
+  if (typeof value !== "string") {
+    return { ok: false, error: "audioUrl must be a string" };
+  }
+  const url = value.trim();
+  if (url.length > LIMITS.noteAudioUrl) {
+    return { ok: false, error: "audioUrl is too long" };
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    return { ok: false, error: "audioUrl must be an http(s) URL" };
+  }
+  return { ok: true, data: url };
+}
+
+function validateImageDataUrls(
+  value: unknown,
+  maxCount: number,
+  label: string
+): ValidationResult<string[]> {
+  if (value == null) return { ok: true, data: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "images must be a list" };
+  if (value.length > maxCount) {
+    return { ok: false, error: `at most ${maxCount} ${label}` };
+  }
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !item.startsWith("data:image/")) {
+      return { ok: false, error: "each photo must be an image data URL" };
+    }
+    if (item.length > LIMITS.noteImageChars) {
+      return { ok: false, error: "a photo is too large" };
+    }
+    out.push(item);
+  }
+  return { ok: true, data: out };
+}
+
+export function validateContactSource(
+  body: unknown
+): ValidationResult<{ sourceText: string | null; sourceImages: string[] }> {
+  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+
+  let sourceText: string | null = null;
+  if (b.sourceText != null) {
+    if (typeof b.sourceText !== "string") {
+      return { ok: false, error: "sourceText must be a string" };
+    }
+    const trimmed = b.sourceText.trim();
+    if (trimmed.length > LIMITS.sourceText) {
+      return { ok: false, error: "sourceText is too long" };
+    }
+    sourceText = trimmed.length > 0 ? trimmed : null;
+  }
+
+  const imgs = validateImageDataUrls(
+    b.sourceImages,
+    LIMITS.sourceImageCount,
+    "source photos"
+  );
+  if (!imgs.ok) return imgs;
+
+  return { ok: true, data: { sourceText, sourceImages: imgs.data } };
 }

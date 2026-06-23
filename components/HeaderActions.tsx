@@ -453,6 +453,7 @@ function MessageRow({
         <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">{s.reason}</span>
       </span>
       <button
+        type="button"
         onClick={onMessage}
         className="flex-shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-indigo-700"
       >

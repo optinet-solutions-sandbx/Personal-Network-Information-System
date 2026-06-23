@@ -1,13 +1,24 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
 import type { Contact, Note, HealthInputs, SentMessage } from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
-import { formatBirthday, normalizeBirthday, daysUntilBirthday } from "@/lib/birthdays";
+import { formatBirthday, normalizeBirthday, contactDaysUntilBirthday } from "@/lib/birthdays";
+import { fileToDataUrl, MAX_NOTE_IMAGES } from "@/lib/image";
+import { resolveSocial, phoneLinks } from "@/lib/socials";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import {
+  startRecording,
+  uploadVoiceRecording,
+  isRecordingSupported,
+  isVoiceStorageConfigured,
+  MAX_RECORDING_MS,
+  type Recorder,
+} from "@/lib/voice";
+import { ConnectionsSection } from "./ConnectionsSection";
 import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
 import GiftSuggestions from "./GiftSuggestions";
@@ -113,10 +124,16 @@ export default function ContactDetailPage({
     });
     if (!result.isConfirmed) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+    // Invalidate the client router cache so the contacts list (and sidebar)
+    // re-fetch and drop the deleted contact instead of showing a stale page.
     router.push("/contacts");
+    router.refresh();
   }
 
-  const daysUntil = contact.birthday ? daysUntilBirthday(contact.birthday) : null;
+  // Resolve the birthday the same way the dashboard bell does (structured field
+  // or a customFields fallback) so a "plan a gift" nudge always lands on a page
+  // that actually shows gift suggestions.
+  const daysUntil = contactDaysUntilBirthday(contact);
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -144,14 +161,17 @@ export default function ContactDetailPage({
         )}
         <NotesSection contact={contact} onChange={load} />
         <SentMessagesList contactId={contact.id} />
+        <ConnectionsSection contact={contact} />
+        <SourceCard contact={contact} />
       </div>
       <div className="lg:col-span-2">
         <ProfileCard contact={contact} onChange={load} />
-        {contact.birthday && daysUntil !== null && daysUntil <= 30 && (
+        {daysUntil !== null && daysUntil <= 30 && (
           <GiftSuggestions
             contactId={contact.id}
             contactName={contact.name}
             daysUntil={daysUntil}
+            onNoteSaved={load}
           />
         )}
       </div>
@@ -331,9 +351,7 @@ function DetailsCard({
                   onChange={set(key)}
                 />
               ) : (
-                <dd className="text-zinc-700 dark:text-zinc-200">
-                  {(contact[key] as string) || "—"}
-                </dd>
+                <StandardFieldValue fieldKey={key} value={contact[key] as string} />
               )}
             </div>
           ))}
@@ -442,7 +460,7 @@ function DetailsCard({
                         }
                       />
                     ) : (
-                      <dd className="text-zinc-700 dark:text-zinc-200">{(value as string) || "—"}</dd>
+                      <CustomFieldValue fieldKey={key} value={value as string} />
                     )}
                   </div>
                 )
@@ -537,6 +555,13 @@ function SentMessagesList({ contactId }: { contactId: string }) {
 
 /* ---------------- Notes (CRUD + STT) ---------------- */
 
+// mm:ss for the live recording timer.
+function fmtElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 function NotesSection({
   contact,
   onChange,
@@ -546,27 +571,131 @@ function NotesSection({
 }) {
   const notes = contact.notes ?? [];
   const [draft, setDraft] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [attaching, setAttaching] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 5;
   const totalPages = Math.max(1, Math.ceil(notes.length / PAGE_SIZE));
   const visibleNotes = notes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const { listening, supported, toggle } = useSpeechRecognition({
+  const { listening, supported, start, stop, toggle } = useSpeechRecognition({
     onResult: (text) =>
       setDraft((d) => (d ? `${d} ${text}` : text)),
   });
 
+  // Voice recording: capture audio (MediaRecorder) + transcript (STT) together,
+  // upload the audio to Supabase Storage, then attach its URL to the next note.
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0); // seconds
+  const [processingAudio, setProcessingAudio] = useState(false);
+  const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
+  const recorderRef = useRef<Recorder | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Recording is only offered when the browser can record AND Storage is set up
+  // (otherwise it would be identical to plain "Dictate" — no audio kept).
+  const canRecord = isRecordingSupported() && isVoiceStorageConfigured();
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    setRecording(false);
+    stopTimer();
+    stop(); // stop STT
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    if (!recorder) return;
+    setProcessingAudio(true);
+    try {
+      const blob = await recorder.stop();
+      if (blob) {
+        const url = await uploadVoiceRecording(blob, contact.id);
+        setPendingAudioUrl(url);
+        if (!url) {
+          await Swal.fire({
+            icon: "info",
+            title: "Recording saved as transcript only",
+            text: "The audio couldn't be uploaded, but your dictated text was kept.",
+          });
+        }
+      }
+    } finally {
+      setProcessingAudio(false);
+    }
+  }, [stop, stopTimer, contact.id]);
+
+  async function startVoiceRecording() {
+    try {
+      const recorder = await startRecording();
+      recorderRef.current = recorder;
+      start(); // start STT alongside the audio capture
+      setRecording(true);
+      setElapsed(0);
+      timerRef.current = setInterval(() => {
+        setElapsed((e) => {
+          const next = e + 1;
+          if (next * 1000 >= MAX_RECORDING_MS) void stopRecording();
+          return next;
+        });
+      }, 1000);
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Microphone unavailable",
+        text: "Allow microphone access to record a voice note.",
+      });
+    }
+  }
+
+  // Clean up an in-flight recording if the section unmounts.
+  useEffect(() => {
+    return () => {
+      stopTimer();
+      recorderRef.current?.cancel();
+    };
+  }, [stopTimer]);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const room = MAX_NOTE_IMAGES - images.length;
+    if (room <= 0) return;
+    const picked = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, room);
+    if (picked.length === 0) return;
+    setAttaching(true);
+    try {
+      const urls = await Promise.all(picked.map((f) => fileToDataUrl(f)));
+      setImages((prev) => [...prev, ...urls].slice(0, MAX_NOTE_IMAGES));
+    } catch {
+      await Swal.fire({
+        icon: "error",
+        title: "Couldn't add photo",
+        text: "One of those images couldn't be read — try a different file.",
+      });
+    } finally {
+      setAttaching(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function addNote() {
-    if (!draft.trim()) return;
+    if (!draft.trim() && images.length === 0 && !pendingAudioUrl) return;
     setSaving(true);
     try {
+      const isVoice = Boolean(pendingAudioUrl) || listening;
       const res = await fetch(`/api/contacts/${contact.id}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: draft,
-          source: listening ? "voice" : "manual",
+          source: isVoice ? "voice" : "manual",
+          images,
+          audioUrl: pendingAudioUrl ?? undefined,
         }),
       });
       if (!res.ok) {
@@ -579,6 +708,8 @@ function NotesSection({
         return;
       }
       setDraft("");
+      setImages([]);
+      setPendingAudioUrl(null);
       onChange();
     } catch {
       await Swal.fire({
@@ -600,31 +731,127 @@ function NotesSection({
           id="notes-textarea"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Type a note, or use the mic to dictate…"
+          placeholder="Type a note, use the mic to dictate, or attach a photo…"
           rows={3}
           className="w-full resize-y text-sm outline-none"
         />
+
+        {images.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {images.map((src, i) => (
+              <div key={i} className="relative h-16 w-16">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={`Attachment ${i + 1}`}
+                  className="h-16 w-16 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label="Remove photo"
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-xs text-white hover:bg-zinc-950"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+
+        {(pendingAudioUrl || processingAudio) && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">
+            <span aria-hidden>🎙️</span>
+            {processingAudio ? (
+              <span>Processing recording…</span>
+            ) : (
+              <>
+                <span className="font-medium">Recording attached</span>
+                <audio controls src={pendingAudioUrl!} className="h-7" />
+                <button
+                  type="button"
+                  onClick={() => setPendingAudioUrl(null)}
+                  aria-label="Remove recording"
+                  className="ml-auto text-emerald-700/70 hover:text-emerald-900 dark:text-emerald-300/70 dark:hover:text-emerald-100"
+                >
+                  Remove
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="mt-2 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={toggle}
-            disabled={!supported}
-            title={
-              supported
-                ? "Dictate with speech-to-text"
-                : "Speech recognition not supported in this browser (try Chrome)"
-            }
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              listening
-                ? "bg-red-600 text-white"
-                : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
-            }`}
-          >
-            <span>{listening ? "● Listening… stop" : "🎤 Dictate"}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={toggle}
+              disabled={!supported || recording}
+              title={
+                supported
+                  ? "Dictate with speech-to-text (text only)"
+                  : "Speech recognition not supported in this browser (try Chrome)"
+              }
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                listening && !recording
+                  ? "bg-red-600 text-white"
+                  : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+              }`}
+            >
+              <span>{listening && !recording ? "● Listening… stop" : "🎤 Dictate"}</span>
+            </button>
+            {canRecord && (
+              <button
+                type="button"
+                onClick={recording ? stopRecording : startVoiceRecording}
+                disabled={processingAudio}
+                title="Record a voice note (audio + transcript)"
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  recording
+                    ? "bg-red-600 text-white"
+                    : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+                }`}
+              >
+                <span>
+                  {recording
+                    ? `● Recording ${fmtElapsed(elapsed)} — stop`
+                    : processingAudio
+                    ? "Uploading…"
+                    : "⏺ Record"}
+                </span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={attaching || images.length >= MAX_NOTE_IMAGES}
+              title={
+                images.length >= MAX_NOTE_IMAGES
+                  ? `Up to ${MAX_NOTE_IMAGES} photos per note`
+                  : "Attach a photo"
+              }
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+            >
+              <span>{attaching ? "Adding…" : "📷 Photo"}</span>
+            </button>
+          </div>
           <button
             onClick={addNote}
-            disabled={saving || !draft.trim()}
+            disabled={
+              saving ||
+              recording ||
+              processingAudio ||
+              (!draft.trim() && images.length === 0 && !pendingAudioUrl)
+            }
             className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Add note"}
@@ -679,16 +906,165 @@ function NotesSection({
   );
 }
 
+/* ---------------- Original input (immutable creation source) ---------------- */
+
+// Read-only archive of the raw input the contact was created from (the add-flow
+// text + photos). Captured once at creation and never edited — the safety net
+// behind the editable "story" note, so the original is always recoverable.
+// Collapsed by default to stay out of the way; renders nothing when empty
+// (contacts created before this feature have no source).
+function SourceCard({ contact }: { contact: Contact }) {
+  const text = contact.sourceText?.trim() ?? "";
+  const images = contact.sourceImages ?? [];
+  const [open, setOpen] = useState(false);
+  if (!text && images.length === 0) return null;
+
+  return (
+    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 p-5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span className="flex items-center gap-2">
+          <span aria-hidden>🗄️</span>
+          <span className="text-lg font-semibold">Original input</span>
+          <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            read-only
+          </span>
+        </span>
+        <span className="text-sm text-indigo-600 dark:text-indigo-400">
+          {open ? "Hide" : "Show"}
+        </span>
+      </button>
+      <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+        What this contact was created from — kept unchanged so it can always be
+        recovered.
+      </p>
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          {text && (
+            <p className="whitespace-pre-wrap break-words text-sm text-zinc-700 dark:text-zinc-200">
+              {text}
+            </p>
+          )}
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {images.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <a key={i} href={src} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={src}
+                    alt={`Original photo ${i + 1}`}
+                    className="h-24 w-24 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover transition-opacity hover:opacity-90"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Render a standard contact field. Phone becomes click-to-call (tel:) plus a
+// WhatsApp shortcut, and email becomes a mailto: link — so a number or address
+// is actionable without copy/paste. Everything else stays plain text.
+function StandardFieldValue({
+  fieldKey,
+  value,
+}: {
+  fieldKey: keyof Contact;
+  value: string;
+}) {
+  const v = (value ?? "").trim();
+  if (!v) return <dd className="text-zinc-700 dark:text-zinc-200">—</dd>;
+
+  if (fieldKey === "phone") {
+    const links = phoneLinks(v);
+    if (!links) return <dd className="text-zinc-700 dark:text-zinc-200">{v}</dd>;
+    return (
+      <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <a
+          href={links.tel}
+          className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          <span aria-hidden>📞</span>
+          <span>{v}</span>
+        </a>
+        <a
+          href={links.whatsapp}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open in WhatsApp"
+          className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline"
+        >
+          <span aria-hidden>💬</span>
+          <span>WhatsApp</span>
+        </a>
+      </dd>
+    );
+  }
+
+  if (fieldKey === "email") {
+    return (
+      <dd>
+        <a
+          href={`mailto:${v}`}
+          className="break-all text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          {v}
+        </a>
+      </dd>
+    );
+  }
+
+  return <dd className="text-zinc-700 dark:text-zinc-200">{v}</dd>;
+}
+
+// Render a custom field's value. Social/messaging handles (and website URLs)
+// become a clickable link with a ✓ Verified badge — verified because socials
+// only ever come from a primary source (the user's note / a scanned card);
+// web enrichment is blocked from producing them (see lib/extract.ts).
+function CustomFieldValue({ fieldKey, value }: { fieldKey: string; value: string }) {
+  const social = resolveSocial(fieldKey, value);
+  if (!social) {
+    return <dd className="text-zinc-700 dark:text-zinc-200">{value || "—"}</dd>;
+  }
+  return (
+    <dd>
+      <a
+        href={social.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex max-w-full items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:underline"
+      >
+        <span aria-hidden>{social.icon}</span>
+        <span className="truncate">{social.handle}</span>
+        <span
+          title="From a primary source (your note or a scanned card)"
+          className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+        >
+          ✓ Verified
+        </span>
+      </a>
+    </dd>
+  );
+}
+
 function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(note.content);
+  const [imgs, setImgs] = useState<string[]>(note.images ?? []);
 
   async function save() {
     try {
       const res = await fetch(`/api/notes/${note.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, images: imgs }),
       });
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: "" }));
@@ -745,6 +1121,28 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             rows={3}
             className="input w-full"
           />
+          {imgs.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {imgs.map((src, i) => (
+                <div key={i} className="relative h-16 w-16">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`Attachment ${i + 1}`}
+                    className="h-16 w-16 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setImgs((prev) => prev.filter((_, j) => j !== i))}
+                    aria-label="Remove photo"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-xs text-white hover:bg-zinc-950"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               onClick={save}
@@ -755,6 +1153,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             <button
               onClick={() => {
                 setText(note.content);
+                setImgs(note.images ?? []);
                 setEditing(false);
               }}
               className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs"
@@ -765,7 +1164,38 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
         </div>
       ) : (
         <>
-          <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
+          {note.summary && (
+            <p className="mb-2 flex items-start gap-1.5 rounded-md bg-indigo-50/70 dark:bg-indigo-950/30 px-2 py-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+              <span aria-hidden>✨</span>
+              <span><span className="font-semibold">Summary:</span> {note.summary}</span>
+            </p>
+          )}
+          {note.audioUrl && (
+            <audio
+              controls
+              src={note.audioUrl}
+              className="mb-2 h-9 w-full max-w-sm"
+            >
+              Your browser doesn&apos;t support audio playback.
+            </audio>
+          )}
+          {note.content && (
+            <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
+          )}
+          {note.images?.length > 0 && (
+            <div className={`flex flex-wrap gap-2 ${note.content ? "mt-2" : ""}`}>
+              {note.images.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <a key={i} href={src} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={src}
+                    alt={`Attachment ${i + 1}`}
+                    className="h-24 w-24 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover transition-opacity hover:opacity-90"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
             <span
               className={`rounded-full px-1.5 py-0.5 ${

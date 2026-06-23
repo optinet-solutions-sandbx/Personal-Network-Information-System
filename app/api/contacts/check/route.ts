@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (or.length === 0) return NextResponse.json([]);
 
   const matches = await prisma.contact.findMany({
-    where: { ...ownerWhere(owner.userId), OR: or },
+    where: { ...ownerWhere(owner.workspaceId), OR: or },
     orderBy: { updatedAt: "desc" },
     include: { _count: { select: { notes: true } } },
     take: 5,

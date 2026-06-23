@@ -7,6 +7,8 @@ import Swal from "sweetalert2";
 import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { computeUpcomingBirthdays, formatBirthday } from "@/lib/birthdays";
+import { fileToDataUrl, MAX_IMAGE_DIM, MAX_NOTE_IMAGES } from "@/lib/image";
+import { resolveSocial } from "@/lib/socials";
 
 const TIER_DOT: Record<string, string> = {
   Strong: "bg-green-500",
@@ -17,9 +19,11 @@ const TIER_DOT: Record<string, string> = {
 
 // How many photos the composer accepts per contact.
 const MAX_ATTACHMENTS = 4;
-// Longest edge we downscale photos to before upload — keeps the request small
-// (and within the serverless body limit) without hurting OCR of the vision model.
-const MAX_IMAGE_DIM = 1568;
+
+// Cap on photos archived in the immutable creation source (Contact.sourceImages).
+// Mirrors LIMITS.sourceImageCount server-side; more generous than a single note
+// because the add flow can span several messages.
+const MAX_SOURCE_IMAGES = 10;
 
 type Attachment = { name: string; url: string };
 
@@ -106,6 +110,9 @@ function groupByInitial(contacts: Contact[]): { letter: string; items: Contact[]
 type SortMode = "name" | "recent";
 const SORT_KEY = "networky:contacts-sort";
 const SORT_EVENT = "networky:contacts-sort-change";
+// Fired after a contact is created/merged so other views (e.g. the sidebar)
+// can refetch even when the route doesn't change. The sidebar listens for it.
+const CONTACTS_CHANGED_EVENT = "networky:contacts-changed";
 
 function ContactCard({ c }: { c: Contact }) {
   return (
@@ -158,39 +165,6 @@ function ContactCard({ c }: { c: Contact }) {
   );
 }
 
-// Read an image File and return a (possibly downscaled) data URL. Large photos
-// are re-encoded as JPEG via a canvas; small ones pass through untouched.
-async function fileToDataUrl(file: File): Promise<string> {
-  const original = await new Promise<string>((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(file);
-  });
-
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error("decode failed"));
-    i.src = original;
-  });
-
-  const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(img.width, img.height));
-  // Already small enough and not huge on disk — keep the original bytes.
-  if (scale === 1 && original.length < 1_500_000) return original;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(img.width * scale);
-  canvas.height = Math.round(img.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return original;
-  // Flatten onto white so transparent PNGs don't turn black as JPEG.
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.85);
-}
-
 export default function HomePage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -211,8 +185,13 @@ export default function HomePage() {
   const [enrich, setEnrich] = useState(true);
   const [enrichedKeys, setEnrichedKeys] = useState<string[]>([]);
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
-  const [showReExtractConfirm, setShowReExtractConfirm] = useState(false);
+  // The composer runs as a chat session: each story you send becomes a bubble
+  // in this thread, and the whole thread is re-analyzed on every send so the
+  // contact refines as you keep adding details.
+  const [messages, setMessages] = useState<{ text: string; attachments: Attachment[] }[]>([]);
   const [showExtractToast, setShowExtractToast] = useState(false);
+  // Final review modal shown before a contact is actually saved.
+  const [showSaveReview, setShowSaveReview] = useState(false);
   const [inputTruncated, setInputTruncated] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -222,15 +201,23 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Upload a pre-recorded audio file → server-side transcript → composer. Lets
+  // you dictate offline on a phone recorder and add the contact later online.
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [transcribing, setTranscribing] = useState(false);
+
   // Live-camera capture ("Take photo").
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Word-scanning animation state
+  // Word-scanning animation state. While analyzing, scan the words of the
+  // message that was just sent (it's left the composer and is now a bubble).
   const [scanIndex, setScanIndex] = useState(0);
-  const storyTokens = useMemo(() => story.split(/(\s+)/).filter(Boolean), [story]);
+  const scanText =
+    extracting && messages.length > 0 ? messages[messages.length - 1].text : story;
+  const storyTokens = useMemo(() => scanText.split(/(\s+)/).filter(Boolean), [scanText]);
   const tokenWordIndices = useMemo(() => {
     let w = 0;
     return storyTokens.map(t => (t.trim() ? w++ : -1));
@@ -278,6 +265,42 @@ export default function HomePage() {
 
   function removeAttachment(index: number) {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Transcribe an uploaded recording and append the text to the composer, the
+  // same place live dictation lands — then you review and send as usual.
+  async function handleAudioFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setMenuOpen(false);
+    setExtractError(null);
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "" }));
+        setExtractError(
+          error ||
+            (res.status === 429
+              ? "You're going a bit fast — please wait a moment and try again."
+              : "Couldn't transcribe that recording — try again.")
+        );
+        return;
+      }
+      const { text } = (await res.json()) as { text?: string };
+      const transcript = (text ?? "").trim();
+      if (!transcript) {
+        setExtractError("No speech was detected in that recording.");
+        return;
+      }
+      setStory((t) => (t ? `${t} ${transcript}` : transcript));
+    } catch {
+      setExtractError("Couldn't transcribe that recording — try again.");
+    } finally {
+      setTranscribing(false);
+    }
   }
 
   // Open the live camera modal (works on desktop + mobile via getUserMedia).
@@ -347,25 +370,27 @@ export default function HomePage() {
   }
 
   async function handleExtract() {
-    if (!story.trim() && attachments.length === 0) return;
+    const text = story.trim();
+    const draftAttachments = attachments;
+    if (!text && draftAttachments.length === 0) return;
+
+    // Add this turn to the conversation, clear the composer, then re-analyze
+    // the whole thread so the AI has the full context of everything you've sent.
+    const thread = [...messages, { text, attachments: draftAttachments }];
+    setMessages(thread);
+    setStory("");
+    setAttachments([]);
+    setMenuOpen(false);
     setExtracting(true);
     setExtractError(null);
-    Swal.fire({
-      title: "Analyzing Story...",
-      html: '<p style="font-size:0.875rem;color:#6b7280">Extracting contact details from your story</p>',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading(),
-    });
     try {
       const res = await fetch("/api/contacts/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: story,
+          text: thread.map((m) => m.text).filter(Boolean).join("\n\n"),
           enrich,
-          images: attachments.map((a) => a.url),
+          images: thread.flatMap((m) => m.attachments.map((a) => a.url)),
         }),
       });
       if (!res.ok) {
@@ -417,12 +442,12 @@ export default function HomePage() {
       toastTimer.current = setTimeout(() => setShowExtractToast(false), 4000);
     } finally {
       setExtracting(false);
-      Swal.close();
     }
   }
 
   function resetForm() {
     setStory("");
+    setMessages([]);
     setExtracted(null);
     setExtractError(null);
     setEnrichedKeys([]);
@@ -430,6 +455,7 @@ export default function HomePage() {
     setInputTruncated(false);
     setAttachments([]);
     setMenuOpen(false);
+    setShowSaveReview(false);
   }
 
   // One page of the grid. Search runs server-side via `q`; results are paged.
@@ -438,7 +464,8 @@ export default function HomePage() {
   const fetchPage = useCallback(
     async (q: string, offset: number) => {
       const res = await fetch(
-        `/api/contacts?q=${encodeURIComponent(q)}&sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`
+        `/api/contacts?q=${encodeURIComponent(q)}&sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`,
+        { cache: "no-store" }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as Contact[];
@@ -509,13 +536,35 @@ export default function HomePage() {
     };
   }, [query, load]);
 
-  // Attach the freeform story (if any) as a note on the given contact.
+  // Reconstruct the full creation input from the chat-style composer: it moves
+  // every sent message into `messages` and clears `story`, so the raw record is
+  // the whole thread (plus any text/photos typed but never sent). Text is capped
+  // to the server's noteContent/sourceText limit; images are returned uncapped
+  // and each caller slices to its own limit.
+  function buildRawSource() {
+    const text = [...messages.map((m) => m.text), story]
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(0, 20000);
+    const images = [
+      ...messages.flatMap((m) => m.attachments.map((a) => a.url)),
+      ...attachments.map((a) => a.url),
+    ];
+    return { text, images };
+  }
+
+  // Preserve the creation conversation as an editable note, so each contact
+  // keeps a working record of what it was created from. Stays "story"-sourced so
+  // it gets the 📖 badge in the notes list.
   async function attachStoryNote(contactId: string) {
-    if (!story.trim()) return;
+    const { text, images } = buildRawSource();
+    const noteImages = images.slice(0, MAX_NOTE_IMAGES);
+    if (!text && noteImages.length === 0) return;
     await fetch(`/api/contacts/${contactId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: story, source: "story" }),
+      body: JSON.stringify({ content: text, source: "story", images: noteImages }),
     });
   }
 
@@ -529,10 +578,18 @@ export default function HomePage() {
       showConfirmButton: false,
       didOpen: () => Swal.showLoading(),
     });
+    // Archive the original input on the contact itself (immutable), alongside
+    // the editable story note. This is the safety net for a future
+    // re-analyze/reset — it survives even if the note is edited or deleted.
+    const { text: sourceText, images } = buildRawSource();
     const res = await fetch("/api/contacts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        ...input,
+        sourceText: sourceText || undefined,
+        sourceImages: images.slice(0, MAX_SOURCE_IMAGES),
+      }),
     });
     if (!res.ok) throw new Error(`POST /api/contacts ${res.status}`);
     const contact = (await res.json()) as { id: string };
@@ -547,7 +604,14 @@ export default function HomePage() {
     });
     resetForm();
     setShowForm(false);
+    // Clear any active search and force a reload so the new contact shows up
+    // immediately. setQuery("") alone is a no-op when the box is already empty,
+    // so the debounced load wouldn't re-fire — reload explicitly.
     setQuery("");
+    await load("");
+    // Tell the sidebar (which only refetches on navigation) to refresh too,
+    // since creating a contact keeps us on the same route.
+    window.dispatchEvent(new CustomEvent(CONTACTS_CHANGED_EVENT));
   }
 
   // Non-destructively merge the extracted details into an existing contact,
@@ -663,8 +727,86 @@ export default function HomePage() {
             ✨ Add contact
           </h2>
 
+          {/* Sent messages — each story you send becomes a bubble here, above
+              the composer. The extracted result card renders below the input. */}
+          {(messages.length > 0 || extracting) && (
+            <div className="space-y-3">
+              {messages.map((m, i) => (
+                <div key={i} className="flex justify-end">
+                  <div className="flex max-w-[85%] flex-col gap-2 rounded-2xl rounded-br-md bg-indigo-600 px-4 py-3 text-sm text-white shadow-sm">
+                    {m.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {m.attachments.map((a, j) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={j}
+                            src={a.url}
+                            alt={a.name}
+                            className="h-12 w-12 rounded-md object-cover ring-1 ring-white/30"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {m.text ? (
+                      <p className="whitespace-pre-wrap break-words leading-relaxed">
+                        {m.text}
+                      </p>
+                    ) : (
+                      <p className="italic text-indigo-100">
+                        Sent {m.attachments.length} photo
+                        {m.attachments.length === 1 ? "" : "s"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Assistant "thinking" — scans your latest message word by word */}
+              {extracting && (
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm">
+                    <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
+                      Analyzing…
+                    </div>
+                    <div
+                      className="text-sm text-zinc-700 dark:text-zinc-200"
+                      style={{ lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                      aria-live="polite"
+                    >
+                      {storyTokens.map((token, idx) => {
+                        const wIdx = tokenWordIndices[idx];
+                        if (wIdx === -1) return <span key={idx}>{token}</span>;
+                        const active = wIdx === scanIndex;
+                        return (
+                          <span
+                            key={idx}
+                            style={{
+                              backgroundColor: active ? "rgba(99,102,241,0.15)" : undefined,
+                              color: active ? "rgb(79,70,229)" : undefined,
+                              fontWeight: active ? 600 : undefined,
+                              borderRadius: "3px",
+                              transition: "background-color 0.08s, color 0.08s",
+                            }}
+                          >
+                            {token}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {extractError && (
+            <p className="text-xs text-red-600 dark:text-red-400">{extractError}</p>
+          )}
+
           {/* Claude-style composer: photo thumbnails + textarea, with a toolbar
-              (attach menu, mic, send) docked along the bottom edge. */}
+              (attach menu, mic, send) docked along the bottom edge. Stays open
+              the whole session so you can keep sending follow-up messages. */}
           <div className="rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 p-3 pb-0">
@@ -689,41 +831,26 @@ export default function HomePage() {
               </div>
             )}
 
-            {extracting ? (
-              <div
-                className="w-full overflow-auto px-4 pt-3 text-sm"
-                style={{ minHeight: "5rem", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-                aria-live="polite"
-              >
-                {storyTokens.map((token, idx) => {
-                  const wIdx = tokenWordIndices[idx];
-                  if (wIdx === -1) return <span key={idx}>{token}</span>;
-                  const active = wIdx === scanIndex;
-                  return (
-                    <span
-                      key={idx}
-                      style={{
-                        backgroundColor: active ? "rgba(99,102,241,0.15)" : undefined,
-                        color: active ? "rgb(79,70,229)" : undefined,
-                        fontWeight: active ? 600 : undefined,
-                        borderRadius: "3px",
-                        transition: "background-color 0.08s, color 0.08s",
-                      }}
-                    >
-                      {token}
-                    </span>
-                  );
-                })}
-              </div>
-            ) : (
-              <textarea
-                value={story}
-                onChange={(e) => setStory(e.target.value)}
-                placeholder="Tell me about this person — how you met, what they do, where they work…"
-                rows={3}
-                className="block w-full resize-none border-0 bg-transparent px-4 pt-3 text-sm text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-0"
-              />
-            )}
+            <textarea
+              value={story}
+              onChange={(e) => setStory(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleExtract();
+                }
+              }}
+              disabled={extracting || transcribing}
+              placeholder={
+                transcribing
+                  ? "Transcribing your recording…"
+                  : messages.length > 0
+                  ? "Add more details, or correct something…"
+                  : "Tell me about this person — how you met, what they do, where they work…"
+              }
+              rows={3}
+              className="block w-full resize-none border-0 bg-transparent px-4 pt-3 text-sm text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-0 disabled:opacity-50"
+            />
 
             {/* Toolbar: + attach · mic · (clear) · send */}
             <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">
@@ -731,7 +858,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setMenuOpen((o) => !o)}
-                  disabled={extracting}
+                  disabled={extracting || transcribing}
                   title="Add photos & files"
                   className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 dark:border-zinc-700 text-xl leading-none text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
                 >
@@ -758,6 +885,16 @@ export default function HomePage() {
                     >
                       <span aria-hidden>📷</span> Take photo
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        audioInputRef.current?.click();
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+                    >
+                      <span aria-hidden>🎙️</span> Upload recording
+                    </button>
                   </div>
                 )}
               </div>
@@ -765,7 +902,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={toggle}
-                disabled={!supported || extracting}
+                disabled={!supported || extracting || transcribing}
                 title={
                   supported
                     ? "Dictate with speech-to-text"
@@ -780,30 +917,37 @@ export default function HomePage() {
                 {listening ? "● Listening… stop" : "🎤"}
               </button>
 
+              {transcribing && (
+                <span className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-400/40 border-t-zinc-500" />
+                  Transcribing…
+                </span>
+              )}
+
               <div className="ml-auto flex items-center gap-2">
-                {!extracting && (story.trim() || attachments.length > 0 || extracted) && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                  >
-                    Clear
-                  </button>
-                )}
+                {!extracting &&
+                  (story.trim() ||
+                    attachments.length > 0 ||
+                    messages.length > 0 ||
+                    extracted) && (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      title="Start over — clears the whole conversation"
+                      className="rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    >
+                      {messages.length > 0 ? "New" : "Clear"}
+                    </button>
+                  )}
                 <button
                   type="button"
-                  onClick={() => (extracted ? setShowReExtractConfirm(true) : handleExtract())}
-                  disabled={extracting || (!story.trim() && attachments.length === 0)}
-                  title={extracted ? "Re-extract" : "Extract contact details"}
+                  onClick={handleExtract}
+                  disabled={extracting || transcribing || (!story.trim() && attachments.length === 0)}
+                  title={messages.length > 0 ? "Send" : "Analyze story"}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
                 >
                   {extracting ? (
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  ) : extracted ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M20 12a8 8 0 0 1-14.93 2.96M4 12a8 8 0 0 1 14.93-2.96" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
                   ) : (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
                       <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -821,6 +965,16 @@ export default function HomePage() {
               className="hidden"
               onChange={(e) => {
                 handleFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={audioInputRef}
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              onChange={(e) => {
+                handleAudioFile(e.target.files);
                 e.target.value = "";
               }}
             />
@@ -846,28 +1000,24 @@ export default function HomePage() {
             </span>
           </label>
 
-          {extractError && (
-            <p className="text-xs text-red-600 dark:text-red-400">{extractError}</p>
-          )}
-
-          {extracted && (
-            <ExtractedCard
-              extracted={extracted}
-              enrichedKeys={enrichedKeys}
-              sources={sources}
-              onUpdate={setExtracted}
-            />
-          )}
-
-          {extracted && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || !extracted.name?.trim()}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save contact"}
-            </button>
+          {/* Extracted result — renders below the composer */}
+          {extracted && !extracting && (
+            <div className="space-y-3">
+              <ExtractedCard
+                extracted={extracted}
+                enrichedKeys={enrichedKeys}
+                sources={sources}
+                onUpdate={setExtracted}
+              />
+              <button
+                type="button"
+                onClick={() => setShowSaveReview(true)}
+                disabled={saving || !extracted.name?.trim()}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save contact"}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -978,9 +1128,9 @@ export default function HomePage() {
               </svg>
             </div>
             <div className="flex-1 pt-0.5">
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Extraction complete!</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Got it!</p>
               <p className="mt-0.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-                Review the extracted fields below and fill in anything that&apos;s missing before saving.
+                Review the fields, send another message to add or correct details, or save when it looks right.
               </p>
               {inputTruncated && (
                 <p className="mt-1.5 text-xs leading-relaxed text-amber-600 dark:text-amber-400">
@@ -999,50 +1149,81 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Re-extract confirmation modal */}
-      {showReExtractConfirm && (
+      {/* Review & confirm modal — final check before the contact is saved */}
+      {showSaveReview && extracted && (
         <div
           className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(15, 15, 30, 0.55)", backdropFilter: "blur(6px)" }}
-          onClick={() => setShowReExtractConfirm(false)}
+          onClick={() => setShowSaveReview(false)}
         >
           <div
-            className="modal-card w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-2xl"
+            className="modal-card flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             style={{ boxShadow: "0 24px 64px -12px rgba(99,102,241,0.22), 0 8px 24px -4px rgba(0,0,0,0.12)" }}
           >
-            {/* Icon */}
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/40">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 4v5h5M20 20v-5h-5" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M20 12a8 8 0 0 1-14.93 2.96M4 12a8 8 0 0 1 14.93-2.96" stroke="#6366f1" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
+            {/* Header */}
+            <div className="border-b border-zinc-100 dark:border-zinc-800 px-6 pb-4 pt-6">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                Review &amp; confirm
+              </h2>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                Double-check the details below before adding this contact.
+              </p>
             </div>
 
-            {/* Heading */}
-            <h2 className="mb-1 text-base font-semibold text-zinc-900 dark:text-zinc-100">Re-extract contact info?</h2>
-            <p className="mb-5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-              This will overwrite your currently extracted details. Any edits you&apos;ve made will be lost.
-            </p>
+            {/* Scrollable details */}
+            <div className="flex-1 space-y-3.5 overflow-y-auto px-6 py-4">
+              {(() => {
+                const customEntries = Object.entries(extracted.customFields ?? {});
+                return (
+                  <>
+                    <ReviewRow label="Name" value={extracted.name} />
+                    {FIELD_DEFS.map((f) => {
+                      const v = extracted[f.key];
+                      if (!v || typeof v !== "string") return null;
+                      return (
+                        <ReviewRow
+                          key={f.key}
+                          label={f.label}
+                          value={v}
+                          isTags={f.isTags}
+                        />
+                      );
+                    })}
+                    {customEntries.length > 0 && (
+                      <div className="space-y-3.5 border-t border-zinc-100 dark:border-zinc-800 pt-3.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">
+                          ✨ AI-detected
+                        </p>
+                        {customEntries.map(([k, v]) => (
+                          <ReviewRow key={k} label={k} value={String(v)} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
 
             {/* Actions */}
-            <div className="flex gap-2.5">
+            <div className="flex gap-2.5 border-t border-zinc-100 dark:border-zinc-800 px-6 py-4">
               <button
                 type="button"
-                onClick={() => setShowReExtractConfirm(false)}
+                onClick={() => setShowSaveReview(false)}
                 className="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
               >
-                Cancel
+                Go back
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setShowReExtractConfirm(false);
-                  handleExtract();
+                  setShowSaveReview(false);
+                  handleSave();
                 }}
-                className="flex-1 rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+                disabled={saving || !extracted.name?.trim()}
+                className="flex-1 rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
               >
-                Yes, re-extract
+                {saving ? "Saving…" : "Confirm & save"}
               </button>
             </div>
           </div>
@@ -1118,6 +1299,47 @@ const FIELD_DEFS: {
   { key: "birthday", label: "Birthday", placeholder: "MM-DD or MM-DD-YYYY" },
 ];
 
+// A single read-only label/value row in the "Review & confirm" save modal.
+function ReviewRow({
+  label,
+  value,
+  isTags = false,
+}: {
+  label: string;
+  value: string;
+  isTags?: boolean;
+}) {
+  const tags = isTags
+    ? value
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+        {label}
+      </p>
+      {isTags ? (
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {tags.map((t) => (
+            <span
+              key={t}
+              className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-700 dark:text-zinc-200"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-zinc-800 dark:text-zinc-100">
+          {value}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ExtractedCard({
   extracted,
   enrichedKeys = [],
@@ -1158,7 +1380,9 @@ function ExtractedCard({
   const detectedEntries = customEntries.filter(([k]) => !enrichedSet.has(k));
   const enrichedEntries = customEntries.filter(([k]) => enrichedSet.has(k));
 
-  const renderCustomRow = ([key, value]: [string, string]) => (
+  const renderCustomRow = ([key, value]: [string, string]) => {
+    const social = resolveSocial(key, value);
+    return (
     <div key={key} className="flex items-start gap-1.5">
       <div className="flex-1">
         <FieldRow
@@ -1172,6 +1396,20 @@ function ExtractedCard({
             setEditingField(null);
           }}
         />
+        {social && editingField !== `custom:${key}` && (
+          <a
+            href={social.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            <span aria-hidden>{social.icon}</span>
+            <span className="truncate">{social.url.replace(/^https?:\/\//, "")}</span>
+            <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              ✓ Verified
+            </span>
+          </a>
+        )}
       </div>
       <button
         type="button"
@@ -1182,7 +1420,8 @@ function ExtractedCard({
         ✕
       </button>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">

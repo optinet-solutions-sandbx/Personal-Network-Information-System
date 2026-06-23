@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
   const contact = await prisma.contact.findFirst({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
     include: { notes: { orderBy: { createdAt: "asc" } } },
   });
   if (!contact) {

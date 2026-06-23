@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const contact = await prisma.contact.findFirst({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
     include: { notes: { orderBy: { createdAt: "desc" } } },
   });
   if (!contact) {
@@ -63,7 +63,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   // Scope the update to the owner so users can't modify others' contacts.
   const result = await prisma.contact.updateMany({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
     data,
   });
   if (result.count === 0) {
@@ -85,7 +85,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const result = await prisma.contact.deleteMany({
-    where: { id, ...ownerWhere(owner.userId) },
+    where: { id, ...ownerWhere(owner.workspaceId) },
   });
   if (result.count === 0) {
     return NextResponse.json({ error: "not found" }, { status: 404 });

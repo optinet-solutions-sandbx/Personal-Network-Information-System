@@ -197,9 +197,8 @@ export function computeUpcomingBirthdays(
     .sort((a, b) => a.daysUntil - b.daysUntil);
 }
 
-export function daysUntilBirthday(stored: string, now: Date = new Date()): number | null {
-  const bday = parseStoredBirthday(stored);
-  if (!bday) return null;
+// Days until the next occurrence of a parsed month/day, on/after today.
+function daysUntilParsed(bday: ParsedDate, now: Date): number {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   let next = new Date(today.getFullYear(), bday.month, bday.day);
@@ -209,4 +208,25 @@ export function daysUntilBirthday(stored: string, now: Date = new Date()): numbe
     next.setHours(0, 0, 0, 0);
   }
   return Math.round((next.getTime() - today.getTime()) / MS_PER_DAY);
+}
+
+export function daysUntilBirthday(stored: string, now: Date = new Date()): number | null {
+  const bday = parseStoredBirthday(stored);
+  return bday ? daysUntilParsed(bday, now) : null;
+}
+
+// Days until a contact's next birthday, resolved the same way the dashboard
+// bell does: the structured `birthday` field first, then a birthday captured in
+// custom fields (legacy rows / AI-detected before the field existed). Returns
+// null when neither yields a parseable month/day. Keep this in sync with the
+// resolution order in computeUpcomingBirthdays so the bell's "plan a gift" nudge
+// and the contact page's gift section never disagree.
+export function contactDaysUntilBirthday(
+  contact: { birthday?: string | null; customFields?: Record<string, string> | null },
+  now: Date = new Date()
+): number | null {
+  const bday = contact.birthday
+    ? parseStoredBirthday(contact.birthday)
+    : parseBirthday(contact.customFields ?? null);
+  return bday ? daysUntilParsed(bday, now) : null;
 }

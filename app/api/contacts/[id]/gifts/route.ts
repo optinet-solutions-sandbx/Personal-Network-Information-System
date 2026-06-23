@@ -25,7 +25,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   try {
-    const suggestions = await generateGiftSuggestions({
+    const { suggestions, model } = await generateGiftSuggestions({
       name: contact.name,
       title: contact.title,
       company: contact.company,
@@ -33,7 +33,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       customFields,
       recentNotes: contact.notes.map((n) => n.content),
     });
-    return NextResponse.json({ suggestions });
+    return NextResponse.json({ suggestions, model });
   } catch (err) {
     console.error("Gift suggestions route failed:", err);
     return NextResponse.json({ error: "generation failed" }, { status: 500 });
