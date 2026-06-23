@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# PMS OpenAPI spec (local reference for the ticket integration; not source)
+api-1.json
+
 # vercel
 .vercel
 
