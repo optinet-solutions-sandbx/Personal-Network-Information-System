@@ -33,6 +33,7 @@ export default function InsightsFeed() {
   const [draftModal, setDraftModal] = useState<{ contactId: string; contactName: string } | null>(
     null
   )
+  const [page, setPage] = useState(0)
 
   useEffect(() => {
     fetch("/api/insights")
@@ -56,8 +57,9 @@ export default function InsightsFeed() {
           relationships.
         </p>
       ) : (
+        <>
         <ul className="space-y-2">
-          {items.map((item, i) => (
+          {items.slice(page * 5, page * 5 + 5).map((item, i) => (
             <li key={`${item.type}-${item.contactId}-${i}`}>
               {item.draftable ? (
                 <div
@@ -109,6 +111,28 @@ export default function InsightsFeed() {
             </li>
           ))}
         </ul>
+        {items.length > 5 && (
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              ← Prev
+            </button>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              {page + 1} / {Math.ceil(items.length / 5)}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(Math.ceil(items.length / 5) - 1, p + 1))}
+              disabled={page >= Math.ceil(items.length / 5) - 1}
+              className="rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Next →
+            </button>
+          </div>
+        )}
+        </>
       )}
 
       {draftModal && (

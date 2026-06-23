@@ -36,6 +36,7 @@ export default function SuggestedIntroductions() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
   const [actionState, setActionState] = useState<Record<string, ActionState>>({})
 
   const load = useCallback(async () => {
@@ -149,8 +150,9 @@ export default function SuggestedIntroductions() {
           </button>
         </p>
       ) : (
+        <>
         <ul className="space-y-3">
-          {suggestions.map((s) => (
+          {(showAll ? suggestions : suggestions.slice(0, 5)).map((s) => (
             <li
               key={s.id}
               className="rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 p-3"
@@ -210,6 +212,15 @@ export default function SuggestedIntroductions() {
             </li>
           ))}
         </ul>
+        {suggestions.length > 5 && (
+          <button
+            onClick={() => setShowAll((s) => !s)}
+            className="mt-3 rounded-lg px-2 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            {showAll ? "Show less" : `See ${suggestions.length - 5} more`}
+          </button>
+        )}
+        </>
       )}
     </div>
   )

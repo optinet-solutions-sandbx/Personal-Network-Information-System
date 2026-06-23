@@ -69,6 +69,7 @@ model Contact {
   notes          Note[]
   suggestionsAsA Suggestion[] @relation("SuggestionA")
   suggestionsAsB Suggestion[] @relation("SuggestionB")
+  sentMessages   SentMessage[]
   relationshipsFrom Relationship[] @relation("RelFrom")
   relationshipsTo   Relationship[] @relation("RelTo")
   workspace      Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -230,6 +231,21 @@ enum MemberRole {
   owner
   admin
   member
+}
+
+model SentMessage {
+  id        String   @id @default(cuid())
+  userId    String?
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  body      String
+  method    String   // "email" | "clipboard"
+
+  sentAt    DateTime @default(now())
+
+  @@index([contactId])
+  @@index([userId, sentAt(sort: Desc)])
 }
 
 // ---------------------------------------------------------------------------

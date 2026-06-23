@@ -265,14 +265,36 @@ export function validateNoteContent(value: unknown): ValidationResult<string> {
   return { ok: true, data: content };
 }
 
-// Photo attachments on a note: an array of image data URLs. Absent/empty is
-// valid (text-only note). Returns the cleaned array on success.
+export function validateSentMessageBody(body: unknown):
+  | { ok: true; data: { contactId: string; body: string; method: "email" | "clipboard" } }
+  | { ok: false; error: string } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "Invalid request body" }
+  }
+  const b = body as Record<string, unknown>
+  if (typeof b.contactId !== "string" || !b.contactId.trim()) {
+    return { ok: false, error: "contactId is required" }
+  }
+  if (typeof b.body !== "string" || !b.body.trim()) {
+    return { ok: false, error: "body is required" }
+  }
+  if (b.method !== "email" && b.method !== "clipboard") {
+    return { ok: false, error: 'method must be "email" or "clipboard"' }
+  }
+  return {
+    ok: true,
+    data: {
+      contactId: b.contactId.trim(),
+      body: b.body.trim(),
+      method: b.method,
+    },
+  }
+}
+
 export function validateNoteImages(value: unknown): ValidationResult<string[]> {
   return validateImageDataUrls(value, LIMITS.noteImageCount, "photos per note");
 }
 
-// Optional voice-recording URL on a note. Absent/empty -> null. Must be an
-// http(s) URL within the length cap (it points at Supabase Storage).
 export function validateNoteAudioUrl(
   value: unknown
 ): ValidationResult<string | null> {
@@ -290,8 +312,6 @@ export function validateNoteAudioUrl(
   return { ok: true, data: url };
 }
 
-// Shared image-data-URL array validator. Each item must be an image data URL
-// within the per-image size cap; the array is bounded by `maxCount`.
 function validateImageDataUrls(
   value: unknown,
   maxCount: number,
@@ -315,10 +335,6 @@ function validateImageDataUrls(
   return { ok: true, data: out };
 }
 
-// The immutable creation-source archive (Contact.sourceText / sourceImages),
-// accepted only at create time. Both parts are optional; returns cleaned values
-// (text trimmed/capped, images validated). Validated separately from
-// validateContact so the source can never be mutated through a PATCH.
 export function validateContactSource(
   body: unknown
 ): ValidationResult<{ sourceText: string | null; sourceImages: string[] }> {

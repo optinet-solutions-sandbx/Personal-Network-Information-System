@@ -79,6 +79,12 @@ export default function HeaderActions() {
   const [open, setOpen] = useState<"messages" | "bell" | null>(null);
   const [modalIndex, setModalIndex] = useState<number | null>(null);
   const [toasts, setToasts] = useState<Notification[]>([]);
+  const [readKeys, setReadKeys] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("pnis_read_notifications");
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -257,7 +263,7 @@ export default function HeaderActions() {
 
   // Every surfaced item is time-sensitive (today's birthdays, gift lead-ups,
   // new connections), so the badge counts them all.
-  const unreadCount = notifications.length;
+  const unreadCount = notifications.filter((n) => !readKeys.has(n.key)).length;
 
   // Facebook-style toasts: pop today's actionable items in the corner. We only
   // *show* here (no persistence), so React StrictMode's double-invoke can't
@@ -304,21 +310,11 @@ export default function HeaderActions() {
           )}
         </IconButton>
         {open === "messages" && (
-          <Panel title="Keep in touch" onClose={() => setOpen(null)}>
-            {suggestions.length === 0 ? (
-              <EmptyState text="No outreach suggestions right now. As birthdays approach, message drafts will appear here." />
-            ) : (
-              <ul className="divide-y divide-zinc-100">
-                {suggestions.map((s, i) => (
-                  <MessageRow
-                    key={s.contact.id}
-                    suggestion={s}
-                    onMessage={() => { setOpen(null); setModalIndex(i); }}
-                  />
-                ))}
-              </ul>
-            )}
-          </Panel>
+          <MessengerPanel
+            suggestions={suggestions}
+            onClose={() => setOpen(null)}
+            onMessage={(i) => { setOpen(null); setModalIndex(i); }}
+          />
         )}
       </div>
 
@@ -342,12 +338,21 @@ export default function HeaderActions() {
               <EmptyState text="You're all caught up. Birthdays, follow-ups, and new connections will show up here." />
             ) : (
               <ul className="divide-y divide-zinc-100">
-                {notifications.map((n) => (
+                {notifications.map((n) => {
+                  const isUnread = !readKeys.has(n.key);
+                  return (
                   <li key={n.key}>
                     <Link
                       href={n.href}
-                      onClick={() => setOpen(null)}
-                      className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      onClick={() => {
+                        setReadKeys((prev) => {
+                          const next = new Set([...prev, n.key]);
+                          try { localStorage.setItem("pnis_read_notifications", JSON.stringify([...next])); } catch {}
+                          return next;
+                        });
+                        setOpen(null);
+                      }}
+                      className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 ${isUnread ? "bg-zinc-700/40 dark:bg-zinc-700/40" : ""}`}
                     >
                       <span
                         className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${n.accent}`}
@@ -362,7 +367,8 @@ export default function HeaderActions() {
                       </span>
                     </Link>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </Panel>
@@ -437,28 +443,91 @@ function MessageRow({
   onMessage: () => void;
 }) {
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
+    <li
+      onClick={onMessage}
+      className="mx-1 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-zinc-700/50"
+    >
       <span
-        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarColor(
+        className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-base font-bold text-white ${avatarColor(
           s.contact.name ?? ""
         )}`}
       >
         {(s.contact.name?.[0] ?? "?").toUpperCase()}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+        <span className="block truncate text-sm font-semibold text-zinc-100">
           {s.contact.name}
         </span>
-        <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">{s.reason}</span>
+        <span className="block truncate text-xs text-zinc-400">{s.reason}</span>
       </span>
-      <button
-        type="button"
-        onClick={onMessage}
-        className="flex-shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-indigo-700"
-      >
-        Message
-      </button>
+      <span className="h-3 w-3 flex-shrink-0 rounded-full bg-[#1877F2]" />
     </li>
+  );
+}
+
+function MessengerPanel({
+  suggestions,
+  onClose,
+  onMessage,
+}: {
+  suggestions: Suggestion[];
+  onClose: () => void;
+  onMessage: (index: number) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filtered = suggestions.filter((s) =>
+    s.contact.name?.toLowerCase().includes(search.toLowerCase())
+  );
+  return (
+    <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl bg-[#242526] shadow-2xl ring-1 ring-black/30">
+      <div className="flex items-center justify-between px-4 pb-2 pt-4">
+        <span className="text-xl font-bold text-zinc-100">Keep in touch</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-700 text-zinc-300 transition-colors hover:bg-zinc-600"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="px-4 pb-3">
+        <div className="flex items-center gap-2 rounded-full bg-zinc-700 px-3 py-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0 text-zinc-400">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-400 outline-none"
+          />
+        </div>
+      </div>
+      {filtered.length === 0 ? (
+        <div className="px-4 py-6 text-center text-sm text-zinc-500">
+          {search ? "No contacts found." : "No outreach suggestions right now."}
+        </div>
+      ) : (
+        <ul className="pb-1">
+          {filtered.map((s) => (
+            <MessageRow
+              key={s.contact.id}
+              suggestion={s}
+              onMessage={() => onMessage(suggestions.indexOf(s))}
+            />
+          ))}
+        </ul>
+      )}
+      <div className="border-t border-zinc-700/60 px-4 py-2.5 text-center">
+        <Link href="/contacts" className="text-sm font-medium text-[#1877F2] hover:underline">
+          See all contacts
+        </Link>
+      </div>
+    </div>
   );
 }
 
@@ -513,7 +582,7 @@ function Panel({
           </svg>
         </button>
       </div>
-      <div className="max-h-96 overflow-y-auto">{children}</div>
+      <div className="max-h-96 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-0.5 [&::-webkit-scrollbar-track]:bg-zinc-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-500">{children}</div>
     </div>
   );
 }
