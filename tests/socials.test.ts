@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveSocial, isSocialKey, phoneLinks } from "@/lib/socials";
+import { resolveSocial, isSocialKey, phoneLinks, findSocial } from "@/lib/socials";
 
 describe("resolveSocial", () => {
   it("builds a Telegram link from a handle (the business-card case)", () => {
@@ -32,7 +32,9 @@ describe("resolveSocial", () => {
   });
 
   it("uses digits only for WhatsApp", () => {
-    expect(resolveSocial("WhatsApp", "+1 (555) 123-4567")!.url).toBe("https://wa.me/15551234567");
+    expect(resolveSocial("WhatsApp", "+1 (555) 123-4567")!.url).toBe(
+      "https://api.whatsapp.com/send?phone=15551234567"
+    );
   });
 
   it("adds a scheme to a bare website", () => {
@@ -58,12 +60,32 @@ describe("isSocialKey", () => {
   });
 });
 
+describe("findSocial", () => {
+  it("finds a Telegram handle under its platform key", () => {
+    const found = findSocial({ Telegram: "@PlayStar123", Interests: "coffee" }, "telegram");
+    expect(found).not.toBeNull();
+    expect(found!.key).toBe("Telegram");
+    expect(found!.social.url).toBe("https://t.me/PlayStar123");
+  });
+
+  it("finds a platform even under a generic key with a full URL", () => {
+    const found = findSocial({ Profile: "https://t.me/PlayStar123" }, "telegram");
+    expect(found!.social.platform).toBe("telegram");
+  });
+
+  it("returns null when the platform isn't present", () => {
+    expect(findSocial({ Instagram: "@meny" }, "telegram")).toBeNull();
+    expect(findSocial(null, "telegram")).toBeNull();
+    expect(findSocial(undefined, "whatsapp")).toBeNull();
+  });
+});
+
 describe("phoneLinks", () => {
-  it("builds tel: and wa.me links, keeping a leading + on tel:", () => {
+  it("builds tel: and WhatsApp links, keeping a leading + on tel:", () => {
     const r = phoneLinks("+1 (555) 123-4567");
     expect(r).not.toBeNull();
     expect(r!.tel).toBe("tel:+15551234567");
-    expect(r!.whatsapp).toBe("https://wa.me/15551234567");
+    expect(r!.whatsapp).toBe("https://api.whatsapp.com/send?phone=15551234567");
   });
 
   it("omits the + when the number wasn't written with one", () => {

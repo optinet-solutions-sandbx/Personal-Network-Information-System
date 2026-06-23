@@ -15,19 +15,22 @@ export async function resolveOrCreateWorkspace(
   email: string,
   name?: string
 ): Promise<{ workspaceId: string }> {
-  // Fast path: user already belongs to a workspace (team OR personal). Earliest
-  // membership wins so a user added to the shared team workspace resolves to it
-  // rather than spinning up a private one.
+  // Each account is scoped to its OWN PERSONAL workspace — accounts never share
+  // contacts/notes/etc. by default. Team workspaces (and their memberships) may
+  // still exist as infrastructure for a future opt-in "switch workspace"
+  // feature, but they are intentionally NOT resolved here: we always pick the
+  // user's personal workspace, creating it on first login. (Resolving by
+  // earliest membership of ANY type is what made every teammate share the seeded
+  // "Optinet Team" workspace.)
   const existing = await prisma.workspaceMember.findFirst({
-    where: { userId },
+    where: { userId, workspace: { type: "personal" } },
     orderBy: { createdAt: "asc" },
     select: { workspaceId: true },
   });
   if (existing) return { workspaceId: existing.workspaceId };
 
-  // First login: create User + Workspace + WorkspaceMember in one transaction.
-  // If a race condition hits (two concurrent first requests), the unique constraint
-  // on [userId, workspaceId] causes one to fail — the catch block retries the read.
+  // First login: create User + personal Workspace + WorkspaceMember in one
+  // transaction. On a concurrent-first-request race the catch block re-reads.
   try {
     const workspaceId = await prisma.$transaction(async (tx) => {
       await tx.user.upsert({
@@ -47,7 +50,7 @@ export async function resolveOrCreateWorkspace(
   } catch {
     // Race condition: another concurrent request already created the workspace.
     const member = await prisma.workspaceMember.findFirst({
-      where: { userId },
+      where: { userId, workspace: { type: "personal" } },
       orderBy: { createdAt: "asc" },
       select: { workspaceId: true },
     });

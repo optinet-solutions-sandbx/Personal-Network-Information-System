@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   const enrich = body?.enrich === true;
 
   try {
-    const { fields, model, enriched, sources } = await extractContact(text, {
+    const { fields, model, enriched, sources, confidence } = await extractContact(text, {
       enrich,
       images,
     });
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
       model,
       enriched,
       sources,
+      confidence,
       truncated,
     });
   } catch (err) {

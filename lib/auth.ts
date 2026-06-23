@@ -5,8 +5,9 @@ import { resolveOrCreateWorkspace } from "@/lib/workspace";
 // Auth is OPTIONAL. When the Supabase env vars are absent, the app runs in
 // "open mode" exactly as before — no login required, data is shared globally.
 // Once the env vars are set, auth is enforced and every record is scoped to the
-// signed-in user's WORKSPACE (a shared team workspace, see lib/workspace.ts), so
-// teammates in the same workspace see and edit the same contacts/notes/etc.
+// signed-in user's own PERSONAL workspace (see lib/workspace.ts), so each
+// account has its own private contacts/notes/etc. — nothing is shared between
+// accounts.
 export function authEnabled(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&

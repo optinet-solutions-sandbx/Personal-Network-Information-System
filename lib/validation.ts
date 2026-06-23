@@ -31,6 +31,10 @@ export const LIMITS = {
   // can span several messages) but still bounded so a row can't grow unboundedly.
   sourceText: 20000,
   sourceImageCount: 10,
+  // Self-profile (User row, see /api/profile).
+  bio: 2000,
+  website: 500,
+  avatarChars: 3_000_000, // ~2.2MB decoded — generous cap on the downscaled avatar data URL
 } as const;
 
 // Loose, pragmatic email shape check (not full RFC). Empty is allowed upstream.
@@ -154,6 +158,66 @@ export function validateContact(
       return { ok: false, error: "followUpCadenceDays must be an integer between 1 and 3650" };
     } else {
       out.followUpCadenceDays = raw;
+    }
+  }
+
+  return { ok: true, data: out };
+}
+
+export type CleanProfile = {
+  name: string | null;
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  bio: string | null;
+  website: string | null;
+  phone: string | null;
+  avatar: string | null;
+};
+
+// Validate a self-profile (User row) payload from PUT /api/profile. Every field
+// is optional and only the keys present in `body` are returned (partial update),
+// so the editor can save a single field without clobbering the rest.
+export function validateProfile(
+  body: unknown
+): ValidationResult<Partial<CleanProfile>> {
+  if (!body || typeof body !== "object") {
+    return { ok: false, error: "invalid body" };
+  }
+  const b = body as Record<string, unknown>;
+  const out: Partial<CleanProfile> = {};
+
+  // Plain trimmed-and-capped string fields. (bio/website use the new caps; the
+  // rest reuse the contact caps so limits stay consistent across the app.)
+  const STRING_FIELDS = [
+    ["name", LIMITS.name],
+    ["title", LIMITS.title],
+    ["company", LIMITS.company],
+    ["location", LIMITS.location],
+    ["bio", LIMITS.bio],
+    ["website", LIMITS.website],
+    ["phone", LIMITS.phone],
+  ] as const;
+
+  for (const [field, cap] of STRING_FIELDS) {
+    if (!(field in b)) continue;
+    const value = clean(b[field]);
+    if (value && value.length > cap) {
+      return { ok: false, error: `${field} must be ≤ ${cap} characters` };
+    }
+    out[field] = value;
+  }
+
+  if ("avatar" in b) {
+    const raw = b.avatar;
+    if (raw == null || raw === "") {
+      out.avatar = null;
+    } else if (typeof raw !== "string" || !raw.startsWith("data:image/")) {
+      return { ok: false, error: "avatar must be an image data URL" };
+    } else if (raw.length > LIMITS.avatarChars) {
+      return { ok: false, error: "avatar image is too large" };
+    } else {
+      out.avatar = raw;
     }
   }
 

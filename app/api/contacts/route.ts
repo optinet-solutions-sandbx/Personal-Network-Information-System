@@ -35,6 +35,10 @@ export async function GET(req: NextRequest) {
   const q = params.get("q")?.trim();
   // Restrict to contacts that have an AI-generated profile.
   const hasProfile = params.get("hasProfile") === "true";
+  // Subset filters, used by the Network-intel metric cards: "notes" → only
+  // contacts that have at least one note; "birthday" → only those with a
+  // birthday on file.
+  const filter = params.get("filter");
 
   const limitRaw = params.get("limit");
   const limit =
@@ -53,6 +57,8 @@ export async function GET(req: NextRequest) {
   const where: Prisma.ContactWhereInput = {
     ...ownerWhere(owner.workspaceId),
     ...(hasProfile ? { profile: { not: null } } : {}),
+    ...(filter === "notes" ? { notes: { some: {} } } : {}),
+    ...(filter === "birthday" ? { birthday: { not: null } } : {}),
     ...(q
       ? {
           OR: [

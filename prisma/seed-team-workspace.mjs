@@ -10,6 +10,19 @@
 
 import { PrismaClient } from "@prisma/client";
 
+// SAFETY: this script SHARES all contacts across every teammate. The app now
+// scopes each account to its own private workspace by default (see
+// lib/workspace.ts / prisma/migrate-personal-workspaces.mjs). Running this again
+// would undo that isolation, so it refuses unless explicitly confirmed:
+//   CONFIRM_TEAM_SHARE=yes node prisma/seed-team-workspace.mjs
+if (process.env.CONFIRM_TEAM_SHARE !== "yes") {
+  console.error(
+    "Refusing to run: this re-shares ALL contacts across the team and overrides\n" +
+      "per-account isolation. Re-run with CONFIRM_TEAM_SHARE=yes if that is intended."
+  );
+  process.exit(1);
+}
+
 const p = new PrismaClient();
 const TEAM_NAME = "Optinet Team";
 const OWNER_EMAIL = "admin@optinetsolutions.com";

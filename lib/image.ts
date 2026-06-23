@@ -8,6 +8,10 @@ export const MAX_IMAGE_DIM = 1568;
 // How many photos a single note accepts (mirrors LIMITS.noteImageCount).
 export const MAX_NOTE_IMAGES = 4;
 
+// Avatars are displayed small (≤ a couple hundred px) and stored inline on the
+// User row, so downscale aggressively to keep the row + payload tiny.
+export const MAX_AVATAR_DIM = 512;
+
 // Read an image File and return a (possibly downscaled) data URL. Large photos
 // are re-encoded as JPEG via a canvas; small ones pass through untouched.
 export async function fileToDataUrl(file: File): Promise<string> {
@@ -38,5 +42,40 @@ export async function fileToDataUrl(file: File): Promise<string> {
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+// Read an image File and return a square, center-cropped JPEG data URL sized for
+// use as a profile avatar (≤ MAX_AVATAR_DIM per side). Always re-encodes so the
+// stored value is small and predictably square.
+export async function fileToAvatarDataUrl(file: File): Promise<string> {
+  const original = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("decode failed"));
+    i.src = original;
+  });
+
+  const side = Math.min(img.width, img.height);
+  const sx = (img.width - side) / 2;
+  const sy = (img.height - side) / 2;
+  const out = Math.min(side, MAX_AVATAR_DIM);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = out;
+  canvas.height = out;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return original;
+  // Flatten onto white so transparent PNGs don't turn black as JPEG.
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, out, out);
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, out, out);
   return canvas.toDataURL("image/jpeg", 0.85);
 }

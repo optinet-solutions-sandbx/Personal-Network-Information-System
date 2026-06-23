@@ -64,7 +64,7 @@ export function FollowUpCard({ contact }: { contact: Contact }) {
 
   return (
     <>
-      <div className="rounded-xl border border-zinc-200 bg-white p-5">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Follow-up</h2>
           <button
@@ -77,13 +77,13 @@ export function FollowUpCard({ contact }: { contact: Contact }) {
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">Cadence</dt>
-            <dd className="text-zinc-700">{label}</dd>
+            <dd className="text-zinc-700 dark:text-zinc-200">{label}</dd>
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
               Last note
             </dt>
-            <dd className="text-zinc-700">
+            <dd className="text-zinc-700 dark:text-zinc-200">
               {lastNoteAt
                 ? new Date(lastNoteAt).toLocaleDateString("en-US", {
                     month: "short",
