@@ -250,6 +250,7 @@ describe("extractContact", () => {
     key: process.env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL,
     search: process.env.OPENAI_SEARCH_MODEL,
+    pdl: process.env.PEOPLEDATALABS_API_KEY,
   };
 
   function setOrDelete(name: string, value: string | undefined) {
@@ -262,12 +263,15 @@ describe("extractContact", () => {
     // Default the model env vars so the model label is predictable.
     delete process.env.OPENAI_MODEL;
     delete process.env.OPENAI_SEARCH_MODEL;
+    delete process.env.PEOPLEDATALABS_API_KEY;
   });
 
   afterEach(() => {
     setOrDelete("OPENAI_API_KEY", ORIGINAL.key);
     setOrDelete("OPENAI_MODEL", ORIGINAL.model);
     setOrDelete("OPENAI_SEARCH_MODEL", ORIGINAL.search);
+    setOrDelete("PEOPLEDATALABS_API_KEY", ORIGINAL.pdl);
+    vi.unstubAllGlobals();
   });
 
   it("uses the deterministic fallback when no API key is set", async () => {
@@ -368,6 +372,121 @@ describe("extractContact", () => {
     ]);
     expect(res.model).toBe("gpt-4o-mini + web_search");
   });
+
+  // A helper: web search runs but finds nobody (identified:false) so the
+  // people-data fallback is what gets exercised.
+  function mockEmptyWebSearch() {
+    chatCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ name: "Jose Felipe Terdes" }) } }],
+      model: "gpt-4.1-mini",
+    });
+    responsesCreate.mockResolvedValue({
+      output_text: JSON.stringify({ identified: false, confidence: "low", fields: [], sources: [] }),
+    });
+  }
+
+  it("falls back to People Data Labs when web search finds nobody", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.PEOPLEDATALABS_API_KEY = "pdl-key";
+    mockEmptyWebSearch();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        likelihood: 9,
+        data: {
+          full_name: "Jose Felipe Terdes",
+          job_title: "Automation Engineer",
+          job_company_name: "Optinet Solutions",
+          location_name: "Cebu, Philippines",
+          linkedin_url: "linkedin.com/in/josefelipeterdes",
+          skills: ["AI", "n8n", "Automation"],
+          education: [{ school: { name: "University of Cebu" } }],
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await extractContact("Jose Felipe Terdes", { enrich: true });
+
+    // The PDL request went out with the name and our auth header.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain("api.peopledatalabs.com/v5/person/enrich");
+    expect(url).toContain("name=Jose+Felipe+Terdes");
+    expect((init.headers as Record<string, string>)["X-Api-Key"]).toBe("pdl-key");
+
+    expect(res.fields.customFields).toMatchObject({
+      Title: "Automation Engineer",
+      "Current Company": "Optinet Solutions",
+      Location: "Cebu, Philippines",
+      Skills: "AI, n8n, Automation",
+      Education: "University of Cebu",
+    });
+    expect(res.enriched).toEqual(
+      expect.arrayContaining(["Title", "Current Company", "Location", "Skills", "Education"])
+    );
+    // The matched profile becomes a SOURCE, not a (blocked) social field.
+    expect(res.fields.customFields).not.toHaveProperty("LinkedIn");
+    expect(res.sources).toEqual([
+      {
+        title: "LinkedIn (via People Data Labs)",
+        url: "https://linkedin.com/in/josefelipeterdes",
+      },
+    ]);
+    expect(res.model).toBe("gpt-4.1-mini + people-data");
+    expect(res.confidence).toBe("high"); // likelihood 9 → high
+    // Never collects contact details, even from people-data.
+    expect(res.fields.email).toBe("");
+    expect(res.fields.phone).toBe("");
+  });
+
+  it("flags a weak People Data Labs match (low likelihood) as low confidence", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.PEOPLEDATALABS_API_KEY = "pdl-key";
+    mockEmptyWebSearch();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          likelihood: 5,
+          data: { full_name: "Jose Felipe Terdes", job_title: "Engineer" },
+        }),
+      })
+    );
+    const res = await extractContact("Jose Felipe Terdes", { enrich: true });
+    expect(res.enriched).toContain("Title");
+    expect(res.confidence).toBe("low"); // likelihood 5 < 8 → low
+  });
+
+  it("does NOT call People Data Labs when no PDL key is set", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    // no PEOPLEDATALABS_API_KEY
+    mockEmptyWebSearch();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await extractContact("Jose Felipe Terdes", { enrich: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.enriched).toEqual([]);
+  });
+
+  it.each([404, 400])(
+    "treats a People Data Labs %i as 'no match' (no enrichment, no error)",
+    async (status) => {
+      process.env.OPENAI_API_KEY = "test-key";
+      process.env.PEOPLEDATALABS_API_KEY = "pdl-key";
+      mockEmptyWebSearch();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({ ok: false, status, json: async () => ({}) })
+      );
+      const res = await extractContact("Jose Felipe Terdes", { enrich: true });
+      expect(res.enriched).toEqual([]);
+      expect(res.sources).toEqual([]);
+    }
+  );
 
   it("falls back to knowledge-based enrichment when web search fails", async () => {
     process.env.OPENAI_API_KEY = "test-key";

@@ -13,6 +13,11 @@ export type ExtractResult = {
   enriched: string[];
   // Web pages the enrichment drew from (empty unless live web search ran).
   sources: Source[];
+  // How sure enrichment is that it found the RIGHT person. "high" = the user's
+  // context (company/role/location) corroborates the match; "low" = matched on
+  // the name alone (or unsourced training knowledge) so the user must confirm
+  // it's the person they mean. Undefined when no enrichment ran.
+  confidence?: "high" | "low";
 };
 
 function buildSystemPrompt(enrich: boolean, hasImages = false): string {
@@ -347,8 +352,14 @@ export function parseLooseJson(raw: string): unknown {
 
 const ENRICH_SYSTEM_PROMPT = `You are a research assistant for a relationship-management app.
 Use web search to find PUBLICLY AVAILABLE information about the specific person described.
-Use the provided context (company, location, how-we-met, role) to identify the RIGHT
-individual — many people share a name.
+
+The user may give you rich context (company, location, role, how you met) or as little as
+a bare name. Do your best in BOTH cases — never refuse just because context is thin:
+- WITH corroborating context: use it to pick the RIGHT individual among same-named people,
+  and report "confidence": "high" when the context clearly matches the sources you find.
+- WITH ONLY a name (or sparse context): still run a best-effort search and return the single
+  most likely / most prominent real person you can find and cite. Report "confidence": "low"
+  — you are matching on the name alone and cannot be sure this is the person the user means.
 
 "fields" is a list of { "label", "value" } facts. Use clear labels such as:
 "Occupation", "Current Company", "Title", "Known For", "Location", "Education",
@@ -360,8 +371,12 @@ not contain them. Leave contact info out of "fields" entirely, even for public f
 email/phone come only from the user's own notes.
 
 STRICT RULES — follow exactly:
-- Set "identified" to false and return empty "fields" if you cannot confidently
-  match a specific real person from the context. Do NOT guess or merge different people.
+- Set "identified" to false and return empty "fields" ONLY when you cannot find ANY real,
+  sourced person for this name at all. If you DO find a plausible real person, return them
+  (with "confidence": "low" when matched on the name alone) rather than refusing.
+- Never merge two different people into one. If several distinct people share the name and
+  you have no context to choose between them, return the single most prominent one and set
+  "confidence": "low".
 - Only include facts backed by a source you actually found. NEVER fabricate. When unsure, omit.
 - PRIVACY: never return any email, phone, mobile, home address, or other private contact detail.
 - Prefer authoritative sources (official site, company page, Wikipedia, LinkedIn, reputable press).
@@ -372,9 +387,10 @@ STRICT RULES — follow exactly:
 const ENRICH_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["identified", "fields", "sources"],
+  required: ["identified", "confidence", "fields", "sources"],
   properties: {
     identified: { type: "boolean" },
+    confidence: { type: "string", enum: ["high", "low"] },
     fields: {
       type: "array",
       items: {
@@ -406,6 +422,7 @@ async function enrichFromWeb(
 ): Promise<{
   fields: Record<string, string>;
   sources: Source[];
+  confidence: "high" | "low";
 }> {
   const response = await client.responses.create({
     model,
@@ -427,11 +444,15 @@ async function enrichFromWeb(
     ],
   });
 
-  const empty = { fields: {}, sources: [] };
+  const empty = { fields: {}, sources: [], confidence: "low" as const };
   const parsed = parseLooseJson(response.output_text ?? "");
   if (!parsed || typeof parsed !== "object") return empty;
   const obj = parsed as Record<string, unknown>;
   if (obj.identified === false) return empty;
+
+  // Default to "low" unless the model explicitly reports a context-corroborated
+  // match — a bare-name match must never be presented as confident.
+  const confidence: "high" | "low" = obj.confidence === "high" ? "high" : "low";
 
   // Custom facts only. Contact-detail keys are dropped defensively — we never
   // surface a web-sourced email/phone (the model fabricates them; see prompt).
@@ -456,7 +477,110 @@ async function enrichFromWeb(
     }
   }
 
-  return { fields, sources };
+  return { fields, sources, confidence };
+}
+
+// --- People-data enrichment (People Data Labs) -----------------------------
+// A fallback for people with a thin or login-gated web presence that the live
+// web search can't reach (e.g. someone whose only footprint is a private
+// LinkedIn). PDL is an aggregated professional-data provider queried by name
+// (+ optional company/location). Costs a credit per match, so this only runs
+// when web search returned nothing AND a key is configured.
+
+// Map a PDL person record into labeled facts, mirroring the web-enrichment
+// labels so the UI renders them identically. Contact details are intentionally
+// omitted — the same privacy rule as web enrichment (email/phone come only from
+// the user's own notes). The matched LinkedIn URL is surfaced as a source, not
+// a field, because mergeEnrichment deliberately drops web-sourced social keys.
+function pdlToFields(data: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+  const title = str(data.job_title);
+  const company = str(data.job_company_name);
+  const location = str(data.location_name);
+  const industry = str(data.industry);
+  if (title) out["Title"] = title;
+  if (company) out["Current Company"] = company;
+  if (location) out["Location"] = location;
+  if (industry) out["Industry"] = industry;
+
+  if (Array.isArray(data.skills)) {
+    const skills = data.skills.map(String).map((s) => s.trim()).filter(Boolean);
+    if (skills.length) out["Skills"] = skills.slice(0, 12).join(", ");
+  }
+
+  if (Array.isArray(data.education)) {
+    const schools = data.education
+      .map((e) => {
+        const school = (e as { school?: { name?: unknown } })?.school?.name;
+        return typeof school === "string" ? school.trim() : "";
+      })
+      .filter(Boolean);
+    if (schools.length) out["Education"] = [...new Set(schools)].join("; ");
+  }
+
+  return out;
+}
+
+// Normalize a possibly-bare LinkedIn URL ("linkedin.com/in/x") to an absolute URL.
+function absoluteUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+async function enrichFromPeopleData(
+  name: string,
+  company?: string,
+  location?: string
+): Promise<{
+  fields: Record<string, string>;
+  sources: Source[];
+  confidence: "high" | "low";
+} | null> {
+  const key = process.env.PEOPLEDATALABS_API_KEY;
+  if (!key || !name.trim()) return null;
+
+  const params = new URLSearchParams({ name: name.trim(), min_likelihood: "4" });
+  if (company?.trim()) params.set("company", company.trim());
+  if (location?.trim()) params.set("location", location.trim());
+
+  const res = await fetch(
+    `https://api.peopledatalabs.com/v5/person/enrich?${params.toString()}`,
+    { headers: { "X-Api-Key": key, Accept: "application/json" } }
+  );
+
+  // 400 = not enough input to identify a person (e.g. a bare name with no
+  // company/location); 404 = no match above min_likelihood. Both are a normal
+  // "nothing usable", not errors — and neither is billed (only HTTP 200 matches
+  // consume a credit).
+  if (res.status === 400 || res.status === 404) return null;
+  if (!res.ok) {
+    console.error(`People Data Labs enrich failed: HTTP ${res.status}`);
+    return null;
+  }
+
+  const body = (await res.json().catch(() => null)) as {
+    likelihood?: number;
+    data?: Record<string, unknown>;
+  } | null;
+  const data = body?.data;
+  if (!data || typeof data !== "object") return null;
+
+  const fields = pdlToFields(data);
+  if (Object.keys(fields).length === 0) return null;
+
+  const sources: Source[] = [];
+  const linkedin = typeof data.linkedin_url === "string" ? data.linkedin_url.trim() : "";
+  if (linkedin) {
+    sources.push({ title: "LinkedIn (via People Data Labs)", url: absoluteUrl(linkedin) });
+  }
+
+  // PDL likelihood is 0–10. Only a strong match is presented as "high"; anything
+  // weaker keeps the "verify this is the right person" banner on.
+  const likelihood = typeof body?.likelihood === "number" ? body.likelihood : 0;
+  const confidence: "high" | "low" = likelihood >= 8 ? "high" : "low";
+
+  return { fields, sources, confidence };
 }
 
 export async function extractContact(
@@ -538,10 +662,11 @@ export async function extractContact(
 
   if (!enrich || !result.fields.name?.trim()) return result;
 
-  // 2) Enrich from the live web. Falls back to training knowledge on failure.
+  // 2) Live web search enrichment (cited). On a hit we're done; if it finds
+  // nothing (or fails), fall through to the people-data and knowledge fallbacks.
   const searchModel = process.env.OPENAI_SEARCH_MODEL || model;
   try {
-    const { fields: webFields, sources } = await enrichFromWeb(
+    const { fields: webFields, sources, confidence } = await enrichFromWeb(
       client,
       result.fields.name,
       input,
@@ -550,17 +675,38 @@ export async function extractContact(
     mergeEnrichment(result, webFields);
     // NOTE: web enrichment deliberately never fills email/phone — the model
     // fabricates them. Contact fields come only from the user's own notes.
-
-    result.sources = sources;
     if (result.enriched.length > 0) {
+      result.sources = sources;
       result.model = `${searchModel} + web_search`;
+      result.confidence = confidence;
+      return result;
     }
-    return result;
   } catch (err) {
-    console.error("Web enrichment failed, falling back to model knowledge:", err);
+    console.error("Web enrichment failed, trying people-data fallback:", err);
   }
 
-  // 3) Knowledge-based fallback (no live data, no citations).
+  // 3) People-data fallback (People Data Labs). Covers people with a thin or
+  // login-gated web presence that web search can't reach. No-ops without a key.
+  try {
+    const pdl = await enrichFromPeopleData(
+      result.fields.name,
+      result.fields.company,
+      result.fields.location
+    );
+    if (pdl) {
+      mergeEnrichment(result, pdl.fields);
+      if (result.enriched.length > 0) {
+        result.sources = pdl.sources;
+        result.model = `${model} + people-data`;
+        result.confidence = pdl.confidence;
+        return result;
+      }
+    }
+  } catch (err) {
+    console.error("People-data enrichment failed:", err);
+  }
+
+  // 4) Knowledge-based fallback (no live data, no citations).
   try {
     const completion = await client.chat.completions.create({
       model,
@@ -580,6 +726,9 @@ export async function extractContact(
         if (v) knowledgeFields[k] = v;
       }
       mergeEnrichment(result, knowledgeFields);
+      // No live sources — this is unverified training knowledge, so it can
+      // never be presented as confident.
+      if (result.enriched.length > 0) result.confidence = "low";
     }
   } catch (err) {
     console.error("Knowledge enrichment fallback failed:", err);
