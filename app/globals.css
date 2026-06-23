@@ -185,3 +185,30 @@ body {
   border-color: rgba(245, 158, 11, 0.55);
   color: #fbbf24; /* amber-400 */
 }
+
+/* Loading spinner, auto-close timer bar, and close button on the dark surface
+   (covers the "Saving…"/"Generating…" loading dialogs). */
+.dark .swal2-loader {
+  border-color: #6366f1 transparent #6366f1 transparent; /* indigo-500 */
+}
+.dark .swal2-timer-progress-bar {
+  background: rgba(99, 102, 241, 0.5);
+}
+.dark .swal2-close {
+  color: #71717a; /* zinc-500 */
+}
+.dark .swal2-close:hover {
+  color: #e4e4e7; /* zinc-200 */
+}
+/* Status-icon rings: keep each hue but soften the ring against near-black. */
+.dark .swal2-icon.swal2-success {
+  border-color: rgba(74, 222, 128, 0.45); /* green-400 */
+}
+.dark .swal2-icon.swal2-error {
+  border-color: rgba(248, 113, 113, 0.5); /* red-400 */
+}
+.dark .swal2-icon.swal2-info,
+.dark .swal2-icon.swal2-question {
+  border-color: rgba(129, 140, 248, 0.5); /* indigo-400 */
+  color: #a5b4fc; /* indigo-300 */
+}

@@ -88,19 +88,19 @@ export function FollowUpDraftModal({
       onClick={onClose}
     >
       <div
-        className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl"
         style={{ maxHeight: "90vh" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3">
+        <div className="flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-800 px-4 py-3">
           <span
             className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarColor(contactName)}`}
           >
             {initials(contactName)}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-zinc-900">{contactName}</p>
+            <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{contactName}</p>
             {contactEmail ? (
               <p className="truncate text-xs text-zinc-400">{contactEmail}</p>
             ) : (
@@ -130,7 +130,7 @@ export function FollowUpDraftModal({
           )}
           <button
             onClick={onClose}
-            className="flex-shrink-0 rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+            className="flex-shrink-0 rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             aria-label="Close"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -158,8 +158,8 @@ export function FollowUpDraftModal({
 
         {/* Compose area */}
         {!loading && !error && (
-          <div className="border-t border-zinc-100 px-4 py-3">
-            <div className="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2">
+          <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3">
+            <div className="flex items-end gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2">
               <textarea
                 ref={textareaRef}
                 value={draft}
@@ -167,7 +167,7 @@ export function FollowUpDraftModal({
                 onKeyDown={handleKey}
                 rows={1}
                 placeholder="Edit your message…"
-                className="flex-1 resize-none bg-transparent text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none"
+                className="flex-1 resize-none bg-transparent text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none"
                 style={{ maxHeight: "8rem", overflowY: "auto" }}
               />
               <button

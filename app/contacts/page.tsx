@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
@@ -8,7 +8,7 @@ import type { Contact, ContactInput } from "@/lib/types";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { computeUpcomingBirthdays, formatBirthday } from "@/lib/birthdays";
 import { fileToDataUrl, MAX_IMAGE_DIM, MAX_NOTE_IMAGES } from "@/lib/image";
-import { resolveSocial } from "@/lib/socials";
+import { resolveSocial, phoneLinks, findSocial } from "@/lib/socials";
 
 const TIER_DOT: Record<string, string> = {
   Strong: "bg-green-500",
@@ -165,6 +165,70 @@ function ContactCard({ c }: { c: Contact }) {
   );
 }
 
+// One-click copy for a chat bubble's text — saves selecting it by hand. Falls
+// back to a hidden <textarea> + execCommand when the async Clipboard API is
+// unavailable (older browsers / non-secure contexts). Briefly flips to a check.
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* clipboard unavailable — nothing more we can do */
+      }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? "Copied!" : "Copy text"}
+      aria-label={copied ? "Copied" : "Copy message text"}
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-indigo-100 transition-colors hover:bg-white/15 hover:text-white"
+    >
+      {copied ? (
+        <>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Copied
+        </>
+      ) : (
+        <>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="2" />
+            <path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Copy
+        </>
+      )}
+    </button>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -185,6 +249,11 @@ export default function HomePage() {
   const [enrich, setEnrich] = useState(true);
   const [enrichedKeys, setEnrichedKeys] = useState<string[]>([]);
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
+  // "low" when enrichment matched on the name alone (no corroborating context),
+  // so the UI can warn the user to confirm it's the right person.
+  const [enrichConfidence, setEnrichConfidence] = useState<
+    "high" | "low" | undefined
+  >(undefined);
   // The composer runs as a chat session: each story you send becomes a bubble
   // in this thread, and the whole thread is re-analyzed on every send so the
   // contact refines as you keep adding details.
@@ -405,11 +474,13 @@ export default function HomePage() {
         fields,
         enriched,
         sources: srcs,
+        confidence,
         truncated,
       } = (await res.json()) as {
         fields: ContactInput;
         enriched?: string[];
         sources?: { title: string; url: string }[];
+        confidence?: "high" | "low";
         truncated?: boolean;
       };
       setInputTruncated(truncated === true);
@@ -436,6 +507,7 @@ export default function HomePage() {
           : []
       );
       setSources(Array.isArray(srcs) ? srcs : []);
+      setEnrichConfidence(confidence);
       setExtractError(null);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       setShowExtractToast(true);
@@ -452,6 +524,7 @@ export default function HomePage() {
     setExtractError(null);
     setEnrichedKeys([]);
     setSources([]);
+    setEnrichConfidence(undefined);
     setInputTruncated(false);
     setAttachments([]);
     setMenuOpen(false);
@@ -591,7 +664,13 @@ export default function HomePage() {
         sourceImages: images.slice(0, MAX_SOURCE_IMAGES),
       }),
     });
-    if (!res.ok) throw new Error(`POST /api/contacts ${res.status}`);
+    if (!res.ok) {
+      // Surface the server's validation reason (e.g. "email is not a valid
+      // address") so the user can fix the offending field, instead of a generic
+      // "something went wrong".
+      const { error } = await res.json().catch(() => ({ error: "" }));
+      throw new Error(error || `Couldn't save contact (HTTP ${res.status}).`);
+    }
     const contact = (await res.json()) as { id: string };
     await attachStoryNote(contact.id);
     Swal.fire({
@@ -631,7 +710,10 @@ export default function HomePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    if (!res.ok) throw new Error(`PATCH /api/contacts ${res.status}`);
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: "" }));
+      throw new Error(error || `Couldn't update contact (HTTP ${res.status}).`);
+    }
     await attachStoryNote(existing.id);
     resetForm();
     setShowForm(false);
@@ -684,11 +766,14 @@ export default function HomePage() {
       }
 
       await createNewContact(input);
-    } catch {
+    } catch (err) {
       Swal.fire({
         icon: "error",
         title: "Save Failed",
-        text: "Something went wrong. Please try again.",
+        text:
+          err instanceof Error && err.message
+            ? err.message
+            : "Something went wrong. Please try again.",
       });
     } finally {
       setSaving(false);
@@ -733,7 +818,7 @@ export default function HomePage() {
             <div className="space-y-3">
               {messages.map((m, i) => (
                 <div key={i} className="flex justify-end">
-                  <div className="flex max-w-[85%] flex-col gap-2 rounded-2xl rounded-br-md bg-indigo-600 px-4 py-3 text-sm text-white shadow-sm">
+                  <div className="group flex max-w-[85%] flex-col gap-2 rounded-2xl rounded-br-md bg-indigo-600 px-4 py-3 text-sm text-white shadow-sm">
                     {m.attachments.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {m.attachments.map((a, j) => (
@@ -756,6 +841,11 @@ export default function HomePage() {
                         Sent {m.attachments.length} photo
                         {m.attachments.length === 1 ? "" : "s"}
                       </p>
+                    )}
+                    {m.text && (
+                      <div className="-mb-1 flex justify-end">
+                        <CopyButton text={m.text} />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -992,10 +1082,11 @@ export default function HomePage() {
                 🌐 Enrich from the web
               </span>
               <span className="block text-zinc-400 dark:text-zinc-500">
-                Searches the public web for this person (works for anyone with a
-                public footprint) and adds cited details — role, bio, interests.
-                May be outdated; verify before trusting. Never collects private
-                email, phone, or home address.
+                Searches the public web for this person, then falls back to a
+                professional-data lookup for people with a limited web presence,
+                and adds cited details — role, bio, interests. May be outdated;
+                verify before trusting. Never collects private email, phone, or
+                home address.
               </span>
             </span>
           </label>
@@ -1007,6 +1098,7 @@ export default function HomePage() {
                 extracted={extracted}
                 enrichedKeys={enrichedKeys}
                 sources={sources}
+                lowConfidence={enrichConfidence === "low"}
                 onUpdate={setExtracted}
               />
               <button
@@ -1344,11 +1436,13 @@ function ExtractedCard({
   extracted,
   enrichedKeys = [],
   sources = [],
+  lowConfidence = false,
   onUpdate,
 }: {
   extracted: ContactInput;
   enrichedKeys?: string[];
   sources?: { title: string; url: string }[];
+  lowConfidence?: boolean;
   onUpdate: (updated: ContactInput) => void;
 }) {
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -1375,7 +1469,34 @@ function ExtractedCard({
   }
 
   const missingFields = FIELD_DEFS.filter((f) => !extracted[f.key]);
-  const customEntries = Object.entries(extracted.customFields ?? {});
+
+  // Telegram is a first-class contact method (like WhatsApp), but it can't be
+  // derived from the phone — it needs an @username. Surface a dedicated row for
+  // it, and keep it OUT of the AI-detected list below so it never shows twice.
+  const telegramKey =
+    findSocial(extracted.customFields, "telegram")?.key ?? "Telegram";
+  const telegramValue = extracted.customFields?.[telegramKey] ?? "";
+  const telegramSocial = telegramValue
+    ? resolveSocial(telegramKey, telegramValue)
+    : null;
+  const missingCount = missingFields.length + (telegramValue ? 0 : 1);
+
+  const setTelegram = (value: string) => {
+    const next = { ...(extracted.customFields ?? {}) };
+    if (value.trim()) next[telegramKey] = value;
+    else delete next[telegramKey];
+    onUpdate({
+      ...extracted,
+      customFields: Object.keys(next).length > 0 ? next : undefined,
+    });
+  };
+
+  const customEntries = Object.entries(extracted.customFields ?? {}).filter(
+    ([k, v]) => {
+      const s = resolveSocial(k, v);
+      return !(s && s.platform === "telegram");
+    }
+  );
   const enrichedSet = new Set(enrichedKeys);
   const detectedEntries = customEntries.filter(([k]) => !enrichedSet.has(k));
   const enrichedEntries = customEntries.filter(([k]) => enrichedSet.has(k));
@@ -1437,28 +1558,95 @@ function ExtractedCard({
         }}
       />
 
-      {FIELD_DEFS.map((f) => {
+      {FIELD_DEFS.flatMap((f) => {
         const hasValue = Boolean(extracted[f.key]);
-        if (!hasValue && !showMissing) return null;
-        return (
-          <FieldRow
-            key={f.key}
-            label={f.label}
-            value={(extracted[f.key] as string) ?? ""}
-            isEditing={editingField === f.key}
-            multiline={f.multiline}
-            isTags={f.isTags}
-            placeholder={f.placeholder}
-            onStartEdit={() => setEditingField(f.key)}
-            onCommit={(v) => {
-              updateField(f.key, v);
-              setEditingField(null);
-            }}
-          />
-        );
+        // For the phone field, surface a one-tap "Message on WhatsApp" link
+        // derived from the number (api.whatsapp.com/send) — same as the saved
+        // contact page, so the chat is reachable straight from the preview. No
+        // lookup/API: the number IS the WhatsApp account. Needs international
+        // format (+63…, no leading 0).
+        const waLinks =
+          f.key === "phone" && hasValue && editingField !== "phone"
+            ? phoneLinks(String(extracted.phone ?? ""))
+            : null;
+        return [
+          hasValue || showMissing ? (
+            <Fragment key={f.key}>
+              <FieldRow
+                label={f.label}
+                value={(extracted[f.key] as string) ?? ""}
+                isEditing={editingField === f.key}
+                multiline={f.multiline}
+                isTags={f.isTags}
+                placeholder={f.placeholder}
+                onStartEdit={() => setEditingField(f.key)}
+                onCommit={(v) => {
+                  updateField(f.key, v);
+                  setEditingField(null);
+                }}
+              />
+              {waLinks && (
+                <a
+                  href={waLinks.whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open a WhatsApp chat with this number"
+                  className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  <span aria-hidden>💬</span>
+                  <span className="truncate">Message on WhatsApp</span>
+                  <span
+                    title="Built from the saved number — WhatsApp isn't checked live; clicking confirms it."
+                    className="inline-flex shrink-0 items-center rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
+                  >
+                    From your notes
+                  </span>
+                </a>
+              )}
+            </Fragment>
+          ) : null,
+          // Telegram sits directly after Phone (and before Location) — a
+          // dedicated contact-method row that needs an @username, so it can't be
+          // derived from the number. Rendered here regardless of whether the
+          // Phone row itself is shown. Hidden when empty unless "Add missing
+          // fields" is open.
+          f.key === "phone" && (telegramValue || showMissing) ? (
+            <div key="telegram">
+              <FieldRow
+                label="Telegram"
+                value={telegramValue}
+                isEditing={editingField === "telegram"}
+                placeholder="@username"
+                onStartEdit={() => setEditingField("telegram")}
+                onCommit={(v) => {
+                  setTelegram(v);
+                  setEditingField(null);
+                }}
+              />
+              {telegramSocial && editingField !== "telegram" && (
+                <a
+                  href={telegramSocial.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open a Telegram chat"
+                  className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-sky-600 dark:text-sky-400 hover:underline"
+                >
+                  <span aria-hidden>{telegramSocial.icon}</span>
+                  <span className="truncate">{telegramSocial.handle}</span>
+                  <span
+                    title="From your note — Telegram isn't checked live; clicking confirms it."
+                    className="inline-flex shrink-0 items-center rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
+                  >
+                    From your notes
+                  </span>
+                </a>
+              )}
+            </div>
+          ) : null,
+        ];
       })}
 
-      {missingFields.length > 0 && (
+      {missingCount > 0 && (
         <button
           type="button"
           onClick={() => setShowMissing((s) => !s)}
@@ -1466,7 +1654,7 @@ function ExtractedCard({
         >
           {showMissing
             ? "− Hide empty fields"
-            : `+ Add missing fields (${missingFields.length})`}
+            : `+ Add missing fields (${missingCount})`}
         </button>
       )}
 
@@ -1489,6 +1677,13 @@ function ExtractedCard({
               Pulled from the public web — may be outdated or wrong. Verify
               before saving; remove any you don&apos;t want.
             </p>
+            {lowConfidence && (
+              <p className="mt-1.5 rounded-md bg-amber-100/80 dark:bg-amber-900/40 px-2 py-1 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                ⚠️ Matched on the name alone — confirm this is the right person
+                before saving. Add a detail (company, city, how you met) and
+                re-run to narrow it down.
+              </p>
+            )}
           </div>
           {enrichedEntries.map(renderCustomRow)}
 

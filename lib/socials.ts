@@ -31,7 +31,7 @@ const PLATFORMS: PlatformDef[] = [
   { id: "instagram", label: "Instagram", icon: "📷", keyRe: /insta\s*gram|^ig$/i, domainRe: /(^|\.)instagram\.com$/i, build: (h) => `https://instagram.com/${h}` },
   { id: "facebook", label: "Facebook", icon: "📘", keyRe: /face\s*book|^fb$/i, domainRe: /(^|\.)(facebook\.com|fb\.com|fb\.me)$/i, build: (h) => `https://facebook.com/${h}` },
   { id: "x", label: "X", icon: "𝕏", keyRe: /twitter|^x$|x\s*\(?\s*twitter|x\s*\/\s*twitter/i, domainRe: /(^|\.)(twitter\.com|x\.com)$/i, build: (h) => `https://x.com/${h}` },
-  { id: "whatsapp", label: "WhatsApp", icon: "💬", keyRe: /whats\s*app|^wa$/i, domainRe: /(^|\.)(wa\.me|whatsapp\.com)$/i, build: (h) => `https://wa.me/${digits(h)}` },
+  { id: "whatsapp", label: "WhatsApp", icon: "💬", keyRe: /whats\s*app|^wa$/i, domainRe: /(^|\.)(wa\.me|whatsapp\.com)$/i, build: (h) => `https://api.whatsapp.com/send?phone=${digits(h)}` },
   { id: "github", label: "GitHub", icon: "🐙", keyRe: /git\s*hub/i, domainRe: /(^|\.)github\.com$/i, build: (h) => `https://github.com/${h}` },
   { id: "youtube", label: "YouTube", icon: "▶️", keyRe: /you\s*tube|^yt$/i, domainRe: /(^|\.)(youtube\.com|youtu\.be)$/i, build: (h) => `https://youtube.com/@${h.replace(/^@/, "")}` },
   { id: "tiktok", label: "TikTok", icon: "🎵", keyRe: /tik\s*tok/i, domainRe: /(^|\.)tiktok\.com$/i, build: (h) => `https://tiktok.com/@${h.replace(/^@/, "")}` },
@@ -41,15 +41,34 @@ const PLATFORMS: PlatformDef[] = [
 ];
 
 // Build clickable links for a raw phone number: a `tel:` URI for click-to-call
-// and a `wa.me` URL for WhatsApp. Returns null when there aren't enough digits
-// to be a dialable number. The WhatsApp link is best-effort — it only resolves
-// for an international number (with country code), same caveat as a WhatsApp
-// custom field; we keep a leading "+" on the tel: link to help dialers.
+// and a WhatsApp click-to-chat URL. We use the long official endpoint
+// (api.whatsapp.com/send) rather than the wa.me shortener — both are WhatsApp's
+// own, but the shortener is more often broken by AV/proxy TLS interception, and
+// api.whatsapp.com sits under the same *.whatsapp.com domain as WhatsApp Web.
+// The WhatsApp link is best-effort — it only resolves for an international
+// number (with country code, no leading 0), same caveat as a WhatsApp custom
+// field; we keep a leading "+" on the tel: link to help dialers.
 export function phoneLinks(raw: string): { tel: string; whatsapp: string } | null {
   const d = digits(raw);
   if (d.length < 7) return null; // too short to be a real number
   const plus = /^\s*\+/.test(raw) ? "+" : "";
-  return { tel: `tel:${plus}${d}`, whatsapp: `https://wa.me/${d}` };
+  return { tel: `tel:${plus}${d}`, whatsapp: `https://api.whatsapp.com/send?phone=${d}` };
+}
+
+// Find the first custom field that resolves to a given platform (e.g.
+// "telegram" or "whatsapp"), regardless of the exact key the extractor stored it
+// under ("Telegram", "TG", a t.me URL under a generic key, …). Lets the contact
+// page surface a dedicated, clickable messaging link without a schema change.
+export function findSocial(
+  customFields: Record<string, string> | null | undefined,
+  platform: string
+): { key: string; social: ResolvedSocial } | null {
+  if (!customFields) return null;
+  for (const [key, value] of Object.entries(customFields)) {
+    const social = resolveSocial(key, value);
+    if (social && social.platform === platform) return { key, social };
+  }
+  return null;
 }
 
 // True when a custom-field key names a social platform. lib/extract.ts uses this
