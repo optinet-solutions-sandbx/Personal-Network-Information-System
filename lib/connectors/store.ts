@@ -48,6 +48,12 @@ export function listConnections(scope: Scope): Promise<Connection[]> {
   });
 }
 
+// Every connection across all workspaces — for the scheduled sync job (no user
+// scope; the job acts on behalf of each connection's stored owner).
+export function listAllConnections(): Promise<Connection[]> {
+  return prisma.connection.findMany();
+}
+
 // Insert or replace the connection for (workspace, provider) with a fresh grant.
 export async function saveConnection(
   scope: Scope,
@@ -64,6 +70,7 @@ export async function saveConnection(
     refreshToken: tokens.refreshToken ? encryptSecret(tokens.refreshToken) : null,
     expiresAt: tokens.expiresAt ?? null,
     scope: tokens.scope ?? null,
+    apiBaseUrl: tokens.apiBaseUrl ?? null,
     externalAccountId: account.externalAccountId,
     accountLabel: account.label,
     status: "connected",
@@ -127,6 +134,8 @@ export async function getValidAccessToken(
         : connection.refreshToken,
       expiresAt: refreshed.expiresAt ?? null,
       scope: refreshed.scope ?? connection.scope,
+      // Salesforce returns instance_url on refresh too; keep the latest.
+      apiBaseUrl: refreshed.apiBaseUrl ?? connection.apiBaseUrl,
     },
   });
   return refreshed.accessToken;

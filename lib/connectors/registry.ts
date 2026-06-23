@@ -9,11 +9,12 @@
 import type { Connector, ProviderId } from "./types";
 import { hubspotConnector } from "./hubspot";
 import { googleConnector } from "./google";
+import { salesforceConnector } from "./salesforce";
 
 const REGISTRY: Record<ProviderId, Connector> = {
   hubspot: hubspotConnector,
   google: googleConnector,
-  // salesforce: salesforceConnector,    // TODO: after Google
+  salesforce: salesforceConnector,
 } as Record<ProviderId, Connector>;
 
 export function getConnector(provider: string): Connector | null {

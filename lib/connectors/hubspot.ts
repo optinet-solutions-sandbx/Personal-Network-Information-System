@@ -180,7 +180,7 @@ export const hubspotConnector: Connector = {
     });
   },
 
-  async getAccountInfo(accessToken): Promise<AccountInfo> {
+  async getAccountInfo({ accessToken }): Promise<AccountInfo> {
     // The token-info endpoint echoes the portal (hub) and signing user.
     const res = await fetch(`${API_BASE}/oauth/v1/access-tokens/${accessToken}`);
     if (!res.ok) return { externalAccountId: null, label: null };
@@ -195,7 +195,7 @@ export const hubspotConnector: Connector = {
     };
   },
 
-  async fetchContacts(accessToken): Promise<ImportedContact[]> {
+  async fetchContacts({ accessToken }): Promise<ImportedContact[]> {
     const out: ImportedContact[] = [];
     let after: string | undefined;
 

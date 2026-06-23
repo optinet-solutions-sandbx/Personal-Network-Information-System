@@ -2,16 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveOwner } from "@/lib/auth";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
 import { getConnector } from "@/lib/connectors/registry";
-import {
-  getConnection,
-  getValidAccessToken,
-  markError,
-  markSynced,
-} from "@/lib/connectors/store";
-import { runSync } from "@/lib/connectors/sync";
+import { getConnection } from "@/lib/connectors/store";
+import { syncConnection } from "@/lib/connectors/run";
 import { TokenExpiredError } from "@/lib/connectors/types";
-import type { Connection } from "@prisma/client";
-import type { Connector } from "@/lib/connectors/types";
 
 type Params = { params: Promise<{ provider: string }> };
 
@@ -45,14 +38,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const contacts = await fetchWithRefresh(connector, connection);
-    const summary = await runSync(contacts, connector.id, owner);
-    await markSynced(connection.id);
+    const summary = await syncConnection(connection);
     return NextResponse.json(summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : "sync failed";
     console.error(`Sync for ${connector.id} failed:`, err);
-    await markError(connection.id, message).catch(() => {});
     const reconnect = err instanceof TokenExpiredError || /reconnect required/.test(message);
     return NextResponse.json(
       {
@@ -63,20 +53,5 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       { status: reconnect ? 401 : 502 }
     );
-  }
-}
-
-// Fetch contacts, transparently refreshing the access token if the provider
-// rejects it mid-flight (token revoked/rotated despite a future expiry).
-async function fetchWithRefresh(connector: Connector, connection: Connection) {
-  const token = await getValidAccessToken(connection, connector);
-  try {
-    return await connector.fetchContacts(token);
-  } catch (err) {
-    if (!(err instanceof TokenExpiredError) || !connection.refreshToken) throw err;
-    // Force a refresh by pretending the token is already expired, then retry once.
-    const reloaded = { ...connection, expiresAt: new Date(0) } as Connection;
-    const fresh = await getValidAccessToken(reloaded, connector);
-    return connector.fetchContacts(fresh);
   }
 }

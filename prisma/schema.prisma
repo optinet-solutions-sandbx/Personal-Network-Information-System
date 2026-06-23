@@ -255,6 +255,10 @@ model Connection {
 
   externalAccountId String? // provider account/portal id (for display + sanity)
   accountLabel      String? // human label: portal name / signed-in email
+  // Per-instance API base for providers whose API host varies by account
+  // (Salesforce returns an `instance_url` at auth time). Null for providers with
+  // a fixed API host (HubSpot, Google).
+  apiBaseUrl        String?
 
   status       String    @default("connected") // "connected" | "error"
   lastError    String? // last sync/refresh error message (when status = "error")

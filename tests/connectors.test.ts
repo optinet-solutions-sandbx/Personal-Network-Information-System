@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { __test as hubspot } from "@/lib/connectors/hubspot";
 import { __test as google } from "@/lib/connectors/google";
+import { __test as salesforce } from "@/lib/connectors/salesforce";
 import { planSync, type ExistingContact } from "@/lib/connectors/sync";
 import type { ImportedContact } from "@/lib/connectors/types";
 
@@ -70,6 +71,41 @@ describe("Google Contacts mapping", () => {
       google.toImportedContact({ resourceName: "people/c9", emailAddresses: [{ value: "x@y.com" }] })?.name
     ).toBe("x@y.com");
     expect(google.toImportedContact({ resourceName: "people/c0" })).toBeNull();
+  });
+});
+
+describe("Salesforce mapping", () => {
+  it("maps a Contact record, joins mailing address, reads Account.Name, uses Id as externalId", () => {
+    const mapped = salesforce.toImportedContact({
+      Id: "003xx0001",
+      Name: "Margaret Hamilton",
+      FirstName: "Margaret",
+      LastName: "Hamilton",
+      Email: "margaret@mit.edu",
+      Phone: "+1 555 0142",
+      Title: "Director of Software Engineering",
+      MailingCity: "Cambridge",
+      MailingState: "MA",
+      MailingCountry: "USA",
+      Account: { Name: "MIT" },
+    });
+    expect(mapped).toEqual({
+      externalId: "003xx0001",
+      name: "Margaret Hamilton",
+      email: "margaret@mit.edu",
+      phone: "+1 555 0142",
+      company: "MIT",
+      title: "Director of Software Engineering",
+      location: "Cambridge, MA, USA",
+    });
+  });
+
+  it("composes a name from First/Last when Name is absent, and skips when no name/email", () => {
+    expect(
+      salesforce.toImportedContact({ Id: "1", FirstName: "Ada", LastName: "Lovelace" })?.name
+    ).toBe("Ada Lovelace");
+    expect(salesforce.toImportedContact({ Id: "2", Email: "x@y.com" })?.name).toBe("x@y.com");
+    expect(salesforce.toImportedContact({ Id: "3" })).toBeNull();
   });
 });
 

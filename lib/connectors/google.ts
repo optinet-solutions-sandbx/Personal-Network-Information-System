@@ -146,7 +146,7 @@ export const googleConnector: Connector = {
     });
   },
 
-  async getAccountInfo(accessToken): Promise<AccountInfo> {
+  async getAccountInfo({ accessToken }): Promise<AccountInfo> {
     const res = await fetch(USERINFO_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -155,7 +155,7 @@ export const googleConnector: Connector = {
     return { externalAccountId: json.id ?? null, label: json.email ?? null };
   },
 
-  async fetchContacts(accessToken): Promise<ImportedContact[]> {
+  async fetchContacts({ accessToken }): Promise<ImportedContact[]> {
     const out: ImportedContact[] = [];
     let pageToken: string | undefined;
 

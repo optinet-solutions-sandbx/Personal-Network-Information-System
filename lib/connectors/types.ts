@@ -34,6 +34,18 @@ export type TokenSet = {
   refreshToken?: string | null; // some providers omit it on refresh — keep the old one
   expiresAt?: Date | null; // null = unknown/non-expiring
   scope?: string | null;
+  // Per-instance API base, for providers whose API host varies by account
+  // (Salesforce returns `instance_url`). Persisted on the connection and passed
+  // back to fetchContacts/getAccountInfo via AccessContext.
+  apiBaseUrl?: string | null;
+};
+
+// What a connector needs to make an authenticated API call: the access token
+// plus, for per-instance providers, the API base. Fixed-host providers (HubSpot,
+// Google) ignore apiBaseUrl.
+export type AccessContext = {
+  accessToken: string;
+  apiBaseUrl?: string | null;
 };
 
 // Identity of the connected account, shown in the UI (e.g. the HubSpot portal
@@ -66,7 +78,7 @@ export interface Connector {
   refresh(refreshToken: string): Promise<TokenSet>;
 
   // Identify the connected account (best-effort; may return nulls).
-  getAccountInfo(accessToken: string): Promise<AccountInfo>;
+  getAccountInfo(ctx: AccessContext): Promise<AccountInfo>;
 
   // "token" connectors only: validate a user-pasted token and return account
   // info. Should THROW with a human-readable message when the token is invalid
@@ -75,7 +87,7 @@ export interface Connector {
 
   // Pull all contacts from the provider, paginating internally. Returns mapped
   // ImportedContacts ready for the sync runner.
-  fetchContacts(accessToken: string): Promise<ImportedContact[]>;
+  fetchContacts(ctx: AccessContext): Promise<ImportedContact[]>;
 }
 
 // Thrown by connectors on an auth failure where the access token is stale and a

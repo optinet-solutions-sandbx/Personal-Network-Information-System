@@ -47,10 +47,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   try {
     const redirectUri = redirectUriFor(req, connector.id);
     const tokens = await connector.exchangeCode(code, redirectUri);
-    const account = await connector.getAccountInfo(tokens.accessToken).catch(() => ({
-      externalAccountId: null,
-      label: null,
-    }));
+    const account = await connector
+      .getAccountInfo({ accessToken: tokens.accessToken, apiBaseUrl: tokens.apiBaseUrl })
+      .catch(() => ({ externalAccountId: null, label: null }));
     await saveConnection(owner, connector.id, tokens, account);
     return clearState(back(`connected=${connector.id}`));
   } catch (err) {
