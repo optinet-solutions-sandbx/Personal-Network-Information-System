@@ -28,6 +28,7 @@ export default function SentMessages() {
   const [messages, setMessages] = useState<SentMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     fetch("/api/sent-messages")

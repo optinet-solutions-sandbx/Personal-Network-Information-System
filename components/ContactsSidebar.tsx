@@ -381,7 +381,7 @@ export default function ContactsSidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 pb-3">
+      <nav className="flex-1 overflow-y-auto px-2 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {sort === "name"
           ? groupByInitial(contacts).map((group) => (
               <div key={group.letter}>
