@@ -1,42 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { resolveOwner, ownerWhere } from "@/lib/auth";
-import {
-  computeNetworkStats,
-  generateNetworkNarrative,
-} from "@/lib/network-intel";
-import type { Contact } from "@/lib/types";
+import { resolveOwner } from "@/lib/auth";
+import { loadNetworkStats } from "@/lib/network-intel-server";
 
-// GET /api/network-intel -> { stats, narrative, model }
+// GET /api/network-intel -> { stats }
+// Fast path: pure DB aggregation, no AI. The (slow) AI narrative is fetched
+// separately from /api/network-intel/narrative so the page renders instantly.
 export async function GET() {
   const owner = await resolveOwner();
   if (!owner.ok) return owner.response;
 
-  const where = ownerWhere(owner.workspaceId);
-
-  const [rows, connections] = await Promise.all([
-    prisma.contact.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        company: true,
-        location: true,
-        tags: true,
-        title: true,
-        healthTier: true,
-        birthday: true,
-        createdAt: true,
-        _count: { select: { notes: true } },
-      },
-    }),
-    prisma.relationship.count({ where }),
-  ]);
-
-  // computeNetworkStats only reads the selected fields; cast to the shared shape.
-  const contacts = rows as unknown as Contact[];
-  const stats = computeNetworkStats(contacts, connections);
-  const { narrative, model } = await generateNetworkNarrative(stats);
-
-  return NextResponse.json({ stats, narrative, model });
+  const stats = await loadNetworkStats(owner.workspaceId);
+  return NextResponse.json({ stats });
 }

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Markdown } from "@/components/Markdown";
 import type { NetworkStats, Tally } from "@/lib/network-intel";
 
-type Payload = { stats: NetworkStats; narrative: string; model: string };
+type StatsPayload = { stats: NetworkStats };
+type NarrativePayload = { narrative: string; model: string };
 
 const TIER_COLORS: Record<string, string> = {
   Strong: "bg-emerald-500",
@@ -15,9 +16,113 @@ const TIER_COLORS: Record<string, string> = {
   Unknown: "bg-zinc-400",
 };
 
+// Each headline metric links somewhere and carries its own accent so the four
+// cards read as distinct at a glance. Class strings are spelled out (not built
+// dynamically) so Tailwind keeps them through the production purge.
+type StatTheme = {
+  border: string;
+  glow: string;
+  line: string;
+  iconBg: string;
+  value: string;
+};
+
+const STAT_CARDS: {
+  key: "totalContacts" | "connections" | "withNotes" | "withBirthday";
+  label: string;
+  href: string;
+  theme: StatTheme;
+  icon: React.ReactNode;
+}[] = [
+  {
+    key: "totalContacts",
+    label: "Contacts",
+    href: "/contacts",
+    theme: {
+      border: "border-indigo-200/70 hover:border-indigo-400 dark:border-indigo-500/25 dark:hover:border-indigo-400/60",
+      glow: "bg-indigo-500/40 shadow-[0_0_30px_-6px_rgba(99,102,241,0.55)]",
+      line: "from-transparent via-indigo-500 to-transparent",
+      iconBg: "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300",
+      value: "from-indigo-600 to-violet-400",
+    },
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M17 20v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8m14 10v-2a4 4 0 0 0-3-3.87M16 2.13a4 4 0 0 1 0 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    key: "connections",
+    label: "Connections",
+    href: "/network",
+    theme: {
+      border: "border-cyan-200/70 hover:border-cyan-400 dark:border-cyan-500/25 dark:hover:border-cyan-400/60",
+      glow: "bg-cyan-500/40 shadow-[0_0_30px_-6px_rgba(6,182,212,0.55)]",
+      line: "from-transparent via-cyan-500 to-transparent",
+      iconBg: "bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-300",
+      value: "from-cyan-500 to-sky-400",
+    },
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <circle cx="6" cy="6" r="2.5" stroke="currentColor" strokeWidth="2" />
+        <circle cx="18" cy="6" r="2.5" stroke="currentColor" strokeWidth="2" />
+        <circle cx="12" cy="18" r="2.5" stroke="currentColor" strokeWidth="2" />
+        <path d="M7.7 7.7 10.3 16M16.3 7.7 13.7 16M8 6h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    key: "withNotes",
+    label: "With notes",
+    href: "/notes",
+    theme: {
+      border: "border-emerald-200/70 hover:border-emerald-400 dark:border-emerald-500/25 dark:hover:border-emerald-400/60",
+      glow: "bg-emerald-500/40 shadow-[0_0_30px_-6px_rgba(16,185,129,0.55)]",
+      line: "from-transparent via-emerald-500 to-transparent",
+      iconBg: "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300",
+      value: "from-emerald-500 to-teal-400",
+    },
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M4 4h16v12l-4 4H4z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M8 9h8M8 13h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    key: "withBirthday",
+    label: "With birthday",
+    href: "/birthdays",
+    theme: {
+      border: "border-amber-200/70 hover:border-amber-400 dark:border-amber-500/25 dark:hover:border-amber-400/60",
+      glow: "bg-amber-500/40 shadow-[0_0_30px_-6px_rgba(245,158,11,0.55)]",
+      line: "from-transparent via-amber-500 to-transparent",
+      iconBg: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300",
+      value: "from-amber-500 to-orange-400",
+    },
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M4 21h16M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7M4 16c1.5 0 1.5-1.2 3-1.2s1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2 1.5-1.2 3-1.2M12 8V5M12 3.5l.01 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+];
+
+// Bar-fill gradients for the distribution lists — one accent per list.
+const BAR_GRADIENTS = {
+  indigo: "from-indigo-500 to-violet-400",
+  sky: "from-sky-500 to-cyan-400",
+  violet: "from-violet-500 to-fuchsia-400",
+  teal: "from-teal-500 to-emerald-400",
+} as const;
+
 export default function NetworkIntelPage() {
-  const [data, setData] = useState<Payload | null>(null);
+  const [data, setData] = useState<StatsPayload | null>(null);
   const [error, setError] = useState(false);
+  // The AI narrative loads on its own (it's the slow part); the rest of the
+  // page doesn't wait for it.
+  const [narrative, setNarrative] = useState<NarrativePayload | null>(null);
+  const [narrativeError, setNarrativeError] = useState(false);
 
   useEffect(() => {
     fetch("/api/network-intel", { cache: "no-store" })
@@ -27,6 +132,14 @@ export default function NetworkIntelPage() {
       })
       .then(setData)
       .catch(() => setError(true));
+
+    fetch("/api/network-intel/narrative", { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then(setNarrative)
+      .catch(() => setNarrativeError(true));
   }, []);
 
   return (
@@ -58,32 +171,53 @@ export default function NetworkIntelPage() {
         <div className="space-y-5">
           {/* Headline stats */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Contacts" value={data.stats.totalContacts} />
-            <StatCard label="Connections" value={data.stats.connections} />
-            <StatCard label="With notes" value={data.stats.withNotes} />
-            <StatCard label="With birthday" value={data.stats.withBirthday} />
+            {STAT_CARDS.map((card) => (
+              <StatCard
+                key={card.label}
+                label={card.label}
+                value={data.stats[card.key]}
+                href={card.href}
+                theme={card.theme}
+                icon={card.icon}
+              />
+            ))}
           </div>
 
-          {/* AI narrative */}
+          {/* AI narrative — loads independently of the stats above */}
           <section className="rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 p-5">
             <div className="mb-2 flex items-center gap-2">
               <span aria-hidden>✨</span>
               <h2 className="font-semibold">AI read on your network</h2>
-              <span className="rounded-full bg-white/70 dark:bg-zinc-900/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                {data.model === "fallback" || data.model === "none" ? "rule-based" : data.model}
-              </span>
+              {narrative && (
+                <span className="rounded-full bg-white/70 dark:bg-zinc-900/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  {narrative.model === "fallback" || narrative.model === "none"
+                    ? "rule-based"
+                    : narrative.model}
+                </span>
+              )}
             </div>
-            <div className="prose-sm max-w-none text-sm text-zinc-700 dark:text-zinc-200">
-              <Markdown content={data.narrative} />
-            </div>
+            {narrativeError ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Couldn&apos;t generate the AI read right now.
+              </p>
+            ) : !narrative ? (
+              <div className="flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
+                Analyzing your network…
+              </div>
+            ) : (
+              <div className="prose-sm max-w-none text-sm text-zinc-700 dark:text-zinc-200">
+                <Markdown content={narrative.narrative} />
+              </div>
+            )}
           </section>
 
           {/* Distributions */}
           <div className="grid gap-4 md:grid-cols-2">
-            <BarList title="Top companies" items={data.stats.topCompanies} accent="bg-indigo-500" />
-            <BarList title="Top locations" items={data.stats.topLocations} accent="bg-sky-500" />
-            <BarList title="Functional roles" items={data.stats.topRoles} accent="bg-violet-500" />
-            <BarList title="Top tags" items={data.stats.topTags} accent="bg-teal-500" />
+            <BarList title="Top companies" items={data.stats.topCompanies} accent={BAR_GRADIENTS.indigo} searchable />
+            <BarList title="Top locations" items={data.stats.topLocations} accent={BAR_GRADIENTS.sky} searchable />
+            <BarList title="Functional roles" items={data.stats.topRoles} accent={BAR_GRADIENTS.violet} />
+            <BarList title="Top tags" items={data.stats.topTags} accent={BAR_GRADIENTS.teal} searchable />
           </div>
 
           {/* Relationship health */}
@@ -103,38 +237,112 @@ export default function NetworkIntelPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({
+  label,
+  value,
+  href,
+  theme,
+  icon,
+}: {
+  label: string;
+  value: number;
+  href: string;
+  theme: StatTheme;
+  icon: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
-    </div>
+    <Link
+      href={href}
+      className={`group relative flex flex-col gap-2 overflow-hidden rounded-xl border bg-white/80 p-4 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 dark:bg-zinc-900/70 ${theme.border}`}
+    >
+      {/* Neon corner glow — intensifies on hover */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${theme.glow}`}
+      />
+      {/* Top accent line */}
+      <span
+        aria-hidden
+        className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r opacity-70 transition-opacity duration-300 group-hover:opacity-100 ${theme.line}`}
+      />
+      <div className="relative flex items-center justify-between">
+        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${theme.iconBg}`}>
+          {icon}
+        </span>
+        <span className="text-zinc-300 opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100 dark:text-zinc-600">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </div>
+      <p
+        className={`relative bg-gradient-to-br bg-clip-text text-3xl font-bold tabular-nums text-transparent ${theme.value}`}
+      >
+        {value}
+      </p>
+      <p className="relative text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
+    </Link>
   );
 }
 
-function BarList({ title, items, accent }: { title: string; items: Tally[]; accent: string }) {
+function BarList({
+  title,
+  items,
+  accent,
+  searchable = false,
+}: {
+  title: string;
+  items: Tally[];
+  accent: string;
+  searchable?: boolean;
+}) {
   const max = Math.max(1, ...items.map((i) => i.count));
   return (
-    <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
       <h2 className="mb-3 font-semibold">{title}</h2>
       {items.length === 0 ? (
         <p className="text-sm text-zinc-400 dark:text-zinc-500">No data yet.</p>
       ) : (
         <ul className="space-y-2">
-          {items.map((it) => (
-            <li key={it.label}>
-              <div className="mb-0.5 flex items-center justify-between text-xs">
-                <span className="truncate text-zinc-700 dark:text-zinc-200">{it.label}</span>
-                <span className="tabular-nums text-zinc-400">{it.count}</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                <div
-                  className={`h-full rounded-full ${accent}`}
-                  style={{ width: `${(it.count / max) * 100}%` }}
-                />
-              </div>
-            </li>
-          ))}
+          {items.map((it) => {
+            const row = (
+              <>
+                <div className="mb-0.5 flex items-center justify-between text-xs">
+                  <span
+                    className={`truncate text-zinc-700 dark:text-zinc-200 ${
+                      searchable ? "group-hover/bar:text-indigo-600 dark:group-hover/bar:text-indigo-300" : ""
+                    }`}
+                  >
+                    {it.label}
+                  </span>
+                  <span className="tabular-nums text-zinc-400">{it.count}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${accent} transition-all duration-300 ${
+                      searchable ? "group-hover/bar:brightness-110" : ""
+                    }`}
+                    style={{ width: `${(it.count / max) * 100}%` }}
+                  />
+                </div>
+              </>
+            );
+            return (
+              <li key={it.label}>
+                {searchable ? (
+                  <Link
+                    href={`/contacts?q=${encodeURIComponent(it.label)}`}
+                    className="group/bar block rounded-md px-1 py-0.5 -mx-1 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                    title={`View contacts matching “${it.label}”`}
+                  >
+                    {row}
+                  </Link>
+                ) : (
+                  row
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
