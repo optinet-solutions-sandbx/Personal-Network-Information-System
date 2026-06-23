@@ -13,6 +13,7 @@ export default function ImportExportPage() {
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onFile(file: File | null) {
@@ -31,6 +32,7 @@ export default function ImportExportPage() {
       }
       setFileName(file.name);
       setParsed(contacts);
+      setShowAll(false);
     } catch {
       await Swal.fire({ icon: "error", title: "Couldn't read that file", text: "Try a .csv or .vcf file." });
     }
@@ -115,15 +117,25 @@ export default function ImportExportPage() {
               {parsed.length === 1 ? "" : "s"} found in{" "}
               <span className="font-medium">{fileName}</span>.
             </p>
-            <ul className="mt-2 max-h-40 overflow-y-auto text-xs text-zinc-600 dark:text-zinc-300">
-              {parsed.slice(0, 8).map((c, i) => (
+            <ul className={`mt-2 ${showAll ? "max-h-72" : "max-h-40"} overflow-y-auto text-xs text-zinc-600 dark:text-zinc-300`}>
+              {(showAll ? parsed : parsed.slice(0, 8)).map((c, i) => (
                 <li key={i} className="truncate">
                   • {c.name}
                   {c.email ? ` — ${c.email}` : ""}
                   {c.company ? ` · ${c.company}` : ""}
                 </li>
               ))}
-              {parsed.length > 8 && <li className="text-zinc-400">…and {parsed.length - 8} more</li>}
+              {parsed.length > 8 && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setShowAll((v) => !v)}
+                    className="mt-1 font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    {showAll ? "Show less" : `…and ${parsed.length - 8} more`}
+                  </button>
+                </li>
+              )}
             </ul>
             <div className="mt-3 flex gap-2">
               <button
