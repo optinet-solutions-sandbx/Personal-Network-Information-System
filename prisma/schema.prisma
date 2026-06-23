@@ -164,6 +164,20 @@ model User {
   id        String   @id // = Supabase auth.users UUID
   email     String   @unique
   name      String?
+
+  // Self-profile — how the account holder presents themselves in their own
+  // network ("who I am"), distinct from the Contacts they track ("who I know").
+  // All optional; surfaced on the /profile page and powers a richer header/AI
+  // context. `avatar` is a downscaled JPEG data URL (see lib/image.ts), kept on
+  // the row like Contact photos rather than in object storage.
+  title    String? // role / what they do
+  company  String?
+  location String?
+  bio      String? // freeform "about me" description
+  website  String? // personal site / primary link
+  phone    String?
+  avatar   String? // profile picture as a data URL
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

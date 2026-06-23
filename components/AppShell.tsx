@@ -52,6 +52,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
 function UserMenu() {
   const [email, setEmail] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -66,6 +68,16 @@ function UserMenu() {
           if (active) setEmail(data.user?.email ?? null);
         });
     });
+    // Pull the self-profile for the avatar + display name shown in the header.
+    fetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { profile: { avatar: string | null; name: string | null } | null } | null) => {
+        if (active && data?.profile) {
+          setAvatar(data.profile.avatar);
+          setName(data.profile.name);
+        }
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -88,7 +100,7 @@ function UserMenu() {
 
   if (!email) return null;
 
-  const initial = email[0]?.toUpperCase() ?? "?";
+  const initial = (name?.trim()?.[0] ?? email[0])?.toUpperCase() ?? "?";
 
   return (
     <div ref={ref} className="relative">
@@ -99,11 +111,16 @@ function UserMenu() {
         aria-label="Account menu"
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white transition-shadow hover:bg-indigo-700 ${
+        className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-indigo-600 text-sm font-semibold text-white transition-shadow hover:bg-indigo-700 ${
           open ? "ring-2 ring-indigo-400/60 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900" : ""
         }`}
       >
-        {initial}
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatar} alt="" className="h-full w-full object-cover" />
+        ) : (
+          initial
+        )}
       </button>
 
       {open && (
@@ -119,6 +136,15 @@ function UserMenu() {
               {email}
             </p>
           </div>
+          <Link
+            href="/profile"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            <UserIcon />
+            Your profile
+          </Link>
           <Link
             href="/account"
             role="menuitem"
@@ -141,6 +167,15 @@ function UserMenu() {
         </div>
       )}
     </div>
+  );
+}
+
+function UserIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-zinc-400 dark:text-zinc-500">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
   );
 }
 
