@@ -407,7 +407,7 @@ function StatCard({
   label: string;
   value: number;
   href: string;
-  icon: JSX.Element;
+  icon: React.ReactNode;
   labelCls: string;
   accentBar: string;
   borderCls: string;
