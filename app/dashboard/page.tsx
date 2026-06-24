@@ -8,6 +8,7 @@ import InsightsFeed from "@/components/InsightsFeed"
 import SuggestedIntroductions from "@/components/SuggestedIntroductions";
 import SentMessages from "@/components/SentMessages";
 import MeetingsWidget from "@/components/MeetingsWidget";
+import NewConnections from "@/components/NewConnections";
 
 const AVATAR_COLORS = [
   "bg-indigo-500",
@@ -131,6 +132,11 @@ export default function DashboardPage() {
 
       <div className="mb-6">
         <InsightsFeed />
+      </div>
+
+      {/* New connections — renders nothing when there are none to greet. */}
+      <div className="mb-6 empty:mb-0">
+        <NewConnections />
       </div>
 
       <div className="mb-6">

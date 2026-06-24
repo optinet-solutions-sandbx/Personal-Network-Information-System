@@ -5,11 +5,16 @@ import { resolveOwner, ownerWhere } from "@/lib/auth"
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const owner = await resolveOwner()
   if (!owner.ok) return owner.response
 
   const { id } = await params
+
+  // Optional body { kind: "hello" | "follow-up" }. Older callers send no body,
+  // so a missing/invalid body falls back to the standard follow-up tone.
+  const body = (await req.json().catch(() => null)) as { kind?: unknown } | null
+  const kind = body?.kind === "hello" ? "hello" : "follow-up"
 
   const contact = await prisma.contact.findFirst({
     where: { id, ...ownerWhere(owner.workspaceId) },
@@ -45,7 +50,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
         content: n.content,
         createdAt: n.createdAt,
       })),
-    })
+    }, kind)
     return NextResponse.json({ draft })
   } catch (err) {
     console.error("Follow-up draft route failed:", err)

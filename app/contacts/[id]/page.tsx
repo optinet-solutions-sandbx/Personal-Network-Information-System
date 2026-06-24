@@ -24,6 +24,7 @@ import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
 import GiftSuggestions from "./GiftSuggestions";
 import { MeetingBriefingModal } from "@/components/MeetingBriefingModal";
+import { NewConnectionBanner } from "@/components/NewConnectionBanner";
 import AudioPlayer from "@/components/AudioPlayer";
 
 export default function ContactDetailPage({
@@ -143,6 +144,12 @@ export default function ContactDetailPage({
         <Link href="/contacts" className="text-sm text-indigo-600 dark:text-indigo-400">
           ← Back to contacts
         </Link>
+        <NewConnectionBanner
+          contactId={contact.id}
+          contactName={contact.name}
+          contactEmail={contact.email}
+          createdAt={contact.createdAt}
+        />
         <DetailsCard contact={contact} onSaved={load} onDelete={handleDelete} />
         {contact.healthScore != null &&
           contact.healthTier != null &&

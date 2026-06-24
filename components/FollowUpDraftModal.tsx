@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
 const AVATAR_COLORS = [
   "bg-indigo-500", "bg-emerald-500", "bg-amber-500", "bg-red-400",
@@ -15,12 +16,23 @@ function initials(name: string) {
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
+// Label a stored message: time for today, otherwise a short date.
+function msgTime(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" })
+}
 
 export function FollowUpDraftModal({
   contactId,
   contactName,
   contactEmail,
+  kind = "follow-up",
   onClose,
+  onSent,
   onPrev,
   onNext,
   current,
@@ -29,7 +41,13 @@ export function FollowUpDraftModal({
   contactId: string
   contactName: string
   contactEmail?: string | null
+  // "hello" generates a first-greeting tone for a brand-new connection;
+  // "follow-up" (default) is the standard stay-in-touch message.
+  kind?: "hello" | "follow-up"
   onClose: () => void
+  // Fired once a message has been posted to the server, so callers (e.g. the
+  // New connections widget) can refresh and drop the greeted connection.
+  onSent?: () => void
   onPrev?: () => void
   onNext?: () => void
   current?: number
@@ -56,12 +74,25 @@ export function FollowUpDraftModal({
   })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  // Render through a portal to <body> so the window's `position: fixed` anchors
+  // to the viewport, not to a transformed/backdrop-blurred ancestor (which would
+  // make it float mid-page and scroll with content). Mount-gated for SSR safety.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  // Messenger-style minimize: collapse the window to a floating avatar "chat
+  // head" at the bottom-right; clicking it restores the conversation. State
+  // (draft, sent bubbles) is preserved since the component stays mounted.
+  const [minimized, setMinimized] = useState(false)
 
   function loadDraft(id: string) {
     setLoading(true)
     setError(false)
     setDraft("")
-    fetch(`/api/contacts/${id}/follow-up-draft`, { method: "POST" })
+    fetch(`/api/contacts/${id}/follow-up-draft`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind }),
+    })
       .then((r) => r.json())
       .then((data) => {
         if (typeof data.draft === "string") {
@@ -76,12 +107,28 @@ export function FollowUpDraftModal({
   }
 
   useEffect(() => {
+    // Seed instantly from the local cache so reopening feels snappy…
     try {
       const saved = localStorage.getItem(`followup-sent-${contactId}`)
       setSentMessages(saved ? JSON.parse(saved) : [])
     } catch {
       setSentMessages([])
     }
+    // …then reconcile with the server's canonical history (works across
+    // devices/reloads, even if the local cache is empty). Server returns newest
+    // first; the chat reads oldest→newest, so reverse it.
+    fetch(`/api/contacts/${contactId}/sent-messages`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: Array<{ body: string; sentAt: string }> | null) => {
+        if (!Array.isArray(data) || data.length === 0) return
+        const history = data
+          .slice()
+          .reverse()
+          .map((m) => ({ text: m.body, time: msgTime(m.sentAt) }))
+        setSentMessages(history)
+        try { localStorage.setItem(`followup-sent-${contactId}`, JSON.stringify(history)) } catch {}
+      })
+      .catch(() => {})
     loadDraft(contactId)
   }, [contactId])
 
@@ -135,7 +182,11 @@ export function FollowUpDraftModal({
   function rewriteDraft() {
     setRegenerating(true)
     setError(false)
-    fetch(`/api/contacts/${contactId}/follow-up-draft`, { method: "POST" })
+    fetch(`/api/contacts/${contactId}/follow-up-draft`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind }),
+    })
       .then((r) => r.json())
       .then((data) => {
         if (typeof data.draft === "string") {
@@ -151,18 +202,25 @@ export function FollowUpDraftModal({
 
   function send() {
     if (!draft.trim()) return
-    const method: "email" | "manual" = contactEmail ? "email" : "manual"
+    // The server only accepts "email" | "clipboard"; use "clipboard" when there's
+    // no email so the message actually persists (a previous "manual" value was
+    // rejected and never saved).
+    const method: "email" | "clipboard" = contactEmail ? "email" : "clipboard"
     setSentMessages((prev) => {
       const updated = [...prev, { text: draft, time: draftTime || nowTime() }]
       try { localStorage.setItem(`followup-sent-${contactId}`, JSON.stringify(updated)) } catch {}
       return updated
     })
+    // Clear the composer now that the message moved into a sent bubble.
+    setDraft("")
+    setDraftTime("")
     setSending(true)
     fetch("/api/sent-messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contactId, body: draft, method }),
     })
+      .then((r) => { if (r.ok) onSent?.() })
       .catch(() => {})
       .finally(() => {
         setSending(false)
@@ -176,7 +234,26 @@ export function FollowUpDraftModal({
     }
   }
 
-  return (
+  if (!mounted) return null
+
+  // Collapsed "chat head": a floating avatar pinned to the bottom-right. Click
+  // to reopen the conversation.
+  if (minimized) {
+    return createPortal(
+      <button
+        onClick={() => setMinimized(false)}
+        className={`group fixed bottom-4 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full text-base font-bold text-white shadow-2xl ring-2 ring-white/20 transition-transform hover:scale-105 ${avatarColor(contactName)}`}
+        aria-label={`Open chat with ${contactName}`}
+        title={`Chat with ${contactName}`}
+      >
+        {initials(contactName)}
+        <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-green-500 ring-2 ring-[#18191a]" />
+      </button>,
+      document.body
+    )
+  }
+
+  return createPortal(
     <div
       className="fixed bottom-4 right-4 z-50 flex w-[340px] flex-col overflow-hidden rounded-t-2xl rounded-b-xl bg-[#1c1e21] shadow-2xl ring-1 ring-black/30"
       style={{ height: "520px" }}
@@ -252,6 +329,16 @@ export function FollowUpDraftModal({
             <p className="text-xs text-green-400">Active now</p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-0.5">
+            <button
+              onClick={() => setMinimized(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#6366f1] transition-colors hover:bg-[#3a3b3c]"
+              aria-label="Minimize"
+              title="Minimize"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M5 12h14" />
+              </svg>
+            </button>
             <button
               onClick={onClose}
               className="flex h-8 w-8 items-center justify-center rounded-full text-[#6366f1] transition-colors hover:bg-[#3a3b3c]"
@@ -382,6 +469,7 @@ export function FollowUpDraftModal({
           </div>
           </div>
         )}
-    </div>
+    </div>,
+    document.body
   )
 }

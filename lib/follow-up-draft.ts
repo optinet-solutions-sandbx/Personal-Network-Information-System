@@ -1,6 +1,10 @@
 import OpenAI from "openai"
 import type { BriefingInput } from "./briefing"
 
+// The two tones this generator can produce. "follow-up" re-engages an existing
+// relationship; "hello" is a first greeting to a brand-new connection.
+export type DraftKind = "follow-up" | "hello"
+
 const SYSTEM_PROMPT = `You are a relationship-intelligence assistant helping someone stay in touch with their network.
 Given contact details and recent notes, write a short, warm, personalized outreach message the user can send.
 
@@ -9,6 +13,17 @@ Guidelines:
 - Warm but not sycophantic
 - Reference something specific from the notes or profile to show it's personal
 - End with a natural open question or call to action
+- Plain text only — no markdown, no subject line, no signature
+- Write in first person as the user sending the message`
+
+const HELLO_SYSTEM_PROMPT = `You are a relationship-intelligence assistant helping someone greet a brand-new connection they just added to their network.
+Given contact details and any notes, write a short, warm first-hello message the user can send right after connecting.
+
+Guidelines:
+- 1–3 sentences maximum
+- Warm and genuine — this is a first message, not a catch-up
+- Convey that it's great to connect and that they look forward to staying in touch
+- If there's a specific, natural detail (how they met, shared company/context), reference it lightly; otherwise keep it simple and don't invent anything
 - Plain text only — no markdown, no subject line, no signature
 - Write in first person as the user sending the message`
 
@@ -55,9 +70,20 @@ function buildFallback(input: BriefingInput): string {
   return `Hey ${input.name}, it's been a while and I wanted to reach out${atCompany ? ` — hope everything is going well there` : ""}. How have you been?`
 }
 
-export async function generateFollowUpDraft(input: BriefingInput): Promise<string> {
+function buildHelloFallback(input: BriefingInput): string {
+  const atCompany = input.company ? ` (at ${input.company})` : ""
+  return `Hi ${input.name}${atCompany}, it's great to connect! Looking forward to staying in touch.`
+}
+
+export async function generateFollowUpDraft(
+  input: BriefingInput,
+  kind: DraftKind = "follow-up"
+): Promise<string> {
+  const system = kind === "hello" ? HELLO_SYSTEM_PROMPT : SYSTEM_PROMPT
+  const fallback = kind === "hello" ? buildHelloFallback(input) : buildFallback(input)
+
   const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return buildFallback(input)
+  if (!apiKey) return fallback
 
   try {
     const client = new OpenAI({ apiKey })
@@ -66,14 +92,14 @@ export async function generateFollowUpDraft(input: BriefingInput): Promise<strin
       model,
       temperature: 0.7,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: system },
         { role: "user", content: buildUserMessage(input) },
       ],
     })
     const text = completion.choices[0]?.message?.content?.trim()
-    return text || buildFallback(input)
+    return text || fallback
   } catch (err) {
     console.error("OpenAI follow-up draft failed, using fallback:", err)
-    return buildFallback(input)
+    return fallback
   }
 }

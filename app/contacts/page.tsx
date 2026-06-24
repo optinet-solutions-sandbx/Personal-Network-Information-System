@@ -10,6 +10,8 @@ import { computeUpcomingBirthdays, formatBirthday } from "@/lib/birthdays";
 import { fileToDataUrl, MAX_IMAGE_DIM, MAX_NOTE_IMAGES } from "@/lib/image";
 import { resolveSocial, phoneLinks, findSocial } from "@/lib/socials";
 import { uploadVoiceRecording } from "@/lib/voice";
+import { isNewConnection } from "@/lib/new-connections";
+import { SayHelloButton } from "@/components/SayHelloButton";
 import AudioPlayer from "@/components/AudioPlayer";
 
 const TIER_DOT: Record<string, string> = {
@@ -415,32 +417,43 @@ function ContactRow({
       </td>
 
       <td className="px-4 py-3">
-        <Link href={`/contacts/${c.id}`} className="group flex items-center gap-3">
-          <span
-            className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm ring-1 ring-black/5 transition-all group-hover/row:ring-2 group-hover/row:ring-indigo-400/60 group-hover/row:shadow-[0_0_16px_-2px_rgba(99,102,241,0.75)] dark:ring-white/10 ${avatarColor(
-              c.name ?? ""
-            )}`}
-          >
-            {initial}
-          </span>
-          <span className="min-w-0">
-            <span className="flex items-center gap-1.5">
-              <span className="truncate font-medium text-zinc-900 group-hover:text-indigo-700 group-hover:underline dark:text-zinc-100 dark:group-hover:text-indigo-300">
-                {c.name}
+        <div className="flex items-center gap-2">
+          <Link href={`/contacts/${c.id}`} className="group flex min-w-0 items-center gap-3">
+            <span
+              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm ring-1 ring-black/5 transition-all group-hover/row:ring-2 group-hover/row:ring-indigo-400/60 group-hover/row:shadow-[0_0_16px_-2px_rgba(99,102,241,0.75)] dark:ring-white/10 ${avatarColor(
+                c.name ?? ""
+              )}`}
+            >
+              {initial}
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5">
+                <span className="truncate font-medium text-zinc-900 group-hover:text-indigo-700 group-hover:underline dark:text-zinc-100 dark:group-hover:text-indigo-300">
+                  {c.name}
+                </span>
+                {c.profile && (
+                  <span className="flex-shrink-0 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+                    AI
+                  </span>
+                )}
               </span>
-              {c.profile && (
-                <span className="flex-shrink-0 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
-                  AI
+              {c.title && (
+                <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
+                  {c.title}
                 </span>
               )}
             </span>
-            {c.title && (
-              <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
-                {c.title}
-              </span>
-            )}
-          </span>
-        </Link>
+          </Link>
+          {isNewConnection(c.createdAt) && (
+            <SayHelloButton
+              contactId={c.id}
+              contactName={c.name}
+              contactEmail={c.email}
+              label="Say hello"
+              className="flex-shrink-0 rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-medium text-white opacity-0 transition-opacity hover:bg-indigo-700 group-hover/row:opacity-100 focus-visible:opacity-100"
+            />
+          )}
+        </div>
       </td>
 
       <Cell>

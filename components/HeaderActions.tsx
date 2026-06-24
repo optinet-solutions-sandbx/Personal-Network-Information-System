@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Contact } from "@/lib/types";
+import type { Conversation } from "@/app/api/conversations/route";
 import { computeUpcomingBirthdays } from "@/lib/birthdays";
 import { FollowUpDraftModal } from "@/components/FollowUpDraftModal";
 
@@ -76,8 +77,10 @@ type Suggestion = {
 // changes required.
 export default function HeaderActions() {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [open, setOpen] = useState<"messages" | "bell" | null>(null);
-  const [modalIndex, setModalIndex] = useState<number | null>(null);
+  // The contact whose chat window is currently open (Messenger-style).
+  const [chatContact, setChatContact] = useState<{ id: string; name: string; email: string | null } | null>(null);
   const [toasts, setToasts] = useState<Notification[]>([]);
   const [readKeys, setReadKeys] = useState<Set<string>>(() => {
     try {
@@ -93,6 +96,15 @@ export default function HeaderActions() {
       .then((data: Contact[]) => Array.isArray(data) && setContacts(data))
       .catch(() => {});
   }, []);
+
+  const loadConversations = useCallback(() => {
+    fetch("/api/conversations")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Conversation[]) => Array.isArray(data) && setConversations(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { loadConversations(); }, [loadConversations]);
 
   // Close any open panel on outside click or Escape.
   useEffect(() => {
@@ -113,7 +125,7 @@ export default function HeaderActions() {
     };
   }, [open]);
 
-  const { notifications, suggestions } = useMemo(() => {
+  const { notifications } = useMemo(() => {
     const birthdays = computeUpcomingBirthdays(contacts, 30);
 
     const now = new Date();
@@ -305,15 +317,16 @@ export default function HeaderActions() {
           onClick={() => setOpen(open === "messages" ? null : "messages")}
         >
           <MessageIcon />
-          {suggestions.length > 0 && (
+          {conversations.length > 0 && (
             <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-500 ring-2 ring-white" />
           )}
         </IconButton>
         {open === "messages" && (
           <MessengerPanel
-            suggestions={suggestions}
+            conversations={conversations}
+            contacts={contacts}
             onClose={() => setOpen(null)}
-            onMessage={(i) => { setOpen(null); setModalIndex(i); }}
+            onOpenChat={(c) => { setOpen(null); setChatContact(c); }}
           />
         )}
       </div>
@@ -374,16 +387,13 @@ export default function HeaderActions() {
           </Panel>
         )}
       </div>
-      {modalIndex !== null && suggestions[modalIndex] && (
+      {chatContact && (
         <FollowUpDraftModal
-          contactId={suggestions[modalIndex].contact.id}
-          contactName={suggestions[modalIndex].contact.name}
-          contactEmail={suggestions[modalIndex].contact.email}
-          onClose={() => setModalIndex(null)}
-          current={modalIndex + 1}
-          total={suggestions.length}
-          onPrev={modalIndex > 0 ? () => setModalIndex(modalIndex - 1) : undefined}
-          onNext={modalIndex < suggestions.length - 1 ? () => setModalIndex(modalIndex + 1) : undefined}
+          contactId={chatContact.id}
+          contactName={chatContact.name}
+          contactEmail={chatContact.email}
+          onClose={() => { setChatContact(null); loadConversations(); }}
+          onSent={loadConversations}
         />
       )}
     </div>
@@ -435,53 +445,66 @@ export default function HeaderActions() {
   );
 }
 
-function MessageRow({
-  suggestion: s,
-  onMessage,
+// One row in the Chats list — used for both existing conversations and contact
+// search results. `subtitle` is the message preview or the contact's role.
+function ChatRow({
+  name,
+  subtitle,
+  meta,
+  onClick,
 }: {
-  suggestion: Suggestion;
-  onMessage: () => void;
+  name: string;
+  subtitle: string;
+  meta?: string;
+  onClick: () => void;
 }) {
   return (
     <li
-      onClick={onMessage}
+      onClick={onClick}
       className="mx-1 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-zinc-700/50"
     >
       <span
         className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-base font-bold text-white ${avatarColor(
-          s.contact.name ?? ""
+          name ?? ""
         )}`}
       >
-        {(s.contact.name?.[0] ?? "?").toUpperCase()}
+        {(name?.[0] ?? "?").toUpperCase()}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-zinc-100">
-          {s.contact.name}
+          {name}
         </span>
-        <span className="block truncate text-xs text-zinc-400">{s.reason}</span>
+        <span className="block truncate text-xs text-zinc-400">{subtitle}</span>
       </span>
-      <span className="h-3 w-3 flex-shrink-0 rounded-full bg-[#1877F2]" />
+      {meta && <span className="flex-shrink-0 text-[11px] text-zinc-500">{meta}</span>}
     </li>
   );
 }
 
+// Messenger-style "Chats" panel: lists conversations you've had (newest first),
+// each reopening that contact's chat window. Searching switches to contact
+// look-up so you can start a brand-new conversation with anyone.
 function MessengerPanel({
-  suggestions,
+  conversations,
+  contacts,
   onClose,
-  onMessage,
+  onOpenChat,
 }: {
-  suggestions: Suggestion[];
+  conversations: Conversation[];
+  contacts: Contact[];
   onClose: () => void;
-  onMessage: (index: number) => void;
+  onOpenChat: (c: { id: string; name: string; email: string | null }) => void;
 }) {
   const [search, setSearch] = useState("");
-  const filtered = suggestions.filter((s) =>
-    s.contact.name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const q = search.trim().toLowerCase();
+  const searchResults = q
+    ? contacts.filter((c) => c.name?.toLowerCase().includes(q)).slice(0, 20)
+    : [];
+
   return (
     <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl bg-[#242526] shadow-2xl ring-1 ring-black/30">
       <div className="flex items-center justify-between px-4 pb-2 pt-4">
-        <span className="text-xl font-bold text-zinc-100">Keep in touch</span>
+        <span className="text-xl font-bold text-zinc-100">Chats</span>
         <button
           type="button"
           onClick={onClose}
@@ -500,28 +523,49 @@ function MessengerPanel({
           </svg>
           <input
             type="text"
-            placeholder="Search"
+            placeholder="Search a contact to message"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-400 outline-none"
           />
         </div>
       </div>
-      {filtered.length === 0 ? (
-        <div className="px-4 py-6 text-center text-sm text-zinc-500">
-          {search ? "No contacts found." : "No outreach suggestions right now."}
-        </div>
-      ) : (
-        <ul className="pb-1">
-          {filtered.map((s) => (
-            <MessageRow
-              key={s.contact.id}
-              suggestion={s}
-              onMessage={() => onMessage(suggestions.indexOf(s))}
-            />
-          ))}
-        </ul>
-      )}
+
+      <div className="max-h-96 overflow-y-auto pb-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-0.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-500">
+        {q ? (
+          searchResults.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-zinc-500">No contacts found.</div>
+          ) : (
+            <ul>
+              {searchResults.map((c) => (
+                <ChatRow
+                  key={c.id}
+                  name={c.name}
+                  subtitle={[c.title, c.company].filter(Boolean).join(" · ") || "Start a conversation"}
+                  onClick={() => onOpenChat({ id: c.id, name: c.name, email: c.email })}
+                />
+              ))}
+            </ul>
+          )
+        ) : conversations.length === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-zinc-500">
+            No conversations yet. Search a contact to start chatting.
+          </div>
+        ) : (
+          <ul>
+            {conversations.map((conv) => (
+              <ChatRow
+                key={conv.contactId}
+                name={conv.contact.name}
+                subtitle={`You: ${conv.lastBody}`}
+                meta={relativeTime(conv.lastSentAt)}
+                onClick={() => onOpenChat(conv.contact)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="border-t border-zinc-700/60 px-4 py-2.5 text-center">
         <Link href="/contacts" className="text-sm font-medium text-[#1877F2] hover:underline">
           See all contacts
@@ -593,6 +637,18 @@ function EmptyState({ text }: { text: string }) {
 
 function firstName(name: string | null): string {
   return (name ?? "").trim().split(/\s+/)[0] || "there";
+}
+
+// Compact "time ago" for the chat list (e.g. "1m", "3h", "2d").
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diff)) return "";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
 }
 
 function MessageIcon() {
