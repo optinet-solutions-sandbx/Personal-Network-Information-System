@@ -5,9 +5,10 @@
 //                      contact, so you can review them before you walk in.
 //   • Follow-ups     — recently-ended meetings with a known contact that you
 //                      haven't dismissed, so a relationship touch doesn't slip.
-//
-// A meeting with no matched contact is dropped: this app is about your network,
-// and surfacing every personal/calendar-block event would just be noise.
+//   • Other events   — upcoming calendar events with no matched contact (personal
+//                      blocks, solo recurring events). Kept in a separate list so
+//                      the network prep stays focused, but the user can still trust
+//                      that their whole calendar synced.
 //
 // All logic here is PURE (no DB / no clock except the injected `now`) so it's
 // unit-testable; the API route does the Prisma reads and passes data in.
@@ -48,8 +49,9 @@ export type MeetingView = {
 };
 
 export type MeetingLists = {
-  upcoming: MeetingView[]; // soonest first
+  upcoming: MeetingView[]; // soonest first, at least one known contact
   followUps: MeetingView[]; // most recently ended first
+  otherUpcoming: MeetingView[]; // soonest first, no known contact (personal/solo events)
 };
 
 const UNTITLED = "(no title)";
@@ -74,6 +76,7 @@ export function buildMeetings(
 
   const upcoming: MeetingView[] = [];
   const followUps: MeetingView[] = [];
+  const otherUpcoming: MeetingView[] = [];
 
   for (const e of events) {
     // Match organizer + attendees against known contacts (dedup by contact id).
@@ -85,7 +88,6 @@ export function buildMeetings(
       if (c) matched.set(c.id, { id: c.id, name: c.name });
       else if (!unknown.includes(email)) unknown.push(email);
     }
-    if (matched.size === 0) continue; // no one we know → skip
 
     const view: MeetingView = {
       id: e.id,
@@ -100,7 +102,17 @@ export function buildMeetings(
       followUpDone: e.followUpDone,
     };
 
-    if (endOf(e) >= now) {
+    const isUpcoming = endOf(e) >= now;
+
+    if (matched.size === 0) {
+      // No one we know. Still surface UPCOMING events (personal blocks, solo
+      // recurring meetings) in a separate list so the user sees their whole
+      // calendar. Past events with no contact are pure noise → drop them.
+      if (isUpcoming) otherUpcoming.push(view);
+      continue;
+    }
+
+    if (isUpcoming) {
       // Upcoming or in progress.
       upcoming.push(view);
     } else if (!e.followUpDone) {
@@ -110,8 +122,9 @@ export function buildMeetings(
   }
 
   upcoming.sort((a, b) => a.startsAt.localeCompare(b.startsAt)); // soonest first
+  otherUpcoming.sort((a, b) => a.startsAt.localeCompare(b.startsAt)); // soonest first
   // Most recently ended first (compare on end, falling back to start).
   followUps.sort((a, b) => (b.endsAt ?? b.startsAt).localeCompare(a.endsAt ?? a.startsAt));
 
-  return { upcoming, followUps };
+  return { upcoming, followUps, otherUpcoming };
 }

@@ -46,10 +46,45 @@ describe("buildMeetings", () => {
     expect(upcoming[0].matchedContacts.map((c) => c.id)).toEqual(["c1"]);
   });
 
-  it("drops meetings with no known contact", () => {
+  it("keeps an upcoming meeting with no known contact out of prep, in otherUpcoming", () => {
     const lists = buildMeetings([evt({ id: "e1", attendees: ["stranger@z.com"] })], contacts, NOW);
     expect(lists.upcoming).toHaveLength(0);
     expect(lists.followUps).toHaveLength(0);
+    expect(lists.otherUpcoming.map((m) => m.id)).toEqual(["e1"]);
+    expect(lists.otherUpcoming[0].unknownAttendees).toEqual(["stranger@z.com"]);
+  });
+
+  it("surfaces a solo upcoming event (no attendees) in otherUpcoming", () => {
+    // A personal/recurring block: organizer is the user (not a contact), no attendees.
+    const lists = buildMeetings(
+      [evt({ id: "solo", title: "AI Engineer Fun Connect", organizer: "me@self.com", attendees: [] })],
+      contacts,
+      NOW
+    );
+    expect(lists.upcoming).toHaveLength(0);
+    expect(lists.otherUpcoming.map((m) => m.id)).toEqual(["solo"]);
+  });
+
+  it("drops PAST meetings with no known contact (noise)", () => {
+    const past = evt({
+      id: "past-unknown",
+      attendees: ["stranger@z.com"],
+      startsAt: new Date("2026-06-30T10:00:00Z"),
+      endsAt: new Date("2026-06-30T11:00:00Z"),
+    });
+    const lists = buildMeetings([past], contacts, NOW);
+    expect(lists.upcoming).toHaveLength(0);
+    expect(lists.followUps).toHaveLength(0);
+    expect(lists.otherUpcoming).toHaveLength(0);
+  });
+
+  it("sorts otherUpcoming soonest-first", () => {
+    const events = [
+      evt({ id: "o-later", attendees: ["x@z.com"], startsAt: new Date("2026-07-05T10:00:00Z"), endsAt: new Date("2026-07-05T11:00:00Z") }),
+      evt({ id: "o-sooner", attendees: ["x@z.com"], startsAt: new Date("2026-07-02T10:00:00Z"), endsAt: new Date("2026-07-02T11:00:00Z") }),
+    ];
+    const lists = buildMeetings(events, contacts, NOW);
+    expect(lists.otherUpcoming.map((m) => m.id)).toEqual(["o-sooner", "o-later"]);
   });
 
   it("splits upcoming vs ended into prep vs follow-ups", () => {

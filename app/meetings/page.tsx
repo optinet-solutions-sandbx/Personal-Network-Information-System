@@ -20,6 +20,7 @@ type ApiResponse = {
   calendarConnected: boolean;
   upcoming: Meeting[];
   followUps: Meeting[];
+  otherUpcoming: Meeting[];
 };
 
 const PROVIDER_LABEL: Record<string, string> = { google: "Google Calendar", outlook: "Outlook" };
@@ -98,14 +99,15 @@ export default function MeetingsPage() {
 
   const upcoming = data?.upcoming ?? [];
   const followUps = data?.followUps ?? [];
+  const otherUpcoming = data?.otherUpcoming ?? [];
 
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Meetings</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Upcoming meetings with people in your network, and follow-ups after recent ones. Synced
-          from your connected calendar.
+          Meeting prep for people in your network, follow-ups after recent ones, and the rest of
+          your upcoming calendar. Synced from your connected calendar.
         </p>
       </div>
 
@@ -136,7 +138,7 @@ export default function MeetingsPage() {
         )}
       </section>
 
-      <section>
+      <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
           ✅ Follow up after recent meetings
         </h2>
@@ -157,6 +159,23 @@ export default function MeetingsPage() {
           </ul>
         )}
       </section>
+
+      {otherUpcoming.length > 0 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
+            📅 Other events from your calendar
+          </h2>
+          <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
+            Upcoming events with no one from your network yet. Add an attendee as a contact and
+            they’ll move up to meeting prep.
+          </p>
+          <ul className="space-y-3">
+            {otherUpcoming.map((m) => (
+              <MeetingCard key={m.id} meeting={m} />
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

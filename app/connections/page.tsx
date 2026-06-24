@@ -135,12 +135,26 @@ export default function ConnectionsPage() {
         await Swal.fire({ icon: "error", title: "Sync failed", text: body?.error ?? "Please try again." });
         return;
       }
+      // Contacts line: always shown. Calendar line: only for calendar-capable
+      // providers (Google/Outlook), where the API includes an `events` summary —
+      // so the user can see their calendar synced, not just their contacts.
+      const contactsLine = `Contacts: <b>${body.created}</b> new · <b>${body.updated}</b> updated · <b>${body.duplicates}</b> skipped${
+        body.invalid ? ` · <b>${body.invalid}</b> unusable` : ""
+      }`;
+      const ev = body.events as
+        | { received: number; created: number; updated: number; pruned: number }
+        | undefined;
+      const calendarLine = ev
+        ? ev.received > 0
+          ? `📅 Calendar: <b>${ev.received}</b> ${ev.received === 1 ? "event" : "events"} synced`
+          : `📅 Calendar: no upcoming events found`
+        : null;
       await Swal.fire({
         icon: "success",
         title: "Sync complete",
-        html: `Imported <b>${body.created}</b> new · updated <b>${body.updated}</b> · skipped <b>${body.duplicates}</b> existing${
-          body.invalid ? ` · <b>${body.invalid}</b> unusable` : ""
-        }.`,
+        html: calendarLine
+          ? `<div>${contactsLine}</div><div style="margin-top:6px">${calendarLine}</div>`
+          : `${contactsLine}.`,
       });
       await load();
     } finally {
