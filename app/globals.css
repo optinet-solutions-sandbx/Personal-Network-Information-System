@@ -32,6 +32,47 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+/* ── Futuristic scrollbars ────────────────────────────────────────────────
+   Replace the chunky default scrollbars everywhere (page, sidebars, the
+   composer textarea, any overflow area) with a slim indigo→violet gradient
+   thumb that glows on hover. WebKit (Chrome/Edge/Safari) + Firefox. */
+* {
+  scrollbar-width: thin;                       /* Firefox */
+  scrollbar-color: #6d63f1 transparent;        /* thumb / track */
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  /* Transparent border + padding-box clip leaves breathing room so the thumb
+     reads as a slim, floating pill rather than filling the gutter. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: #6366f1;
+  background-image: linear-gradient(180deg, #6366f1, #a855f7);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-image: linear-gradient(180deg, #818cf8, #c084fc);
+  box-shadow: inset 0 0 6px rgba(168, 85, 247, 0.6);
+}
+.dark::-webkit-scrollbar-thumb,
+.dark *::-webkit-scrollbar-thumb {
+  background-image: linear-gradient(180deg, #4f46e5, #9333ea);
+}
+.dark::-webkit-scrollbar-thumb:hover,
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-image: linear-gradient(180deg, #6366f1, #a855f7);
+  box-shadow: inset 0 0 6px rgba(147, 51, 234, 0.7);
+}
+
 .input {
   border-radius: 0.5rem;
   border: 1px solid var(--color-zinc-300, #d4d4d8);

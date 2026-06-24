@@ -9,6 +9,8 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { computeUpcomingBirthdays, formatBirthday } from "@/lib/birthdays";
 import { fileToDataUrl, MAX_IMAGE_DIM, MAX_NOTE_IMAGES } from "@/lib/image";
 import { resolveSocial, phoneLinks, findSocial } from "@/lib/socials";
+import { uploadVoiceRecording } from "@/lib/voice";
+import AudioPlayer from "@/components/AudioPlayer";
 
 const TIER_DOT: Record<string, string> = {
   Strong: "bg-green-500",
@@ -43,6 +45,16 @@ const MAX_ATTACHMENTS = 4;
 const MAX_SOURCE_IMAGES = 10;
 
 type Attachment = { name: string; url: string };
+
+// A turn in the composer thread. Audio (a held recording) rides along with the
+// turn it was sent in, so it moves into the sent bubble instead of lingering in
+// the composer. `url` is an object URL for in-bubble playback; `blob` is kept so
+// it can be uploaded to Storage on save.
+type ComposerMessage = {
+  text: string;
+  attachments: Attachment[];
+  audio?: { blob: Blob; url: string; name: string | null };
+};
 
 // Single-value standard fields we gap-fill when merging into an existing
 // contact: only filled when the existing value is empty, never overwritten.
@@ -664,7 +676,7 @@ export default function HomePage() {
   // The composer runs as a chat session: each story you send becomes a bubble
   // in this thread, and the whole thread is re-analyzed on every send so the
   // contact refines as you keep adding details.
-  const [messages, setMessages] = useState<{ text: string; attachments: Attachment[] }[]>([]);
+  const [messages, setMessages] = useState<ComposerMessage[]>([]);
   const [showExtractToast, setShowExtractToast] = useState(false);
   // Final review modal shown before a contact is actually saved.
   const [showSaveReview, setShowSaveReview] = useState(false);
@@ -681,6 +693,14 @@ export default function HomePage() {
   // you dictate offline on a phone recorder and add the contact later online.
   const audioInputRef = useRef<HTMLInputElement>(null);
   const [transcribing, setTranscribing] = useState(false);
+  // Keep the uploaded recording itself (not just its transcript) so you can play
+  // it back here in the composer, and so it gets attached — with playback — to
+  // the contact's first note on save. The blob is held in memory and only
+  // uploaded to Storage once a contact id exists (see attachStoryNote); the
+  // object URL is purely for local preview. `audioName` labels the player.
+  const [pendingAudio, setPendingAudio] = useState<Blob | null>(null);
+  const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
+  const [pendingAudioName, setPendingAudioName] = useState<string | null>(null);
 
   // Live-camera capture ("Take photo").
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -743,8 +763,21 @@ export default function HomePage() {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Replace the held recording, revoking the previous preview URL so we don't
+  // leak object URLs when several recordings are uploaded in one session.
+  function setRecording(file: File | null) {
+    setPendingAudioUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+    setPendingAudio(file);
+    setPendingAudioName(file?.name ?? null);
+  }
+
   // Transcribe an uploaded recording and append the text to the composer, the
-  // same place live dictation lands — then you review and send as usual.
+  // same place live dictation lands — then you review and send as usual. We also
+  // keep the audio itself so you can play it back below and it gets attached to
+  // the contact's first note on save.
   async function handleAudioFile(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
@@ -772,6 +805,9 @@ export default function HomePage() {
         return;
       }
       setStory((t) => (t ? `${t} ${transcript}` : transcript));
+      // Hold the recording for playback + attachment now that we know it
+      // contained usable speech.
+      setRecording(file);
     } catch {
       setExtractError("Couldn't transcribe that recording — try again.");
     } finally {
@@ -852,10 +888,20 @@ export default function HomePage() {
 
     // Add this turn to the conversation, clear the composer, then re-analyze
     // the whole thread so the AI has the full context of everything you've sent.
-    const thread = [...messages, { text, attachments: draftAttachments }];
+    // A held recording rides along with this turn so it moves into the sent
+    // bubble; we transfer ownership of its object URL (clear the composer state
+    // WITHOUT revoking it, unlike setRecording(null)).
+    const audio =
+      pendingAudio && pendingAudioUrl
+        ? { blob: pendingAudio, url: pendingAudioUrl, name: pendingAudioName }
+        : undefined;
+    const thread = [...messages, { text, attachments: draftAttachments, audio }];
     setMessages(thread);
     setStory("");
     setAttachments([]);
+    setPendingAudio(null);
+    setPendingAudioUrl(null);
+    setPendingAudioName(null);
     setMenuOpen(false);
     setExtracting(true);
     setExtractError(null);
@@ -926,6 +972,12 @@ export default function HomePage() {
 
   function resetForm() {
     setStory("");
+    setRecording(null);
+    // Release any object URLs held by sent-message recordings before dropping
+    // the thread, so we don't leak them across resets.
+    messages.forEach((m) => {
+      if (m.audio) URL.revokeObjectURL(m.audio.url);
+    });
     setMessages([]);
     setExtracted(null);
     setExtractError(null);
@@ -1246,11 +1298,26 @@ export default function HomePage() {
   async function attachStoryNote(contactId: string) {
     const { text, images } = buildRawSource();
     const noteImages = images.slice(0, MAX_NOTE_IMAGES);
-    if (!text && noteImages.length === 0) return;
+    // Upload the recording (if any) now that we have a contact id to file it
+    // under — taking it from the first message that carries one, or the
+    // still-in-composer recording if nothing was sent. Best-effort: returns null
+    // when Storage isn't configured or the upload fails, in which case the note
+    // keeps its transcript text only. (A note holds one audioUrl; the typical
+    // flow is a single recording.)
+    const audioBlob = messages.find((m) => m.audio)?.audio?.blob ?? pendingAudio;
+    const audioUrl = audioBlob
+      ? await uploadVoiceRecording(audioBlob, contactId)
+      : null;
+    if (!text && noteImages.length === 0 && !audioUrl) return;
     await fetch(`/api/contacts/${contactId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text, source: "story", images: noteImages }),
+      body: JSON.stringify({
+        content: text,
+        source: "story",
+        images: noteImages,
+        audioUrl,
+      }),
     });
   }
 
@@ -1456,11 +1523,20 @@ export default function HomePage() {
                       <p className="whitespace-pre-wrap break-words leading-relaxed">
                         {m.text}
                       </p>
-                    ) : (
+                    ) : !m.audio ? (
                       <p className="italic text-indigo-100">
                         Sent {m.attachments.length} photo
                         {m.attachments.length === 1 ? "" : "s"}
                       </p>
+                    ) : null}
+                    {m.audio && (
+                      <div className="rounded-xl bg-indigo-500/40 px-2.5 py-2 ring-1 ring-white/15">
+                        <AudioPlayer
+                          src={m.audio.url}
+                          label={m.audio.name ?? undefined}
+                          tone="accent"
+                        />
+                      </div>
                     )}
                     {m.text && (
                       <div className="-mb-1 flex justify-end">
@@ -1575,6 +1651,18 @@ export default function HomePage() {
               rows={3}
               className="block w-full resize-none border-0 bg-transparent px-4 pt-3 text-sm text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-0 disabled:opacity-50"
             />
+
+            {/* Uploaded recording — play it back here; it's attached to the
+                contact's first note (with its transcript) when you save. */}
+            {pendingAudioUrl && (
+              <div className="relative mx-3 mb-1 overflow-hidden rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-violet-500/5 to-transparent px-3 py-2.5 shadow-[inset_0_0_20px_rgba(99,102,241,0.08)]">
+                <AudioPlayer
+                  src={pendingAudioUrl}
+                  label={pendingAudioName ?? undefined}
+                  onRemove={() => setRecording(null)}
+                />
+              </div>
+            )}
 
             {/* Toolbar: + attach · mic · (clear) · send */}
             <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">

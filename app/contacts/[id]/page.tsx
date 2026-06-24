@@ -24,6 +24,7 @@ import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
 import GiftSuggestions from "./GiftSuggestions";
 import { MeetingBriefingModal } from "@/components/MeetingBriefingModal";
+import AudioPlayer from "@/components/AudioPlayer";
 
 export default function ContactDetailPage({
   params,
@@ -848,23 +849,18 @@ function NotesSection({
         />
 
         {(pendingAudioUrl || processingAudio) && (
-          <div className="mt-2 flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">
-            <span aria-hidden>🎙️</span>
+          <div className="relative mt-2 overflow-hidden rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-violet-500/5 to-transparent px-3 py-2.5 shadow-[inset_0_0_20px_rgba(99,102,241,0.08)]">
             {processingAudio ? (
-              <span>Processing recording…</span>
+              <span className="flex items-center gap-2 text-xs text-indigo-500 dark:text-indigo-300">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400/40 border-t-indigo-500" />
+                Processing recording…
+              </span>
             ) : (
-              <>
-                <span className="font-medium">Recording attached</span>
-                <audio controls src={pendingAudioUrl!} className="h-7" />
-                <button
-                  type="button"
-                  onClick={() => setPendingAudioUrl(null)}
-                  aria-label="Remove recording"
-                  className="ml-auto text-emerald-700/70 hover:text-emerald-900 dark:text-emerald-300/70 dark:hover:text-emerald-100"
-                >
-                  Remove
-                </button>
-              </>
+              <AudioPlayer
+                src={pendingAudioUrl!}
+                label="Recording"
+                onRemove={() => setPendingAudioUrl(null)}
+              />
             )}
           </div>
         )}
@@ -1330,13 +1326,9 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             </p>
           )}
           {note.audioUrl && (
-            <audio
-              controls
-              src={note.audioUrl}
-              className="mb-2 h-9 w-full max-w-sm"
-            >
-              Your browser doesn&apos;t support audio playback.
-            </audio>
+            <div className="mb-2 max-w-sm overflow-hidden rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-violet-500/5 to-transparent px-3 py-2.5 shadow-[inset_0_0_20px_rgba(99,102,241,0.08)]">
+              <AudioPlayer src={note.audioUrl} />
+            </div>
           )}
           {note.content && (
             <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
