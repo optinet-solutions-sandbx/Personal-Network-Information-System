@@ -27,3 +27,49 @@ drop policy if exists "voice-notes public read" on storage.objects;
 create policy "voice-notes public read" on storage.objects
   for select to public
   using (bucket_id = 'voice-notes');
+
+-- ---------------------------------------------------------------------------
+-- Generic file attachments on contacts/notes (lib/attachments.ts).
+--
+-- Unlike voice notes, attachments can be private documents, so this bucket is
+-- PRIVATE: objects are never publicly readable and are only reachable through
+-- short-lived signed URLs the API mints per request (GET /api/attachments/:id).
+-- Access is scoped per user: every object lives under a "<auth.uid>/..." folder
+-- and the policies below only let a signed-in user touch files in their OWN
+-- folder. The Next API additionally enforces workspace ownership on the
+-- metadata row, so this is defense-in-depth.
+-- ---------------------------------------------------------------------------
+
+-- 4) The bucket (PRIVATE; 25MB cap; any mime type — attachments are arbitrary).
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('attachments', 'attachments', false, 26214400)
+on conflict (id) do update
+  set public          = false,
+      file_size_limit = excluded.file_size_limit;
+
+-- 5) Upload into your own folder (path must start with <auth.uid>/).
+drop policy if exists "attachments owner upload" on storage.objects;
+create policy "attachments owner upload" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- 6) Read your own files (required for the API to mint signed download URLs).
+drop policy if exists "attachments owner read" on storage.objects;
+create policy "attachments owner read" on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- 7) Delete your own files.
+drop policy if exists "attachments owner delete" on storage.objects;
+create policy "attachments owner delete" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );

@@ -19,6 +19,7 @@ import {
   type Recorder,
 } from "@/lib/voice";
 import { ConnectionsSection } from "./ConnectionsSection";
+import { AttachmentsSection } from "./AttachmentsSection";
 import HealthCard from "./HealthCard";
 import { FollowUpCard } from "./FollowUpCard";
 import GiftSuggestions from "./GiftSuggestions";
@@ -160,6 +161,7 @@ export default function ContactDetailPage({
           </div>
         )}
         <NotesSection contact={contact} onChange={load} />
+        <AttachmentsSection contactId={contact.id} />
         <SentMessagesList contactId={contact.id} />
         <ConnectionsSection contact={contact} />
         <SourceCard contact={contact} />
@@ -1353,6 +1355,11 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
               ))}
             </div>
           )}
+          <AttachmentsSection
+            contactId={note.contactId}
+            noteId={note.id}
+            variant="inline"
+          />
           <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
             <span
               className={`rounded-full px-1.5 py-0.5 ${

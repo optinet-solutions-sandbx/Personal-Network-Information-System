@@ -35,6 +35,12 @@ export const LIMITS = {
   bio: 2000,
   website: 500,
   avatarChars: 3_000_000, // ~2.2MB decoded — generous cap on the downscaled avatar data URL
+  // File attachments (Attachment row, see /api/contacts/[id]/attachments). The
+  // bytes live in Supabase Storage; only this metadata hits the DB.
+  attachmentFilename: 255,
+  attachmentMimeType: 150,
+  attachmentStoragePath: 1024,
+  attachmentMaxBytes: 25 * 1024 * 1024, // 25MB — mirror MAX_ATTACHMENT_BYTES in lib/attachments.ts and the bucket cap
 } as const;
 
 // Loose, pragmatic email shape check (not full RFC). Empty is allowed upstream.
@@ -289,6 +295,67 @@ export function validateSentMessageBody(body: unknown):
       method: b.method,
     },
   }
+}
+
+export type CleanAttachment = {
+  filename: string;
+  mimeType: string;
+  size: number;
+  storagePath: string;
+  noteId: string | null;
+};
+
+// Validate the metadata the client posts after uploading a file to Storage.
+// The route additionally checks that storagePath sits in the caller's own
+// folder (and that any noteId belongs to the contact) — see the attachments
+// route — so this only validates shape, length, and the size cap.
+export function validateAttachmentMeta(
+  body: unknown
+): ValidationResult<CleanAttachment> {
+  if (!body || typeof body !== "object") {
+    return { ok: false, error: "invalid body" };
+  }
+  const b = body as Record<string, unknown>;
+
+  const filename = clean(b.filename);
+  if (!filename) return { ok: false, error: "filename is required" };
+  if (filename.length > LIMITS.attachmentFilename) {
+    return { ok: false, error: "filename is too long" };
+  }
+
+  const storagePath = clean(b.storagePath);
+  if (!storagePath) return { ok: false, error: "storagePath is required" };
+  if (storagePath.length > LIMITS.attachmentStoragePath) {
+    return { ok: false, error: "storagePath is too long" };
+  }
+
+  const mimeType = clean(b.mimeType) ?? "application/octet-stream";
+  if (mimeType.length > LIMITS.attachmentMimeType) {
+    return { ok: false, error: "mimeType is too long" };
+  }
+
+  const size = b.size;
+  if (
+    typeof size !== "number" ||
+    !Number.isInteger(size) ||
+    size < 0 ||
+    size > LIMITS.attachmentMaxBytes
+  ) {
+    return {
+      ok: false,
+      error: `file must be ≤ ${Math.floor(LIMITS.attachmentMaxBytes / (1024 * 1024))} MB`,
+    };
+  }
+
+  let noteId: string | null = null;
+  if (b.noteId != null && b.noteId !== "") {
+    if (typeof b.noteId !== "string") {
+      return { ok: false, error: "noteId must be a string" };
+    }
+    noteId = b.noteId.trim();
+  }
+
+  return { ok: true, data: { filename, mimeType, size, storagePath, noteId } };
 }
 
 export function validateNoteImages(value: unknown): ValidationResult<string[]> {

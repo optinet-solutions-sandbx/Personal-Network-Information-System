@@ -16,6 +16,17 @@ export type Note = {
   updatedAt: string;
 };
 
+export type Attachment = {
+  id: string;
+  contactId: string;
+  noteId: string | null; // set when attached to a specific note (else contact-level)
+  filename: string;
+  mimeType: string;
+  size: number; // bytes
+  storagePath: string; // object key in the private "attachments" bucket
+  createdAt: string;
+};
+
 export type HealthInputs = {
   recency: number;
   frequency: number;

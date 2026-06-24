@@ -5,6 +5,7 @@ import {
   validateCustomFields,
   validateNoteContent,
   validateNoteImages,
+  validateAttachmentMeta,
   LIMITS,
 } from "@/lib/validation";
 
@@ -166,5 +167,57 @@ describe("validateNoteImages", () => {
   });
   it("rejects an oversized photo", () => {
     expect(validateNoteImages(["data:image/png;base64," + "A".repeat(LIMITS.noteImageChars)]).ok).toBe(false);
+  });
+});
+
+describe("validateAttachmentMeta", () => {
+  const base = {
+    filename: "deck.pdf",
+    mimeType: "application/pdf",
+    size: 1024,
+    storagePath: "user-1/contact-1/123-abc-deck.pdf",
+  };
+
+  it("accepts well-formed metadata and trims the filename", () => {
+    const res = validateAttachmentMeta({ ...base, filename: "  deck.pdf  " });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.filename).toBe("deck.pdf");
+      expect(res.data.mimeType).toBe("application/pdf");
+      expect(res.data.size).toBe(1024);
+      expect(res.data.noteId).toBeNull();
+    }
+  });
+
+  it("defaults a missing mimeType to octet-stream", () => {
+    const res = validateAttachmentMeta({ ...base, mimeType: undefined });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.mimeType).toBe("application/octet-stream");
+  });
+
+  it("captures an optional noteId", () => {
+    const res = validateAttachmentMeta({ ...base, noteId: " note-9 " });
+    expect(res.ok && res.data.noteId).toBe("note-9");
+  });
+
+  it("requires filename and storagePath", () => {
+    expect(validateAttachmentMeta({ ...base, filename: "  " }).ok).toBe(false);
+    expect(validateAttachmentMeta({ ...base, storagePath: "" }).ok).toBe(false);
+  });
+
+  it("rejects a non-integer or negative size", () => {
+    expect(validateAttachmentMeta({ ...base, size: 1.5 }).ok).toBe(false);
+    expect(validateAttachmentMeta({ ...base, size: -1 }).ok).toBe(false);
+    expect(validateAttachmentMeta({ ...base, size: "1024" }).ok).toBe(false);
+  });
+
+  it("rejects a file over the size cap", () => {
+    const res = validateAttachmentMeta({ ...base, size: LIMITS.attachmentMaxBytes + 1 });
+    expect(res.ok).toBe(false);
+  });
+
+  it("rejects a non-object body", () => {
+    expect(validateAttachmentMeta(null).ok).toBe(false);
+    expect(validateAttachmentMeta("nope").ok).toBe(false);
   });
 });

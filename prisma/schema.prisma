@@ -67,6 +67,7 @@ model Contact {
   followUpCadenceDays Int?     // days between follow-ups; only used when followUpCadence = "custom"
 
   notes          Note[]
+  attachments    Attachment[]
   suggestionsAsA Suggestion[] @relation("SuggestionA")
   suggestionsAsB Suggestion[] @relation("SuggestionB")
   sentMessages   SentMessage[]
@@ -105,10 +106,43 @@ model Note {
   audioUrl String?
   summary  String?
 
+  attachments Attachment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([contactId])
+}
+
+// ---------------------------------------------------------------------------
+// File attachments on contacts and notes (Phase 3). The bytes live in Supabase
+// Storage (the PRIVATE "attachments" bucket — see lib/attachments.ts and
+// prisma/storage-setup.sql); only the object path + descriptive metadata are
+// persisted here, keeping the DB lean (mirrors how Note.audioUrl stores only a
+// reference, not the audio). An attachment always belongs to a Contact; noteId
+// is set when it was attached to a specific Note on that contact, otherwise it's
+// a contact-level file. Both cascade-delete with their parent.
+// ---------------------------------------------------------------------------
+model Attachment {
+  id          String  @id @default(cuid())
+  userId      String? // uploader (kept for audit); scoping is by workspaceId
+  workspaceId String? // per-account workspace scope (see lib/auth.ts)
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  noteId    String?
+  note      Note?   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  filename    String // original filename, for display + download
+  mimeType    String
+  size        Int    // bytes
+  storagePath String // object key within the bucket: <auth.uid>/<contactId>/<file>
+
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+  @@index([noteId])
+  @@index([workspaceId])
 }
 
 // ---------------------------------------------------------------------------
