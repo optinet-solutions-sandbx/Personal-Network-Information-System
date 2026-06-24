@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listAllConnections } from "@/lib/connectors/store";
-import { syncConnection } from "@/lib/connectors/run";
+import { syncConnection, syncConnectionEvents } from "@/lib/connectors/run";
 
 // Scheduled auto-sync. Triggered by the Vercel cron defined in vercel.json
 // ("0 6 * * *" — daily 06:00 UTC). Pulls fresh contacts for EVERY connected
@@ -39,7 +39,19 @@ export async function GET(req: NextRequest) {
   for (const c of connections) {
     try {
       const summary = await syncConnection(c);
-      results.push({ provider: c.provider, workspaceId: c.workspaceId, ok: true, ...summary });
+      // Calendar-capable providers (Google, Outlook) also refresh their event
+      // cache. Best-effort: a calendar failure doesn't fail the contact sync.
+      const events = await syncConnectionEvents(c).catch((err) => {
+        console.error(`cron/sync: calendar sync for ${c.provider} failed:`, err);
+        return null;
+      });
+      results.push({
+        provider: c.provider,
+        workspaceId: c.workspaceId,
+        ok: true,
+        ...summary,
+        ...(events ? { events } : {}),
+      });
     } catch (err) {
       results.push({
         provider: c.provider,

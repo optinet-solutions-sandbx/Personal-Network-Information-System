@@ -13,7 +13,7 @@
 
 import type { ContactInput } from "@/lib/types";
 
-export type ProviderId = "hubspot" | "google" | "salesforce";
+export type ProviderId = "hubspot" | "google" | "salesforce" | "outlook";
 
 // How a connector authenticates:
 //  - "oauth": the redirect/consent + code-exchange flow (getAuthorizeUrl →
@@ -27,6 +27,26 @@ export type AuthMode = "oauth" | "token";
 // re-syncs (so editing a HubSpot contact and re-syncing UPDATES rather than
 // duplicates). `externalId` must be stable for the lifetime of the record.
 export type ImportedContact = ContactInput & { externalId: string };
+
+// A calendar event pulled from a provider (Google Calendar, Outlook). Only the
+// fields meeting-prep/follow-ups need. `attendees`/`organizer` are email
+// addresses (lowercased by the connector) so they can be matched against
+// Contact.email; `externalId` is the provider's stable event id, used to dedupe
+// across re-syncs (see lib/connectors/calendar-sync.ts).
+export type ImportedEvent = {
+  externalId: string;
+  title: string | null;
+  startsAt: Date;
+  endsAt: Date | null;
+  location: string | null;
+  organizer: string | null; // organizer email, lowercased
+  attendees: string[]; // attendee emails, lowercased, organizer excluded
+  htmlLink: string | null; // deep link back to the event in the provider, if any
+};
+
+// The time range to pull events for. Connectors must only return events that
+// start within [timeMin, timeMax); the sync runner also prunes outside it.
+export type EventWindow = { timeMin: Date; timeMax: Date };
 
 // The result of an OAuth token exchange or refresh.
 export type TokenSet = {
@@ -88,6 +108,19 @@ export interface Connector {
   // Pull all contacts from the provider, paginating internally. Returns mapped
   // ImportedContacts ready for the sync runner.
   fetchContacts(ctx: AccessContext): Promise<ImportedContact[]>;
+
+  // Calendar-capable providers (Google Calendar, Outlook) implement this to pull
+  // events in a time window, paginating internally. Contact-only CRMs (HubSpot,
+  // Salesforce) OMIT it; the sync runner checks for its presence before syncing
+  // events (see lib/connectors/run.ts). Throws TokenExpiredError on a 401.
+  fetchEvents?(ctx: AccessContext, window: EventWindow): Promise<ImportedEvent[]>;
+}
+
+// Narrow a connector to one that can pull calendar events.
+export function isCalendarCapable(
+  c: Connector
+): c is Connector & Required<Pick<Connector, "fetchEvents">> {
+  return typeof c.fetchEvents === "function";
 }
 
 // Thrown by connectors on an auth failure where the access token is stale and a

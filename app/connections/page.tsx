@@ -175,9 +175,13 @@ export default function ConnectionsPage() {
       <div className="mb-5">
         <h1 className="text-2xl font-bold">Connections</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Link a CRM or address book to pull contacts into your network. Re-syncing updates the
-          contacts it owns instead of creating duplicates. Connected accounts also refresh
-          automatically once a day.
+          Link a CRM, address book, or calendar to pull contacts into your network. Google and
+          Outlook also sync your calendar to power{" "}
+          <Link href="/meetings" className="font-medium underline">
+            meeting prep &amp; follow-ups
+          </Link>
+          . Re-syncing updates what it owns instead of creating duplicates, and connected accounts
+          refresh automatically once a day.
         </p>
       </div>
 

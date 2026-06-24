@@ -7,6 +7,7 @@ import { computeUpcomingBirthdays } from "@/lib/birthdays";
 import InsightsFeed from "@/components/InsightsFeed"
 import SuggestedIntroductions from "@/components/SuggestedIntroductions";
 import SentMessages from "@/components/SentMessages";
+import MeetingsWidget from "@/components/MeetingsWidget";
 
 const AVATAR_COLORS = [
   "bg-indigo-500",
@@ -130,6 +131,10 @@ export default function DashboardPage() {
 
       <div className="mb-6">
         <InsightsFeed />
+      </div>
+
+      <div className="mb-6">
+        <MeetingsWidget />
       </div>
 
       <div className="mb-6">

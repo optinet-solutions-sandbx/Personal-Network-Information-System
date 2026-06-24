@@ -3,7 +3,7 @@ import { resolveOwner } from "@/lib/auth";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
 import { getConnector } from "@/lib/connectors/registry";
 import { getConnection } from "@/lib/connectors/store";
-import { syncConnection } from "@/lib/connectors/run";
+import { syncConnection, syncConnectionEvents } from "@/lib/connectors/run";
 import { TokenExpiredError } from "@/lib/connectors/types";
 
 type Params = { params: Promise<{ provider: string }> };
@@ -39,7 +39,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   try {
     const summary = await syncConnection(connection);
-    return NextResponse.json(summary);
+    // For calendar-capable providers (Google, Outlook), also refresh the event
+    // cache. Best-effort: a calendar hiccup shouldn't fail the contact sync the
+    // user just asked for.
+    const events = await syncConnectionEvents(connection).catch((err) => {
+      console.error(`Calendar sync for ${connector.id} failed:`, err);
+      return null;
+    });
+    return NextResponse.json(events ? { ...summary, events } : summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : "sync failed";
     console.error(`Sync for ${connector.id} failed:`, err);

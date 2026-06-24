@@ -15,9 +15,12 @@
 //      and set APP_ORIGIN so the redirect URI matches exactly.
 
 import type {
+  AccessContext,
   AccountInfo,
   Connector,
+  EventWindow,
   ImportedContact,
+  ImportedEvent,
   TokenSet,
 } from "./types";
 import { TokenExpiredError } from "./types";
@@ -25,10 +28,12 @@ import { TokenExpiredError } from "./types";
 const AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const PEOPLE_API = "https://people.googleapis.com/v1/people/me/connections";
+const CALENDAR_API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/contacts.readonly",
+  "https://www.googleapis.com/auth/calendar.events.readonly", // meeting prep / follow-ups
   "https://www.googleapis.com/auth/userinfo.email", // for the account label
 ];
 
@@ -86,6 +91,54 @@ type GooglePerson = {
 function firstVal<T, K extends keyof T>(arr: T[] | undefined, key: K): string | undefined {
   const v = arr?.[0]?.[key];
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
+}
+
+// ─── Calendar API response shapes (only the bits we read) ────────────────────
+type GoogleEventDate = { dateTime?: string; date?: string };
+type GoogleEvent = {
+  id: string;
+  status?: string; // "confirmed" | "tentative" | "cancelled"
+  summary?: string;
+  location?: string;
+  htmlLink?: string;
+  start?: GoogleEventDate;
+  end?: GoogleEventDate;
+  organizer?: { email?: string };
+  attendees?: { email?: string; self?: boolean; resource?: boolean }[];
+};
+
+function parseEventDate(d: GoogleEventDate | undefined): Date | null {
+  // Timed events use dateTime (RFC3339, with offset); all-day events use date.
+  const raw = d?.dateTime ?? d?.date;
+  if (!raw) return null;
+  const dt = new Date(raw);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function toImportedEvent(e: GoogleEvent): ImportedEvent | null {
+  if (e.status === "cancelled") return null;
+  const startsAt = parseEventDate(e.start);
+  if (!e.id || !startsAt) return null;
+  const organizer = e.organizer?.email?.trim().toLowerCase() || null;
+  const attendees = Array.from(
+    new Set(
+      (e.attendees ?? [])
+        // Drop room/resource rows and the connected user themselves.
+        .filter((a) => !a.resource && !a.self)
+        .map((a) => a.email?.trim().toLowerCase())
+        .filter((a): a is string => Boolean(a) && a !== organizer)
+    )
+  );
+  return {
+    externalId: e.id,
+    title: e.summary?.trim() || null,
+    startsAt,
+    endsAt: parseEventDate(e.end),
+    location: e.location?.trim() || null,
+    organizer,
+    attendees,
+    htmlLink: e.htmlLink?.trim() || null,
+  };
 }
 
 function toImportedContact(p: GooglePerson): ImportedContact | null {
@@ -187,7 +240,43 @@ export const googleConnector: Connector = {
     }
     return out;
   },
+
+  async fetchEvents({ accessToken }: AccessContext, window: EventWindow): Promise<ImportedEvent[]> {
+    const out: ImportedEvent[] = [];
+    let pageToken: string | undefined;
+
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const params = new URLSearchParams({
+        timeMin: window.timeMin.toISOString(),
+        timeMax: window.timeMax.toISOString(),
+        singleEvents: "true", // expand recurring events into instances
+        orderBy: "startTime",
+        maxResults: "250", // Calendar API max
+      });
+      if (pageToken) params.set("pageToken", pageToken);
+
+      const res = await fetch(`${CALENDAR_API}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.status === 401) throw new TokenExpiredError();
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Google calendar fetch failed (${res.status}): ${text.slice(0, 300)}`);
+      }
+      const json = (await res.json()) as {
+        items?: GoogleEvent[];
+        nextPageToken?: string;
+      };
+      for (const e of json.items ?? []) {
+        const mapped = toImportedEvent(e);
+        if (mapped) out.push(mapped);
+      }
+      pageToken = json.nextPageToken;
+      if (!pageToken) break;
+    }
+    return out;
+  },
 };
 
 // Exported for unit tests.
-export const __test = { toImportedContact };
+export const __test = { toImportedContact, toImportedEvent };

@@ -321,3 +321,43 @@ model Connection {
   @@index([workspaceId])
   @@index([userId])
 }
+
+// ---------------------------------------------------------------------------
+// Calendar events — Phase 3 calendar integrations (D7).
+// Mirrored from a connected calendar (Google Calendar, Outlook) by the sync
+// runner (lib/connectors/calendar-sync.ts), which pulls a bounded window
+// (~ -7d .. +30d) on each sync and prunes events that fall out of it, so the
+// table stays small. Events are NOT the source of truth — they're a cache that
+// powers meeting prep (upcoming meetings matched to contacts by attendee email)
+// and follow-ups (recently-ended meetings). Deduped per
+// (workspace, provider, externalId), like synced contacts.
+// ---------------------------------------------------------------------------
+model CalendarEvent {
+  id          String  @id @default(cuid())
+  userId      String? // who connected the calendar (audit); scoping is by workspaceId
+  workspaceId String?
+
+  provider   String // "google" | "outlook"
+  externalId String // the provider's stable event id
+
+  title     String?
+  startsAt  DateTime
+  endsAt    DateTime?
+  location  String?
+  organizer String? // organizer email (lowercased)
+  // Attendee emails (lowercased, organizer + the connected user excluded). These
+  // are matched against Contact.email to surface "meeting with <contact>".
+  attendees String[] @default([])
+  htmlLink  String? // deep link back to the event in the provider
+
+  // Follow-up bookkeeping: set true once the user has dismissed/acted on the
+  // post-meeting follow-up, so it stops surfacing. A re-sync never resets it.
+  followUpDone Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, provider, externalId])
+  @@index([workspaceId, startsAt])
+  @@index([userId])
+}

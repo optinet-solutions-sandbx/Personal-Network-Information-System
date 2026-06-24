@@ -10,11 +10,13 @@ import type { Connector, ProviderId } from "./types";
 import { hubspotConnector } from "./hubspot";
 import { googleConnector } from "./google";
 import { salesforceConnector } from "./salesforce";
+import { outlookConnector } from "./outlook";
 
 const REGISTRY: Record<ProviderId, Connector> = {
   hubspot: hubspotConnector,
   google: googleConnector,
   salesforce: salesforceConnector,
+  outlook: outlookConnector,
 } as Record<ProviderId, Connector>;
 
 export function getConnector(provider: string): Connector | null {
