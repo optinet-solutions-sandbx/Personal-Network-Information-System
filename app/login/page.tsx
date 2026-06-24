@@ -38,11 +38,11 @@ function LoginForm() {
           </span>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm">
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h1 className="text-lg font-semibold text-zinc-900">
             {isSignup ? "Create your account" : "Welcome back"}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-zinc-500">
             {isSignup
               ? "Sign up to start building your network."
               : "Sign in to access your contacts."}
@@ -53,7 +53,7 @@ function LoginForm() {
             {next && <input type="hidden" name="next" value={next} />}
 
             <div>
-              <label htmlFor="email" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
+              <label htmlFor="email" className="mb-1 block text-xs font-medium text-zinc-600">
                 Email
               </label>
               <input
@@ -68,7 +68,7 @@ function LoginForm() {
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
+              <label htmlFor="password" className="mb-1 block text-xs font-medium text-zinc-600">
                 Password
               </label>
               <div className="relative">
@@ -87,7 +87,7 @@ function LoginForm() {
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   aria-pressed={showPassword}
-                  className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 hover:text-zinc-600"
                 >
                   {showPassword ? (
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -107,12 +107,12 @@ function LoginForm() {
             </div>
 
             {state?.error && (
-              <p className="rounded-md bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
                 {state.error}
               </p>
             )}
             {state?.message && (
-              <p className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+              <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                 {state.message}
               </p>
             )}
@@ -132,7 +132,7 @@ function LoginForm() {
             </button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="mt-4 text-center text-xs text-zinc-500">
             {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
             <button
               type="button"
@@ -144,7 +144,7 @@ function LoginForm() {
           </p>
         </div>
 
-        <p className="mt-4 text-center text-xs text-zinc-400 dark:text-zinc-500">
+        <p className="mt-4 text-center text-xs text-zinc-400">
           <Link href="/" className="hover:underline">
             ← Back home
           </Link>

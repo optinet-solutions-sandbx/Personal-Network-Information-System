@@ -43,7 +43,7 @@ export function MeetingBriefingModal({ contact }: { contact: Contact }) {
     <>
       <button
         onClick={generate}
-        className="rounded-lg border border-indigo-200 dark:border-indigo-900 px-3 py-1.5 text-sm text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+        className="rounded-lg border border-indigo-200 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-50"
       >
         Prepare for meeting
       </button>
@@ -55,14 +55,14 @@ export function MeetingBriefingModal({ contact }: { contact: Contact }) {
             if (e.target === e.currentTarget) close();
           }}
         >
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white dark:bg-zinc-900 shadow-xl">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 px-6 py-4">
-              <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">
+          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+              <h2 className="text-base font-semibold text-zinc-800">
                 Meeting Briefing — {contact.name}
               </h2>
               <button
                 onClick={close}
-                className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                className="text-zinc-400 hover:text-zinc-600"
                 aria-label="Close"
               >
                 ✕
@@ -71,7 +71,7 @@ export function MeetingBriefingModal({ contact }: { contact: Contact }) {
 
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {state === "loading" && (
-                <div className="flex flex-col items-center gap-3 py-12 text-zinc-400 dark:text-zinc-500">
+                <div className="flex flex-col items-center gap-3 py-12 text-zinc-400">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
                   <p className="text-sm">Generating briefing…</p>
                 </div>
@@ -79,13 +79,13 @@ export function MeetingBriefingModal({ contact }: { contact: Contact }) {
               {state === "success" && <Markdown content={briefing} />}
               {state === "error" && (
                 <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-sm text-red-600 dark:text-red-400">
+                  <p className="text-sm text-red-600">
                     Couldn&apos;t generate briefing — the AI service may be
                     unavailable.
                   </p>
                   <button
                     onClick={generate}
-                    className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
                   >
                     Try again
                   </button>
@@ -94,11 +94,11 @@ export function MeetingBriefingModal({ contact }: { contact: Contact }) {
             </div>
 
             {state === "success" && (
-              <div className="flex justify-end gap-2 border-t border-zinc-100 dark:border-zinc-800 px-6 py-3">
+              <div className="flex justify-end gap-2 border-t border-zinc-100 px-6 py-3">
                 <CopyButton text={briefing} />
                 <button
                   onClick={close}
-                  className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
                 >
                   Close
                 </button>

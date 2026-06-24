@@ -70,11 +70,11 @@ export default function ContactDetailPage({
     load();
   }, [load]);
 
-  if (loading) return <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>;
+  if (loading) return <p className="text-sm text-zinc-400">Loading…</p>;
   if (loadError && !contact)
     return (
       <div className="space-y-2">
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p className="text-sm text-red-600">
           Couldn&apos;t load this contact — check your connection and try again.
         </p>
         <button
@@ -82,7 +82,7 @@ export default function ContactDetailPage({
             setLoading(true);
             load();
           }}
-          className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
         >
           Retry
         </button>
@@ -91,8 +91,8 @@ export default function ContactDetailPage({
   if (notFound || !contact)
     return (
       <div>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Contact not found.</p>
-        <Link href="/contacts" className="text-sm text-indigo-600 dark:text-indigo-400">
+        <p className="text-sm text-zinc-500">Contact not found.</p>
+        <Link href="/contacts" className="text-sm text-indigo-600">
           ← Back to contacts
         </Link>
       </div>
@@ -141,7 +141,7 @@ export default function ContactDetailPage({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
       <div className="lg:col-span-3">
-        <Link href="/contacts" className="text-sm text-indigo-600 dark:text-indigo-400">
+        <Link href="/contacts" className="text-sm text-indigo-600">
           ← Back to contacts
         </Link>
         <NewConnectionBanner
@@ -304,7 +304,7 @@ function DetailsCard({
   );
 
   return (
-    <div className="mt-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-5">
       <div className="flex items-start justify-between">
         {editing ? (
           <input
@@ -317,7 +317,7 @@ function DetailsCard({
             <h1 className="text-2xl font-semibold tracking-tight">
               {contact.name}
             </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-sm text-zinc-500">
               {[contact.title, contact.company].filter(Boolean).join(" · ") ||
                 "—"}
             </p>
@@ -339,7 +339,7 @@ function DetailsCard({
                   setBirthdayInput(formatBirthday(contact.birthday));
                   setEditing(false);
                 }}
-                className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm"
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm"
               >
                 Cancel
               </button>
@@ -350,13 +350,13 @@ function DetailsCard({
               <button
                 id="edit-contact-btn"
                 onClick={() => setEditing(true)}
-                className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
               >
                 Edit
               </button>
               <button
                 onClick={onDelete}
-                className="rounded-lg border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
               >
                 Delete
               </button>
@@ -393,7 +393,7 @@ function DetailsCard({
               return (
                 <Fragment key="phone">
                   <div>
-                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                       {label}
                     </dt>
                     <input
@@ -403,7 +403,7 @@ function DetailsCard({
                     />
                   </div>
                   <div>
-                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                       Telegram
                     </dt>
                     <input
@@ -418,7 +418,7 @@ function DetailsCard({
             }
             return (
               <div key={key} className={key === "howWeMet" ? "col-span-2" : ""}>
-                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                   {label}
                 </dt>
                 {editing ? (
@@ -436,7 +436,7 @@ function DetailsCard({
 
         {(editing || contact.birthday) && (
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
               Birthday
             </dt>
             {editing ? (
@@ -451,7 +451,7 @@ function DetailsCard({
                 }}
               />
             ) : (
-              <dd className="text-zinc-700 dark:text-zinc-200">
+              <dd className="text-zinc-700">
                 {formatBirthday(contact.birthday) || "—"}
               </dd>
             )}
@@ -511,8 +511,8 @@ function DetailsCard({
         });
         if (entries.length === 0) return null;
         return (
-          <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-400 dark:text-indigo-400">
+          <div className="mt-5 pt-4 border-t border-zinc-100">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-400">
               ✦ AI-detected
             </p>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -524,7 +524,7 @@ function DetailsCard({
                       (value as string).length > 60 ? "col-span-2" : ""
                     }
                   >
-                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                       {key}
                     </dt>
                     {editing ? (
@@ -582,12 +582,12 @@ function SentMessagesList({ contactId }: { contactId: string }) {
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
       <h2 className="mb-3 text-lg font-semibold">Sent Messages</h2>
       {loading ? (
         <p className="text-sm text-zinc-400">Loading…</p>
       ) : messages.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">No messages sent yet.</p>
+        <p className="text-sm text-zinc-400">No messages sent yet.</p>
       ) : (
         <ul className="space-y-3">
           {messages.map((msg) => {
@@ -598,36 +598,36 @@ function SentMessagesList({ contactId }: { contactId: string }) {
               year: "numeric",
             })
             return (
-              <li key={msg.id} className="rounded-lg border border-zinc-100 dark:border-zinc-800 p-3">
+              <li key={msg.id} className="rounded-lg border border-zinc-100 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-zinc-400">{date}</span>
-                    <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                    <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500">
                       {msg.method === "email" ? "Email" : "Copied"}
                     </span>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => copyMessage(msg)}
-                      className="rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50"
                     >
                       {copiedId === msg.id ? "Copied!" : "Copy"}
                     </button>
                     <button
                       onClick={() => setExpandedId(expanded ? null : msg.id)}
-                      className="rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50"
                     >
                       {expanded ? "Collapse" : "View"}
                     </button>
                   </div>
                 </div>
                 {!expanded && (
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">
+                  <p className="mt-1 text-xs text-zinc-500 line-clamp-1">
                     {msg.body}
                   </p>
                 )}
                 {expanded && (
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">
                     {msg.body}
                   </p>
                 )}
@@ -810,10 +810,10 @@ function NotesSection({
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
       <h2 className="mb-3 text-lg font-semibold">Notes</h2>
 
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+      <div className="rounded-lg border border-zinc-200 p-3">
         <textarea
           id="notes-textarea"
           value={draft}
@@ -831,7 +831,7 @@ function NotesSection({
                 <img
                   src={src}
                   alt={`Attachment ${i + 1}`}
-                  className="h-16 w-16 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover"
+                  className="h-16 w-16 rounded-lg border border-zinc-200 object-cover"
                 />
                 <button
                   type="button"
@@ -858,7 +858,7 @@ function NotesSection({
         {(pendingAudioUrl || processingAudio) && (
           <div className="relative mt-2 overflow-hidden rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-violet-500/5 to-transparent px-3 py-2.5 shadow-[inset_0_0_20px_rgba(99,102,241,0.08)]">
             {processingAudio ? (
-              <span className="flex items-center gap-2 text-xs text-indigo-500 dark:text-indigo-300">
+              <span className="flex items-center gap-2 text-xs text-indigo-500">
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400/40 border-t-indigo-500" />
                 Processing recording…
               </span>
@@ -886,7 +886,7 @@ function NotesSection({
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 listening && !recording
                   ? "bg-red-600 text-white"
-                  : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+                  : "border border-zinc-300 text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
               }`}
             >
               <span>{listening && !recording ? "● Listening… stop" : "🎤 Dictate"}</span>
@@ -900,7 +900,7 @@ function NotesSection({
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   recording
                     ? "bg-red-600 text-white"
-                    : "border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+                    : "border border-zinc-300 text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
                 }`}
               >
                 <span>
@@ -921,7 +921,7 @@ function NotesSection({
                   ? `Up to ${MAX_NOTE_IMAGES} photos per note`
                   : "Attach a photo"
               }
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
             >
               <span>{attaching ? "Adding…" : "📷 Photo"}</span>
             </button>
@@ -943,7 +943,7 @@ function NotesSection({
 
       <ul className="mt-4 space-y-3">
         {notes.length === 0 && (
-          <li className="text-sm text-zinc-400 dark:text-zinc-500">No notes yet.</li>
+          <li className="text-sm text-zinc-400">No notes yet.</li>
         )}
         {visibleNotes.map((n) => (
           <NoteItem key={n.id} note={n} onChange={() => { onChange(); setPage(1); }} />
@@ -951,13 +951,13 @@ function NotesSection({
       </ul>
 
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
           <span>{notes.length} notes · page {page} of {totalPages}</span>
           <div className="flex gap-1">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="rounded-md border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
             >
               ← Prev
             </button>
@@ -967,8 +967,8 @@ function NotesSection({
                 onClick={() => setPage(p)}
                 className={`rounded-md border px-2.5 py-1 ${
                   p === page
-                    ? "border-indigo-300 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold"
-                    : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold"
+                    : "border-zinc-200 hover:bg-zinc-50"
                 }`}
               >
                 {p}
@@ -977,7 +977,7 @@ function NotesSection({
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="rounded-md border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40"
+              className="rounded-md border border-zinc-200 px-2.5 py-1 hover:bg-zinc-50 disabled:opacity-40"
             >
               Next →
             </button>
@@ -1002,7 +1002,7 @@ function SourceCard({ contact }: { contact: Contact }) {
   if (!text && images.length === 0) return null;
 
   return (
-    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 p-5">
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-zinc-50/60 p-5">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -1011,15 +1011,15 @@ function SourceCard({ contact }: { contact: Contact }) {
         <span className="flex items-center gap-2">
           <span aria-hidden>🗄️</span>
           <span className="text-lg font-semibold">Original input</span>
-          <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
             read-only
           </span>
         </span>
-        <span className="text-sm text-indigo-600 dark:text-indigo-400">
+        <span className="text-sm text-indigo-600">
           {open ? "Hide" : "Show"}
         </span>
       </button>
-      <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+      <p className="mt-1 text-xs text-zinc-400">
         What this contact was created from — kept unchanged so it can always be
         recovered.
       </p>
@@ -1027,7 +1027,7 @@ function SourceCard({ contact }: { contact: Contact }) {
       {open && (
         <div className="mt-4 space-y-3">
           {text && (
-            <p className="whitespace-pre-wrap break-words text-sm text-zinc-700 dark:text-zinc-200">
+            <p className="whitespace-pre-wrap break-words text-sm text-zinc-700">
               {text}
             </p>
           )}
@@ -1039,7 +1039,7 @@ function SourceCard({ contact }: { contact: Contact }) {
                   <img
                     src={src}
                     alt={`Original photo ${i + 1}`}
-                    className="h-24 w-24 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover transition-opacity hover:opacity-90"
+                    className="h-24 w-24 rounded-lg border border-zinc-200 object-cover transition-opacity hover:opacity-90"
                   />
                 </a>
               ))}
@@ -1060,7 +1060,7 @@ function SourceChip() {
   return (
     <span
       title="Comes from your own note / saved number. WhatsApp & Telegram can't be checked live — clicking the link confirms it (the app tells you if the number isn't registered)."
-      className="inline-flex shrink-0 items-center rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
+      className="inline-flex shrink-0 items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500"
     >
       From your notes
     </span>
@@ -1077,7 +1077,7 @@ function MethodRow({
 }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+      <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">
         {label}
       </dt>
       <dd className="mt-0.5 text-sm">{children}</dd>
@@ -1099,7 +1099,7 @@ function ContactMethods({ contact }: { contact: Contact }) {
   if (!phone && !telegram) {
     return (
       <MethodRow label="Phone">
-        <span className="text-zinc-700 dark:text-zinc-200">—</span>
+        <span className="text-zinc-700">—</span>
       </MethodRow>
     );
   }
@@ -1111,13 +1111,13 @@ function ContactMethods({ contact }: { contact: Contact }) {
           {links ? (
             <a
               href={links.tel}
-              className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="inline-flex items-center gap-1.5 text-indigo-600 hover:underline"
             >
               <span aria-hidden>📞</span>
               <span>{phone}</span>
             </a>
           ) : (
-            <span className="text-zinc-700 dark:text-zinc-200">{phone}</span>
+            <span className="text-zinc-700">{phone}</span>
           )}
         </MethodRow>
       )}
@@ -1129,7 +1129,7 @@ function ContactMethods({ contact }: { contact: Contact }) {
             target="_blank"
             rel="noopener noreferrer"
             title="Open a WhatsApp chat with this number"
-            className="inline-flex max-w-full items-center gap-1.5 text-emerald-600 dark:text-emerald-400 hover:underline"
+            className="inline-flex max-w-full items-center gap-1.5 text-emerald-600 hover:underline"
           >
             <span aria-hidden>💬</span>
             <span className="truncate">Message on WhatsApp</span>
@@ -1145,7 +1145,7 @@ function ContactMethods({ contact }: { contact: Contact }) {
             target="_blank"
             rel="noopener noreferrer"
             title="Open a Telegram chat"
-            className="inline-flex max-w-full items-center gap-1.5 text-sky-600 dark:text-sky-400 hover:underline"
+            className="inline-flex max-w-full items-center gap-1.5 text-sky-600 hover:underline"
           >
             <span aria-hidden>{telegram.social.icon}</span>
             <span className="truncate">{telegram.social.handle}</span>
@@ -1168,14 +1168,14 @@ function StandardFieldValue({
   value: string;
 }) {
   const v = (value ?? "").trim();
-  if (!v) return <dd className="text-zinc-700 dark:text-zinc-200">—</dd>;
+  if (!v) return <dd className="text-zinc-700">—</dd>;
 
   if (fieldKey === "email") {
     return (
       <dd>
         <a
           href={`mailto:${v}`}
-          className="break-all text-indigo-600 dark:text-indigo-400 hover:underline"
+          className="break-all text-indigo-600 hover:underline"
         >
           {v}
         </a>
@@ -1183,7 +1183,7 @@ function StandardFieldValue({
     );
   }
 
-  return <dd className="text-zinc-700 dark:text-zinc-200">{v}</dd>;
+  return <dd className="text-zinc-700">{v}</dd>;
 }
 
 // Render a custom field's value. Social/messaging handles (and website URLs)
@@ -1193,7 +1193,7 @@ function StandardFieldValue({
 function CustomFieldValue({ fieldKey, value }: { fieldKey: string; value: string }) {
   const social = resolveSocial(fieldKey, value);
   if (!social) {
-    return <dd className="text-zinc-700 dark:text-zinc-200">{value || "—"}</dd>;
+    return <dd className="text-zinc-700">{value || "—"}</dd>;
   }
   return (
     <dd>
@@ -1201,13 +1201,13 @@ function CustomFieldValue({ fieldKey, value }: { fieldKey: string; value: string
         href={social.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex max-w-full items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:underline"
+        className="inline-flex max-w-full items-center gap-1.5 text-indigo-600 hover:underline"
       >
         <span aria-hidden>{social.icon}</span>
         <span className="truncate">{social.handle}</span>
         <span
           title="From a primary source (your note or a scanned card)"
-          className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+          className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600"
         >
           ✓ Verified
         </span>
@@ -1274,7 +1274,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
   }
 
   return (
-    <li className="rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 p-3">
+    <li className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
       {editing ? (
         <div>
           <textarea
@@ -1291,7 +1291,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
                   <img
                     src={src}
                     alt={`Attachment ${i + 1}`}
-                    className="h-16 w-16 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover"
+                    className="h-16 w-16 rounded-lg border border-zinc-200 object-cover"
                   />
                   <button
                     type="button"
@@ -1318,7 +1318,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
                 setImgs(note.images ?? []);
                 setEditing(false);
               }}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs"
+              className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs"
             >
               Cancel
             </button>
@@ -1327,7 +1327,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
       ) : (
         <>
           {note.summary && (
-            <p className="mb-2 flex items-start gap-1.5 rounded-md bg-indigo-50/70 dark:bg-indigo-950/30 px-2 py-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+            <p className="mb-2 flex items-start gap-1.5 rounded-md bg-indigo-50/70 px-2 py-1.5 text-xs text-indigo-700">
               <span aria-hidden>✨</span>
               <span><span className="font-semibold">Summary:</span> {note.summary}</span>
             </p>
@@ -1338,7 +1338,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             </div>
           )}
           {note.content && (
-            <p className="text-sm text-zinc-700 dark:text-zinc-200">{note.content}</p>
+            <p className="text-sm text-zinc-700">{note.content}</p>
           )}
           {note.images?.length > 0 && (
             <div className={`flex flex-wrap gap-2 ${note.content ? "mt-2" : ""}`}>
@@ -1348,7 +1348,7 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
                   <img
                     src={src}
                     alt={`Attachment ${i + 1}`}
-                    className="h-24 w-24 rounded-lg border border-zinc-200 dark:border-zinc-700 object-cover transition-opacity hover:opacity-90"
+                    className="h-24 w-24 rounded-lg border border-zinc-200 object-cover transition-opacity hover:opacity-90"
                   />
                 </a>
               ))}
@@ -1359,14 +1359,14 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             noteId={note.id}
             variant="inline"
           />
-          <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+          <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400">
             <span
               className={`rounded-full px-1.5 py-0.5 ${
                 note.source === "voice"
-                  ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"
+                  ? "bg-emerald-50 text-emerald-600"
                   : note.source === "story"
-                  ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400"
-                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                  ? "bg-indigo-50 text-indigo-600"
+                  : "bg-zinc-100 text-zinc-500"
               }`}
             >
               {note.source === "voice"
@@ -1378,11 +1378,11 @@ function NoteItem({ note, onChange }: { note: Note; onChange: () => void }) {
             <span>{new Date(note.createdAt).toLocaleString()}</span>
             <button
               onClick={() => setEditing(true)}
-              className="ml-auto text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="ml-auto text-indigo-600 hover:underline"
             >
               Edit
             </button>
-            <button onClick={remove} className="text-red-500 dark:text-red-400 hover:underline">
+            <button onClick={remove} className="text-red-500 hover:underline">
               Delete
             </button>
           </div>
@@ -1460,7 +1460,7 @@ function ProfileCard({
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="rounded-xl border border-zinc-200 bg-white p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">AI Profile</h2>
         <button
@@ -1481,14 +1481,14 @@ function ProfileCard({
           <div className="mt-3">
             <Markdown content={contact.profile} />
           </div>
-          <p className="mt-4 border-t border-zinc-100 dark:border-zinc-800 pt-3 text-xs text-zinc-400 dark:text-zinc-500">
+          <p className="mt-4 border-t border-zinc-100 pt-3 text-xs text-zinc-400">
             Model: {contact.profileModel || "—"}
             {contact.profileUpdatedAt &&
               ` · ${new Date(contact.profileUpdatedAt).toLocaleString()}`}
           </p>
         </>
       ) : (
-        <p className="mt-3 text-sm text-zinc-400 dark:text-zinc-500">
+        <p className="mt-3 text-sm text-zinc-400">
           No profile yet. Generate an AI-assisted profile from this contact’s
           details and notes.
         </p>

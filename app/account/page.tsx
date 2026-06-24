@@ -96,48 +96,48 @@ export default function AccountPage() {
     <div className="mx-auto max-w-lg">
       <div className="mb-5">
         <h1 className="text-2xl font-bold">Account</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-zinc-500">
           Manage your sign-in credentials.
         </p>
       </div>
 
       {!ready ? (
-        <p className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-sm text-zinc-400">
+        <p className="rounded-xl border border-zinc-200 p-8 text-center text-sm text-zinc-400">
           Loading…
         </p>
       ) : !authEnabled ? (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6">
+          <p className="text-sm text-zinc-600">
             Authentication isn&apos;t enabled in this environment, so there&apos;s no
             password to change. The app is running in open mode.
           </p>
         </div>
       ) : !email ? (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6">
+          <p className="text-sm text-zinc-600">
             You&apos;re not signed in.{" "}
-            <Link href="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+            <Link href="/login" className="text-indigo-600 hover:underline">
               Sign in
             </Link>{" "}
             to manage your account.
           </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6">
           <div className="mb-4 flex items-center gap-2 text-sm">
-            <span className="text-zinc-500 dark:text-zinc-400">Signed in as</span>
+            <span className="text-zinc-500">Signed in as</span>
             <span className="font-medium">{email}</span>
           </div>
 
           <h2 className="mb-3 text-base font-semibold">Change password</h2>
 
           {done && (
-            <div className="mb-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
               ✓ Password updated. Use it next time you sign in.
             </div>
           )}
           {error && (
-            <div className="mb-3 rounded-lg bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+            <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
             </div>
           )}
@@ -166,7 +166,7 @@ export default function AccountPage() {
               autoComplete="new-password"
             />
 
-            <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <label className="flex items-center gap-2 text-xs text-zinc-500">
               <input
                 type="checkbox"
                 checked={show}
@@ -207,7 +207,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
+      <label className="mb-1 block text-xs font-medium text-zinc-600">
         {label}
       </label>
       <input
@@ -215,9 +215,9 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
-        className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
       />
-      {hint && <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">{hint}</p>}
+      {hint && <p className="mt-1 text-[11px] text-zinc-400">{hint}</p>}
     </div>
   );
 }

@@ -45,13 +45,13 @@ export default function SentMessages() {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="rounded-xl border border-zinc-200 bg-white p-5">
       <h2 className="mb-3 text-lg font-semibold">Sent Messages</h2>
 
       {loading ? (
         <p className="text-sm text-zinc-400">Loading…</p>
       ) : messages.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">No messages sent yet.</p>
+        <p className="text-sm text-zinc-400">No messages sent yet.</p>
       ) : (
         <ul className="space-y-3">
           {messages.map((msg) => {
@@ -69,22 +69,22 @@ export default function SentMessages() {
                   <div className="flex items-baseline gap-2">
                     <Link
                       href={`/contacts/${msg.contactId}`}
-                      className="text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:underline"
+                      className="text-sm font-medium text-zinc-900 hover:underline"
                     >
                       {name}
                     </Link>
                     <span className="text-[10px] text-zinc-400">{relativeTime(msg.sentAt)}</span>
-                    <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                    <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500">
                       {msg.method === "email" ? "Email" : "Copied"}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                  <p className="mt-0.5 text-xs text-zinc-500 line-clamp-2">
                     {msg.body}
                   </p>
                 </div>
                 <button
                   onClick={() => copyMessage(msg)}
-                  className="flex-shrink-0 rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  className="flex-shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50"
                   title="Copy message"
                 >
                   {copiedId === msg.id ? "Copied!" : "Copy"}

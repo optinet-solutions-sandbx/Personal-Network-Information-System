@@ -11,10 +11,10 @@ type Props = {
 };
 
 const TIER_BADGE: Record<string, string> = {
-  Strong: "text-green-700 dark:text-emerald-300 bg-green-50 dark:bg-emerald-950/30 border-green-200 dark:border-emerald-900/50",
-  Active: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/50",
-  Fading: "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50",
-  Dormant: "text-gray-500 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700",
+  Strong: "text-green-700 bg-green-50 border-green-200",
+  Active: "text-blue-700 bg-blue-50 border-blue-200",
+  Fading: "text-amber-700 bg-amber-50 border-amber-200",
+  Dormant: "text-gray-500 bg-gray-50 border-gray-200",
 };
 
 const TIER_DOT: Record<string, string> = {
@@ -91,17 +91,17 @@ function ScoreTable({ rows, score, max }: { rows: TableRow[]; score: number; max
           key={r.label}
           className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs ${
             r.active
-              ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-1 ring-indigo-200"
-              : "text-gray-500 dark:text-zinc-400"
+              ? "bg-indigo-50 text-indigo-700 font-semibold ring-1 ring-indigo-200"
+              : "text-gray-500"
           }`}
         >
           <span>{r.label}</span>
           <span>{r.pts}</span>
         </div>
       ))}
-      <div className="flex justify-between text-xs text-gray-500 dark:text-zinc-400 border-t pt-2 mt-2">
+      <div className="flex justify-between text-xs text-gray-500 border-t pt-2 mt-2">
         <span>Your score</span>
-        <span className="font-semibold text-gray-700 dark:text-zinc-200">{score} / {max}</span>
+        <span className="font-semibold text-gray-700">{score} / {max}</span>
       </div>
     </div>
   );
@@ -145,19 +145,19 @@ function DetailModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 shadow-xl p-5 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-5 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-sm font-semibold text-gray-800 dark:text-zinc-100">{titles[type]}</h4>
-          <button onClick={onClose} className="text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 text-lg leading-none">×</button>
+          <h4 className="text-sm font-semibold text-gray-800">{titles[type]}</h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
         </div>
 
         {type === "recency" && (
           <>
-            <p className="text-xs text-gray-500 dark:text-zinc-400 mb-4">
+            <p className="text-xs text-gray-500 mb-4">
               Based on when the most recent note was added.{" "}
-              <span className="font-medium text-gray-700 dark:text-zinc-200">
+              <span className="font-medium text-gray-700">
                 Last note: {daysAgoLabel(inputs.lastNoteAt)}
               </span>
             </p>
@@ -175,9 +175,9 @@ function DetailModal({
 
         {type === "frequency" && (
           <>
-            <p className="text-xs text-gray-500 dark:text-zinc-400 mb-4">
+            <p className="text-xs text-gray-500 mb-4">
               Notes added in the last 90 days.{" "}
-              <span className="font-medium text-gray-700 dark:text-zinc-200">
+              <span className="font-medium text-gray-700">
                 {inputs.noteCount90d} note{inputs.noteCount90d !== 1 ? "s" : ""} recorded
               </span>
             </p>
@@ -195,9 +195,9 @@ function DetailModal({
 
         {type === "richness" && (
           <>
-            <p className="text-xs text-gray-500 dark:text-zinc-400 mb-3">
+            <p className="text-xs text-gray-500 mb-3">
               3 points per filled field.{" "}
-              <span className="font-medium text-gray-700 dark:text-zinc-200">
+              <span className="font-medium text-gray-700">
                 {10 - emptyCount} of 10 fields filled
               </span>
             </p>
@@ -220,19 +220,19 @@ function DetailModal({
                   }
                   className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors ${
                     filled
-                      ? "bg-green-50 dark:bg-emerald-950/30 text-green-700 dark:text-emerald-300 cursor-default"
-                      : "bg-gray-50 dark:bg-zinc-800/50 text-gray-400 dark:text-zinc-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+                      ? "bg-green-50 text-green-700 cursor-default"
+                      : "bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
                   }`}
                 >
                   <span>{filled ? "✓" : "○"}</span>
                   {label}
-                  {!filled && <span className="ml-auto text-[10px] text-indigo-400 dark:text-indigo-400">+3</span>}
+                  {!filled && <span className="ml-auto text-[10px] text-indigo-400">+3</span>}
                 </button>
               ))}
             </div>
-            <div className="flex justify-between text-xs text-gray-500 dark:text-zinc-400 border-t pt-3">
+            <div className="flex justify-between text-xs text-gray-500 border-t pt-3">
               <span>Score</span>
-              <span className="font-semibold text-gray-700 dark:text-zinc-200">{inputs.richness} / 30</span>
+              <span className="font-semibold text-gray-700">{inputs.richness} / 30</span>
             </div>
             {emptyCount > 0 && (
               <button
@@ -277,16 +277,16 @@ function SubScore({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left group rounded-lg px-2 py-1.5 -mx-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
+      className="w-full text-left group rounded-lg px-2 py-1.5 -mx-2 hover:bg-gray-50 transition-colors"
     >
-      <div className="flex justify-between text-xs text-gray-500 dark:text-zinc-400 mb-1">
-        <span className="group-hover:text-gray-700 dark:group-hover:text-zinc-200 transition-colors">
+      <div className="flex justify-between text-xs text-gray-500 mb-1">
+        <span className="group-hover:text-gray-700 transition-colors">
           {label}
-          <span className="ml-1 text-gray-300 dark:text-zinc-600 group-hover:text-indigo-400 dark:group-hover:text-indigo-400 transition-colors text-[10px]">↗</span>
+          <span className="ml-1 text-gray-300 group-hover:text-indigo-400 transition-colors text-[10px]">↗</span>
         </span>
         <span className="font-medium">{value}/{max}</span>
       </div>
-      <div className="h-1.5 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden">
+      <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
         <div
           className={`h-full rounded-full ${barColor}`}
           style={{
@@ -313,9 +313,9 @@ export default function HealthCard({ score, tier, inputs, contact }: Props) {
 
   return (
     <>
-      <div className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-zinc-500">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
             Relationship Health
           </h3>
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeClass}`}>
@@ -324,7 +324,7 @@ export default function HealthCard({ score, tier, inputs, contact }: Props) {
           </span>
         </div>
 
-        <div className="mb-3 h-px bg-gray-100 dark:bg-zinc-800 overflow-hidden rounded-full">
+        <div className="mb-3 h-px bg-gray-100 overflow-hidden rounded-full">
           <div
             className="h-full bg-gradient-to-r from-indigo-300 via-indigo-200 to-transparent"
             style={{
@@ -334,9 +334,9 @@ export default function HealthCard({ score, tier, inputs, contact }: Props) {
           />
         </div>
 
-        <p className="mb-4 text-4xl font-bold text-gray-800 dark:text-zinc-100">
+        <p className="mb-4 text-4xl font-bold text-gray-800">
           {score}
-          <span className="text-base font-normal text-gray-400 dark:text-zinc-500">/100</span>
+          <span className="text-base font-normal text-gray-400">/100</span>
         </p>
 
         <div className="space-y-1">

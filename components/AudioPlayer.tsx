@@ -136,7 +136,7 @@ export default function AudioPlayer({
       {label && (
         <span
           className={`max-w-[6.5rem] shrink-0 truncate text-[11px] font-medium uppercase tracking-wide ${
-            accent ? "text-indigo-100/80" : "text-zinc-400 dark:text-zinc-500"
+            accent ? "text-indigo-100/80" : "text-zinc-400"
           }`}
           title={label}
         >
@@ -157,7 +157,7 @@ export default function AudioPlayer({
             ? ""
             : accent
             ? "bg-white/30"
-            : "bg-zinc-300 dark:bg-zinc-700";
+            : "bg-zinc-300";
           return (
             <div
               key={i}
@@ -182,7 +182,7 @@ export default function AudioPlayer({
 
       <span
         className={`shrink-0 text-[11px] tabular-nums ${
-          accent ? "text-indigo-100/90" : "text-zinc-400 dark:text-zinc-500"
+          accent ? "text-indigo-100/90" : "text-zinc-400"
         }`}
       >
         {fmt(current)} / {fmt(duration)}
@@ -194,7 +194,7 @@ export default function AudioPlayer({
           onClick={onRemove}
           title="Remove recording"
           aria-label="Remove recording"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-red-500 dark:hover:bg-zinc-700"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-red-500"
         >
           ✕
         </button>

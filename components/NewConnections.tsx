@@ -74,23 +74,23 @@ export default function NewConnections() {
   if (loading || entries.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-indigo-400/30 bg-white dark:bg-zinc-900/60 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(99,102,241,0.35)]">
+    <div className="rounded-xl border border-indigo-400/30 bg-white bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(99,102,241,0.35)]">
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-indigo-700 dark:text-indigo-300">
+        <h2 className="text-lg font-semibold text-indigo-700">
           👋 New connections
         </h2>
-        <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
           {entries.length}
         </span>
       </div>
-      <p className="mb-3 -mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="mb-3 -mt-1 text-xs text-zinc-500">
         Recently added — say hello to break the ice.
       </p>
       <ul className="space-y-1">
         {entries.map((e) => (
           <li
             key={e.key}
-            className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50"
           >
             <Link href={`/contacts/${e.contact.id}`} className="flex-shrink-0">
               <span
@@ -102,11 +102,11 @@ export default function NewConnections() {
             <div className="min-w-0 flex-1">
               <Link
                 href={`/contacts/${e.contact.id}`}
-                className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100 hover:underline"
+                className="block truncate text-sm font-medium text-zinc-800 hover:underline"
               >
                 {e.contact.name}
               </Link>
-              <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
+              <span className="block truncate text-xs text-zinc-400">
                 {e.subtitle}
               </span>
             </div>

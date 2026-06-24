@@ -154,31 +154,31 @@ export default function NetworkPage() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Network Map</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-zinc-500">
             Who knows whom across your network. Drag to rearrange, click a node to open the contact.
           </p>
         </div>
         <Link
           href="/network-intel"
-          className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
         >
           Network intelligence →
         </Link>
       </div>
 
       {error ? (
-        <p className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-sm text-zinc-500">
+        <p className="rounded-xl border border-zinc-200 p-8 text-center text-sm text-zinc-500">
           Couldn&apos;t load the network.
         </p>
       ) : !data ? (
-        <p className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-sm text-zinc-400">
+        <p className="rounded-xl border border-zinc-200 p-8 text-center text-sm text-zinc-400">
           Loading network…
         </p>
       ) : data.nodes.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 p-10 text-center">
+        <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center">
           <p className="text-3xl">🕸️</p>
           <p className="mt-2 font-medium">No connections yet</p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-zinc-500">
             Open a contact and use <span className="font-medium">Connections → Link contact</span> to
             map who knows whom. They&apos;ll appear here.
           </p>
@@ -190,7 +190,7 @@ export default function NetworkPage() {
           </Link>
         </div>
       ) : (
-        <div className="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+        <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white">
           <svg
             ref={svgRef}
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -213,7 +213,7 @@ export default function NetworkPage() {
                   x2={b.x}
                   y2={b.y}
                   stroke="currentColor"
-                  className="text-zinc-300 dark:text-zinc-700"
+                  className="text-zinc-300"
                   strokeWidth={0.6 + e.strength * 0.5}
                 />
               );
@@ -243,7 +243,7 @@ export default function NetworkPage() {
                   <text
                     y={r + 12}
                     textAnchor="middle"
-                    className="fill-zinc-700 dark:fill-zinc-200"
+                    className="fill-zinc-700"
                     style={{ fontSize: 11, fontWeight: 500 }}
                   >
                     {node.name.length > 18 ? `${node.name.slice(0, 17)}…` : node.name}
@@ -267,7 +267,7 @@ export default function NetworkPage() {
             </div>
           )}
 
-          <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">
             {data.nodes.length} people · {data.edges.length} connection
             {data.edges.length === 1 ? "" : "s"}
             {nodeById.size > 0 ? " · drag nodes to rearrange" : ""}

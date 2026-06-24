@@ -51,14 +51,14 @@ export default function ProfilesPage() {
     <div>
       <Link
         href="/dashboard"
-        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:text-indigo-600"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition-colors hover:text-indigo-600"
       >
         <span aria-hidden>←</span> Back to dashboard
       </Link>
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">AI Profiles</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-zinc-500">
           {loading
             ? "AI-generated relationship summaries."
             : `${contacts.length} AI-generated ${
@@ -68,20 +68,20 @@ export default function ProfilesPage() {
       </div>
 
       {loading ? (
-        <p className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>
+        <p className="py-12 text-center text-sm text-zinc-400">Loading…</p>
       ) : error ? (
-        <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-5">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+          <p className="text-sm text-red-600">{error}</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-3 rounded-md border border-red-300 dark:border-red-900/50 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40"
+            className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
           >
             Try again
           </button>
         </div>
       ) : contacts.length === 0 ? (
-        <p className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
+        <p className="py-12 text-center text-sm text-zinc-400">
           No AI profiles yet. Open a contact and generate one to see it here.
         </p>
       ) : (
@@ -97,7 +97,7 @@ export default function ProfilesPage() {
 
 function ProfileCard({ contact }: { contact: Contact }) {
   return (
-    <div className="flex flex-col rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="flex flex-col rounded-xl border border-zinc-200 bg-white p-5">
       <Link
         href={`/contacts/${contact.id}`}
         className="group flex items-center gap-3"
@@ -110,24 +110,24 @@ function ProfileCard({ contact }: { contact: Contact }) {
           {(contact.name?.[0] ?? "?").toUpperCase()}
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-base font-semibold text-zinc-900 dark:text-zinc-100 group-hover:text-indigo-600">
+          <span className="block truncate text-base font-semibold text-zinc-900 group-hover:text-indigo-600">
             {contact.name}
           </span>
-          <span className="block truncate text-sm text-zinc-500 dark:text-zinc-400">
+          <span className="block truncate text-sm text-zinc-500">
             {[contact.title, contact.company].filter(Boolean).join(" · ") || "—"}
           </span>
         </span>
       </Link>
 
-      <div className="mt-4 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+      <div className="mt-4 border-t border-zinc-100 pt-3">
         {contact.profile ? (
           <Markdown content={contact.profile} />
         ) : (
-          <p className="text-sm text-zinc-400 dark:text-zinc-500">No profile content.</p>
+          <p className="text-sm text-zinc-400">No profile content.</p>
         )}
       </div>
 
-      <p className="mt-4 border-t border-zinc-100 dark:border-zinc-800 pt-3 text-xs text-zinc-400 dark:text-zinc-500">
+      <p className="mt-4 border-t border-zinc-100 pt-3 text-xs text-zinc-400">
         Model: {contact.profileModel || "—"}
         {contact.profileUpdatedAt &&
           ` · ${new Date(contact.profileUpdatedAt).toLocaleDateString()}`}

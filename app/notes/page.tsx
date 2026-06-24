@@ -31,10 +31,10 @@ function avatarColor(name: string): string {
 
 function sourceBadge(source: Note["source"]) {
   if (source === "voice")
-    return { label: "🎤 voice", className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" };
+    return { label: "🎤 voice", className: "bg-emerald-50 text-emerald-600" };
   if (source === "story")
-    return { label: "📖 story", className: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400" };
-  return { label: "manual", className: "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400" };
+    return { label: "📖 story", className: "bg-indigo-50 text-indigo-600" };
+  return { label: "manual", className: "bg-zinc-100 text-zinc-500" };
 }
 
 export default function NotesPage() {
@@ -65,33 +65,33 @@ export default function NotesPage() {
     <div>
       <Link
         href="/dashboard"
-        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:text-indigo-600"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition-colors hover:text-indigo-600"
       >
         <span aria-hidden>←</span> Back to dashboard
       </Link>
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Notes</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-zinc-500">
           Every note across your network, newest first.
         </p>
       </div>
 
       {loading ? (
-        <p className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>
+        <p className="py-12 text-center text-sm text-zinc-400">Loading…</p>
       ) : error ? (
-        <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-5">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+          <p className="text-sm text-red-600">{error}</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-3 rounded-md border border-red-300 dark:border-red-900/50 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40"
+            className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
           >
             Try again
           </button>
         </div>
       ) : notes.length === 0 ? (
-        <p className="py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">No notes yet.</p>
+        <p className="py-12 text-center text-sm text-zinc-400">No notes yet.</p>
       ) : (
         <ul className="space-y-3">
           {notes.map((n) => {
@@ -100,7 +100,7 @@ export default function NotesPage() {
             return (
               <li
                 key={n.id}
-                className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4"
+                className="rounded-xl border border-zinc-200 bg-white p-4"
               >
                 {n.contact ? (
                   <Link
@@ -115,10 +115,10 @@ export default function NotesPage() {
                       {(name[0] ?? "?").toUpperCase()}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100 group-hover:text-indigo-600">
+                      <span className="block truncate text-sm font-medium text-zinc-800 group-hover:text-indigo-600">
                         {name}
                       </span>
-                      <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
+                      <span className="block truncate text-xs text-zinc-400">
                         {[n.contact.title, n.contact.company]
                           .filter(Boolean)
                           .join(" · ") || "—"}
@@ -126,16 +126,16 @@ export default function NotesPage() {
                     </span>
                   </Link>
                 ) : (
-                  <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  <span className="text-sm font-medium text-zinc-500">
                     {name}
                   </span>
                 )}
 
-                <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-200">
+                <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-700">
                   {n.content}
                 </p>
 
-                <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+                <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400">
                   <span className={`rounded-full px-1.5 py-0.5 ${badge.className}`}>
                     {badge.label}
                   </span>

@@ -120,31 +120,31 @@ export default function SuggestedIntroductions() {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="rounded-xl border border-zinc-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">🤝 Suggested Introductions</h2>
+        <h2 className="text-lg font-semibold text-zinc-900">🤝 Suggested Introductions</h2>
         <button
           onClick={handleGenerate}
           disabled={generating || loading}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+          className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50"
         >
           {generating ? "Analyzing…" : "Refresh"}
         </button>
       </div>
 
       {genError && (
-        <p className="mb-2 text-xs text-red-500 dark:text-red-400">{genError}</p>
+        <p className="mb-2 text-xs text-red-500">{genError}</p>
       )}
 
       {loading ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>
+        <p className="text-sm text-zinc-400">Loading…</p>
       ) : suggestions.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">
+        <p className="text-sm text-zinc-400">
           No suggestions yet.{" "}
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+            className="text-indigo-600 hover:underline disabled:opacity-50"
           >
             Analyze your network →
           </button>
@@ -155,35 +155,35 @@ export default function SuggestedIntroductions() {
           {(showAll ? suggestions : suggestions.slice(0, 5)).map((s) => (
             <li
               key={s.id}
-              className="rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 p-3"
+              className="rounded-lg border border-zinc-100 bg-zinc-50 p-3"
             >
               <div className="mb-2 flex items-center gap-2">
                 <Avatar name={s.contactA.name} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-700 dark:text-zinc-200">{s.contactA.name}</p>
+                  <p className="truncate text-sm font-medium text-zinc-700">{s.contactA.name}</p>
                   {(s.contactA.title || s.contactA.company) && (
-                    <p className="truncate text-xs text-zinc-400 dark:text-zinc-500">
+                    <p className="truncate text-xs text-zinc-400">
                       {[s.contactA.title, s.contactA.company].filter(Boolean).join(" · ")}
                     </p>
                   )}
                 </div>
-                <span className="flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500">↔</span>
+                <span className="flex-shrink-0 text-xs text-zinc-400">↔</span>
                 <Avatar name={s.contactB.name} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-700 dark:text-zinc-200">{s.contactB.name}</p>
+                  <p className="truncate text-sm font-medium text-zinc-700">{s.contactB.name}</p>
                   {(s.contactB.title || s.contactB.company) && (
-                    <p className="truncate text-xs text-zinc-400 dark:text-zinc-500">
+                    <p className="truncate text-xs text-zinc-400">
                       {[s.contactB.title, s.contactB.company].filter(Boolean).join(" · ")}
                     </p>
                   )}
                 </div>
-                <span className="ml-auto flex-shrink-0 rounded-full bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                <span className="ml-auto flex-shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
                   {s.score.toFixed(1)}
                 </span>
               </div>
-              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{s.rationale}</p>
+              <p className="mb-2 text-xs text-zinc-500">{s.rationale}</p>
               {actionState[s.id] === "introduced" ? (
-                <p className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                <p className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
                   ✓ {s.contactA.name} and {s.contactB.name} are now connected.
                 </p>
               ) : (
@@ -191,19 +191,19 @@ export default function SuggestedIntroductions() {
                   <button
                     onClick={() => handleIntroduce(s)}
                     disabled={actionState[s.id] === "introducing"}
-                    className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-900/40 disabled:opacity-60"
+                    className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-60"
                   >
                     {actionState[s.id] === "introducing" ? "Connecting…" : "✓ Introduce"}
                   </button>
                   <button
                     onClick={() => handleDismiss(s.id)}
                     disabled={actionState[s.id] === "introducing"}
-                    className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-60"
+                    className="rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-200 disabled:opacity-60"
                   >
                     Dismiss
                   </button>
                   {actionState[s.id] === "error" && (
-                    <span className="text-xs text-red-500 dark:text-red-400">
+                    <span className="text-xs text-red-500">
                       Couldn’t connect — try again.
                     </span>
                   )}
@@ -215,7 +215,7 @@ export default function SuggestedIntroductions() {
         {suggestions.length > 5 && (
           <button
             onClick={() => setShowAll((s) => !s)}
-            className="mt-3 rounded-lg px-2 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="mt-3 rounded-lg px-2 py-2 text-sm font-medium text-indigo-600 hover:bg-zinc-100 transition-colors"
           >
             {showAll ? "Show less" : `See ${suggestions.length - 5} more`}
           </button>

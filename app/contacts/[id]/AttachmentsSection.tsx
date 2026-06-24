@@ -143,23 +143,23 @@ export function AttachmentsSection({
       {items.map((att) => (
         <li
           key={att.id}
-          className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-2.5 py-1.5 text-sm"
+          className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-sm"
         >
           <span aria-hidden>{iconFor(att.mimeType)}</span>
           <a
             href={`/api/attachments/${att.id}`}
-            className="min-w-0 flex-1 truncate text-indigo-600 dark:text-indigo-400 hover:underline"
+            className="min-w-0 flex-1 truncate text-indigo-600 hover:underline"
             title={`Download ${att.filename}`}
           >
             {att.filename}
           </a>
-          <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+          <span className="shrink-0 text-xs text-zinc-400">
             {formatBytes(att.size)}
           </span>
           <button
             onClick={() => remove(att)}
             aria-label={`Delete ${att.filename}`}
-            className="shrink-0 text-xs text-red-500 dark:text-red-400 hover:underline"
+            className="shrink-0 text-xs text-red-500 hover:underline"
           >
             Delete
           </button>
@@ -182,7 +182,7 @@ export function AttachmentsSection({
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={uploading}
-              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+              className="text-xs text-indigo-600 hover:underline disabled:opacity-50"
             >
               {uploading ? "Uploading…" : "📎 Attach file"}
             </button>
@@ -194,7 +194,7 @@ export function AttachmentsSection({
 
   // Card (contact-level) variant.
   return (
-    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Files</h2>
         {configured && (
@@ -204,7 +204,7 @@ export function AttachmentsSection({
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
             >
               {uploading ? "Uploading…" : "📎 Attach file"}
             </button>
@@ -212,13 +212,13 @@ export function AttachmentsSection({
         )}
       </div>
       {!configured ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">
+        <p className="text-sm text-zinc-400">
           File attachments require Supabase Storage — sign in to enable them.
         </p>
       ) : loading ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>
+        <p className="text-sm text-zinc-400">Loading…</p>
       ) : items.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">
+        <p className="text-sm text-zinc-400">
           No files yet. Attach PDFs, images, or documents related to this contact.
         </p>
       ) : (

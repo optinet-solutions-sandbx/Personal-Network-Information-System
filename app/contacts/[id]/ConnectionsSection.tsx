@@ -59,12 +59,12 @@ export function ConnectionsSection({ contact }: { contact: Contact }) {
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <span aria-hidden>🕸️</span> Connections
           {connections.length > 0 && (
-            <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
               {connections.length}
             </span>
           )}
@@ -72,7 +72,7 @@ export function ConnectionsSection({ contact }: { contact: Contact }) {
         <div className="flex items-center gap-3">
           <Link
             href="/network"
-            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+            className="text-xs font-medium text-indigo-600 hover:underline"
           >
             View graph →
           </Link>
@@ -99,9 +99,9 @@ export function ConnectionsSection({ contact }: { contact: Contact }) {
       )}
 
       {loading ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>
+        <p className="text-sm text-zinc-400">Loading…</p>
       ) : connections.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">
+        <p className="text-sm text-zinc-400">
           No connections yet. Link {contact.name.split(" ")[0]} to people they know.
         </p>
       ) : (
@@ -109,16 +109,16 @@ export function ConnectionsSection({ contact }: { contact: Contact }) {
           {connections.map((c) => (
             <li
               key={c.id}
-              className="flex items-center gap-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2"
+              className="flex items-center gap-3 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2"
             >
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/contacts/${c.other.id}`}
-                  className="text-sm font-medium text-zinc-800 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400"
+                  className="text-sm font-medium text-zinc-800 hover:text-indigo-600"
                 >
                   {c.other.name}
                 </Link>
-                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="truncate text-xs text-zinc-500">
                   {/* For directional types, show direction relative to the focus */}
                   {c.outgoing ? relationshipLabel(c.type) : invertedLabel(c.type)}
                   {c.other.company ? ` · ${c.other.company}` : ""}
@@ -129,7 +129,7 @@ export function ConnectionsSection({ contact }: { contact: Contact }) {
               <button
                 onClick={() => remove(c.id)}
                 aria-label="Remove connection"
-                className="text-zinc-400 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400"
+                className="text-zinc-400 hover:text-red-500"
               >
                 ×
               </button>
@@ -162,7 +162,7 @@ function StrengthDots({ value }: { value: number }) {
         <span
           key={i}
           className={`h-1.5 w-1.5 rounded-full ${
-            i <= value ? "bg-indigo-500" : "bg-zinc-200 dark:bg-zinc-700"
+            i <= value ? "bg-indigo-500" : "bg-zinc-200"
           }`}
         />
       ))}
@@ -239,10 +239,10 @@ function AddConnectionForm({
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-3">
+    <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
       {!target ? (
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
+          <label className="mb-1 block text-xs font-medium text-zinc-600">
             Who does {contact.name.split(" ")[0]} know?
           </label>
           <input
@@ -250,16 +250,16 @@ function AddConnectionForm({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search contacts…"
-            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
           />
           {results.length > 0 && (
-            <ul className="mt-1 max-h-44 overflow-y-auto rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+            <ul className="mt-1 max-h-44 overflow-y-auto rounded-md border border-zinc-200 bg-white">
               {results.map((c) => (
                 <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => setTarget(c)}
-                    className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                    className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-sm hover:bg-indigo-50"
                   >
                     <span className="font-medium">{c.name}</span>
                     <span className="text-xs text-zinc-400">
@@ -273,7 +273,7 @@ function AddConnectionForm({
           <div className="mt-2 flex justify-end">
             <button
               onClick={onDone}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs"
+              className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs"
             >
               Cancel
             </button>
@@ -286,7 +286,7 @@ function AddConnectionForm({
             <select
               value={type}
               onChange={(e) => setType(e.target.value as RelationshipType)}
-              className="mx-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-1.5 py-1 text-sm"
+              className="mx-1 rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm"
             >
               {RELATIONSHIP_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -297,12 +297,12 @@ function AddConnectionForm({
             <span className="font-medium">{target.name}</span>
             <button
               onClick={() => setTarget(null)}
-              className="ml-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="ml-2 text-xs text-indigo-600 hover:underline"
             >
               change
             </button>
           </p>
-          <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+          <div className="flex items-center gap-2 text-xs text-zinc-600">
             <span>Strength</span>
             <input
               type="range"
@@ -318,12 +318,12 @@ function AddConnectionForm({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Context (optional) — e.g. met at DevCon 2025"
-            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
           />
           <div className="flex justify-end gap-2">
             <button
               onClick={onDone}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs"
+              className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs"
             >
               Cancel
             </button>

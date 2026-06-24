@@ -173,14 +173,14 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 rounded-lg border border-zinc-200 px-2 py-2 text-left transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800/70"
+        className="flex w-full items-center gap-2.5 rounded-lg border border-zinc-200 px-2 py-2 text-left transition-colors hover:bg-zinc-100"
       >
         <WorkspaceLogo workspace={current} className="h-7 w-7" text="text-xs" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+          <span className="block truncate text-sm font-medium text-zinc-800">
             {current.name}
           </span>
-          <span className="block text-[11px] capitalize text-zinc-400 dark:text-zinc-500">
+          <span className="block text-[11px] capitalize text-zinc-400">
             {current.role}
           </span>
         </span>
@@ -195,10 +195,10 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
     return (
       <div
         role="menu"
-        className="absolute left-2 right-2 top-full z-50 mt-1 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+        className="absolute left-2 right-2 top-full z-50 mt-1 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg"
       >
-        <div className="border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+        <div className="border-b border-zinc-100 px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
             Workspaces
           </p>
         </div>
@@ -211,7 +211,7 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
                 aria-checked={w.id === current.id}
                 disabled={busy}
                 onClick={() => switchTo(w.id)}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50"
               >
                 <WorkspaceLogo workspace={w} className="h-6 w-6" text="text-[11px]" rounded="rounded" />
                 <span className="min-w-0 flex-1 truncate">{w.name}</span>
@@ -221,19 +221,19 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
           ))}
         </ul>
 
-        <div className="border-t border-zinc-100 p-1 dark:border-zinc-800">
+        <div className="border-t border-zinc-100 p-1">
           <Link
             href="/workspace/settings"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
           >
             <GearIcon />
             Workspace settings
           </Link>
         </div>
 
-        <div className="border-t border-zinc-100 p-1 dark:border-zinc-800">
+        <div className="border-t border-zinc-100 p-1">
           {creating ? (
             <form onSubmit={createWorkspace} className="flex flex-col gap-1.5 p-1.5">
               <input
@@ -242,7 +242,7 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
                 onChange={(e) => setNewName(e.target.value)}
                 maxLength={100}
                 placeholder="Workspace name"
-                className="w-full rounded-md border border-zinc-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-md border border-zinc-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
               />
               <div className="flex gap-1.5">
                 <button
@@ -258,7 +258,7 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
                     setCreating(false);
                     setNewName("");
                   }}
-                  className="rounded-md px-2 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  className="rounded-md px-2 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
                 >
                   Cancel
                 </button>
@@ -268,7 +268,7 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-500/10"
+              className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
             >
               <PlusIcon />
               New workspace
@@ -298,7 +298,7 @@ function CheckIcon() {
 
 function GearIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-zinc-400 dark:text-zinc-500">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-zinc-400">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>

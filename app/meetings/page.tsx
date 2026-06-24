@@ -86,13 +86,13 @@ export default function MeetingsPage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</p>;
+  if (loading) return <p className="text-sm text-zinc-400">Loading…</p>;
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-5">
-        <h2 className="text-sm font-semibold text-red-800 dark:text-red-300">Couldn’t load meetings</h2>
-        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
+      <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+        <h2 className="text-sm font-semibold text-red-800">Couldn’t load meetings</h2>
+        <p className="mt-1 text-sm text-red-600">{error}</p>
       </div>
     );
   }
@@ -105,14 +105,14 @@ export default function MeetingsPage() {
     <div className="mx-auto max-w-3xl">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Meetings</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-zinc-500">
           Meeting prep for people in your network, follow-ups after recent ones, and the rest of
           your upcoming calendar. Synced from your connected calendar.
         </p>
       </div>
 
       {!data?.calendarConnected && (
-        <div className="mb-6 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 p-4 text-sm text-indigo-800 dark:text-indigo-300">
+        <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-800">
           No calendar connected yet. Connect{" "}
           <Link href="/connections" className="font-medium underline">
             Google Calendar or Outlook
@@ -122,11 +122,11 @@ export default function MeetingsPage() {
       )}
 
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
+        <h2 className="mb-3 text-lg font-semibold text-zinc-800">
           🗓️ Upcoming — meeting prep
         </h2>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-zinc-400 dark:text-zinc-500">
+          <p className="text-sm text-zinc-400">
             No upcoming meetings with known contacts.
           </p>
         ) : (
@@ -139,11 +139,11 @@ export default function MeetingsPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
+        <h2 className="mb-3 text-lg font-semibold text-zinc-800">
           ✅ Follow up after recent meetings
         </h2>
         {followUps.length === 0 ? (
-          <p className="text-sm text-zinc-400 dark:text-zinc-500">
+          <p className="text-sm text-zinc-400">
             You’re all caught up — no pending follow-ups.
           </p>
         ) : (
@@ -162,10 +162,10 @@ export default function MeetingsPage() {
 
       {otherUpcoming.length > 0 && (
         <section>
-          <h2 className="mb-1 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
+          <h2 className="mb-1 text-lg font-semibold text-zinc-800">
             📅 Other events from your calendar
           </h2>
-          <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mb-3 text-sm text-zinc-500">
             Upcoming events with no one from your network yet. Add an attendee as a contact and
             they’ll move up to meeting prep.
           </p>
@@ -191,18 +191,18 @@ function MeetingCard({
 }) {
   const rel = relativeDay(m.startsAt);
   return (
-    <li className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+    <li className="rounded-xl border border-zinc-200 bg-white p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="truncate font-medium text-zinc-900 dark:text-zinc-50">{m.title}</h3>
+            <h3 className="truncate font-medium text-zinc-900">{m.title}</h3>
             {rel && (
-              <span className="shrink-0 rounded-full bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+              <span className="shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
                 {rel}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-500">
             {formatWhen(m.startsAt, m.endsAt)}
             {m.location ? ` · ${m.location}` : ""}
             {PROVIDER_LABEL[m.provider] ? ` · ${PROVIDER_LABEL[m.provider]}` : ""}
@@ -213,13 +213,13 @@ function MeetingCard({
               <Link
                 key={c.id}
                 href={`/contacts/${c.id}`}
-                className="rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
               >
                 {c.name}
               </Link>
             ))}
             {m.unknownAttendees.length > 0 && (
-              <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs text-zinc-500 dark:text-zinc-400">
+              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-500">
                 +{m.unknownAttendees.length} not in your contacts
               </span>
             )}
@@ -232,7 +232,7 @@ function MeetingCard({
               href={m.htmlLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="text-xs font-medium text-indigo-600 hover:underline"
             >
               Open ↗
             </a>
@@ -241,7 +241,7 @@ function MeetingCard({
             <button
               onClick={onDone}
               disabled={busy}
-              className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50"
             >
               {busy ? "…" : "Mark done"}
             </button>

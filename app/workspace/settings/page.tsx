@@ -79,24 +79,24 @@ export default function WorkspaceSettingsPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h1 className="bg-gradient-to-r from-zinc-900 via-indigo-700 to-zinc-900 bg-clip-text text-2xl font-bold tracking-tight text-transparent dark:from-white dark:via-indigo-300 dark:to-white">
+        <h1 className="bg-gradient-to-r from-zinc-900 via-indigo-700 to-zinc-900 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
           Workspace settings
         </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-zinc-500">
           Manage this workspace&apos;s profile, members, and invite links. Switch
           workspaces from the sidebar to manage a different one.
         </p>
       </div>
 
       {!ready ? (
-        <p className="rounded-2xl border border-zinc-200 p-8 text-center text-sm text-zinc-400 dark:border-white/10">
+        <p className="rounded-2xl border border-zinc-200 p-8 text-center text-sm text-zinc-400">
           Loading…
         </p>
       ) : !ws ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white/80 p-6 backdrop-blur dark:border-white/10 dark:bg-zinc-900/60">
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+        <div className="rounded-2xl border border-zinc-200 bg-white/80 p-6 backdrop-blur">
+          <p className="text-sm text-zinc-600">
             No workspace selected.{" "}
-            <Link href="/login" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            <Link href="/login" className="text-indigo-600 hover:underline">
               Sign in
             </Link>{" "}
             and pick a workspace from the sidebar.
@@ -105,7 +105,7 @@ export default function WorkspaceSettingsPage() {
       ) : (
         <div className="space-y-6">
           {error && (
-            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
+            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
             </div>
           )}
@@ -193,7 +193,7 @@ function ProfileSection({
     <Card title="Profile" icon={<IconUser />}>
       <form onSubmit={save}>
         {done && (
-          <div className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+          <div className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
             ✓ Saved.
           </div>
         )}
@@ -212,7 +212,7 @@ function ProfileSection({
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-50"
               >
                 {avatar ? "Change logo" : "Upload logo"}
               </button>
@@ -220,7 +220,7 @@ function ProfileSection({
                 <button
                   type="button"
                   onClick={() => { setAvatar(null); setDone(false); }}
-                  className="text-left text-xs text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400"
+                  className="text-left text-xs text-zinc-500 hover:text-red-600"
                 >
                   Remove logo
                 </button>
@@ -229,17 +229,17 @@ function ProfileSection({
           )}
         </div>
 
-        <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Name</label>
+        <label className="mb-1 block text-xs font-medium text-zinc-600">Name</label>
         <input
           type="text"
           value={name}
           disabled={!canEdit}
           maxLength={100}
           onChange={(e) => { setName(e.target.value); setDone(false); }}
-          className="mb-4 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="mb-4 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
         />
 
-        <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Description</label>
+        <label className="mb-1 block text-xs font-medium text-zinc-600">Description</label>
         <textarea
           value={description}
           disabled={!canEdit}
@@ -247,7 +247,7 @@ function ProfileSection({
           rows={3}
           onChange={(e) => { setDescription(e.target.value); setDone(false); }}
           placeholder="What is this workspace for?"
-          className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
         />
 
         {canEdit && (
@@ -326,24 +326,24 @@ function MembersSection({
 
   return (
     <Card title={`Members · ${ws.members.length}`} icon={<IconUsers />}>
-      <ul className="-my-1 divide-y divide-zinc-100 dark:divide-white/5">
+      <ul className="-my-1 divide-y divide-zinc-100">
         {ws.members.map((m) => {
           const isSelf = m.user.id === currentUserId;
           // An admin can manage members, but not owners (only owners can).
           const canManage = isAdmin && (ws.role === "owner" || m.role !== "owner");
           const isLastOwner = m.role === "owner" && ownerCount <= 1;
           return (
-            <li key={m.id} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-white/5">
+            <li key={m.id} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-zinc-50">
               {m.user.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.user.avatar} alt="" className="h-8 w-8 rounded-full object-cover ring-1 ring-white/10" />
               ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 text-xs font-semibold text-zinc-600 dark:from-zinc-700 dark:to-zinc-800 dark:text-zinc-200">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 text-xs font-semibold text-zinc-600">
                   {(m.user.name?.trim()[0] ?? m.user.email[0]).toUpperCase()}
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                <p className="truncate text-sm font-medium text-zinc-800">
                   {m.user.name ?? m.user.email}
                   {isSelf && <span className="ml-1 text-xs text-zinc-400">(you)</span>}
                 </p>
@@ -355,7 +355,7 @@ function MembersSection({
                   value={m.role}
                   disabled={busyId === m.id}
                   onChange={(e) => changeRole(m, e.target.value as Role)}
-                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs capitalize outline-none dark:border-zinc-700 dark:bg-zinc-900"
+                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs capitalize outline-none"
                 >
                   <option value="member">member</option>
                   <option value="admin">admin</option>
@@ -371,7 +371,7 @@ function MembersSection({
                   type="button"
                   disabled={busyId === m.id}
                   onClick={() => remove(m, isSelf)}
-                  className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                  className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                 >
                   {isSelf ? "Leave" : "Remove"}
                 </button>
@@ -468,29 +468,29 @@ function InvitesSection({
 
   return (
     <Card title="Invite links" icon={<IconLink />}>
-      <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="mb-3 text-sm text-zinc-500">
         Anyone who opens an active link (while signed in) joins this workspace with
         the link&apos;s role.
       </p>
 
-      <div className="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-zinc-200 bg-zinc-50/50 p-3 dark:border-white/10 dark:bg-white/5">
+      <div className="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-zinc-200 bg-zinc-50/50 p-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Role</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">Role</label>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as Role)}
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm capitalize outline-none dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm capitalize outline-none"
           >
             <option value="member">member</option>
             <option value="admin">admin</option>
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Expires</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">Expires</label>
           <select
             value={expiryIdx}
             onChange={(e) => setExpiryIdx(Number(e.target.value))}
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm outline-none"
           >
             {EXPIRY_OPTIONS.map((o, i) => (
               <option key={o.label} value={i}>{o.label}</option>
@@ -499,13 +499,13 @@ function InvitesSection({
         </div>
         {EXPIRY_OPTIONS[expiryIdx].minutes === -1 && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Days</label>
+            <label className="mb-1 block text-xs font-medium text-zinc-600">Days</label>
             <input
               type="number"
               min={1}
               value={customDays}
               onChange={(e) => setCustomDays(Number(e.target.value))}
-              className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900"
+              className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm outline-none"
             />
           </div>
         )}
@@ -519,15 +519,15 @@ function InvitesSection({
       ) : invites.length === 0 ? (
         <p className="text-sm text-zinc-400">No invite links yet.</p>
       ) : (
-        <ul className="-my-1 divide-y divide-zinc-100 dark:divide-white/5">
+        <ul className="-my-1 divide-y divide-zinc-100">
           {invites.map((inv) => {
             const st = status(inv);
             return (
-              <li key={inv.id} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-white/5">
+              <li key={inv.id} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-zinc-50">
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 text-sm">
                     <RoleBadge role={inv.role} />
-                    <span className={`inline-flex items-center gap-1.5 ${st.active ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"}`}>
+                    <span className={`inline-flex items-center gap-1.5 ${st.active ? "text-emerald-600" : "text-zinc-400"}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${st.active ? "bg-emerald-500 shadow-[0_0_6px_1px_rgba(16,185,129,0.7)] animate-pulse" : "bg-zinc-400"}`} />
                       {st.label}
                     </span>
@@ -544,14 +544,14 @@ function InvitesSection({
                     <button
                       type="button"
                       onClick={() => copy(inv.token)}
-                      className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                      className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-zinc-50"
                     >
                       {copied === inv.token ? "Copied!" : "Copy link"}
                     </button>
                     <button
                       type="button"
                       onClick={() => removeInvite(inv)}
-                      className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                      className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600"
                     >
                       Revoke
                     </button>
@@ -562,7 +562,7 @@ function InvitesSection({
                     type="button"
                     onClick={() => removeInvite(inv)}
                     title="Remove this entry"
-                    className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                    className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600"
                   >
                     Clear
                   </button>
@@ -613,12 +613,12 @@ function DangerZone({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-red-300/60 bg-red-50/60 p-6 backdrop-blur dark:border-red-500/20 dark:bg-red-950/20 dark:shadow-[0_0_40px_-12px_rgba(239,68,68,0.3)]">
+    <section className="relative overflow-hidden rounded-2xl border border-red-300/60 bg-red-50/60 p-6 backdrop-blur">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/60 to-transparent" />
-      <h2 className="mb-1 text-sm font-semibold tracking-wide text-red-700 dark:text-red-300">
+      <h2 className="mb-1 text-sm font-semibold tracking-wide text-red-700">
         Danger zone
       </h2>
-      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mb-4 text-sm text-zinc-600">
         Deleting a workspace permanently removes it and everything in it.
       </p>
       <button
@@ -645,15 +645,15 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-900/60 dark:shadow-[0_0_40px_-12px_rgba(79,70,229,0.25)]">
+    <section className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/80 p-6 shadow-sm backdrop-blur">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
       <header className="mb-5 flex items-center gap-2.5">
         {icon && (
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/20 to-indigo-500/5 text-indigo-500 ring-1 ring-indigo-500/20 dark:text-indigo-300">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/20 to-indigo-500/5 text-indigo-500 ring-1 ring-indigo-500/20">
             {icon}
           </span>
         )}
-        <h2 className="text-sm font-semibold tracking-wide text-zinc-800 dark:text-zinc-100">
+        <h2 className="text-sm font-semibold tracking-wide text-zinc-800">
           {title}
         </h2>
       </header>
@@ -680,9 +680,9 @@ function PrimaryButton({
 
 function RoleBadge({ role }: { role: Role }) {
   const styles: Record<Role, string> = {
-    owner: "bg-indigo-500/10 text-indigo-700 ring-indigo-500/30 dark:text-indigo-300",
-    admin: "bg-blue-500/10 text-blue-700 ring-blue-500/30 dark:text-blue-300",
-    member: "bg-zinc-500/10 text-zinc-600 ring-zinc-400/30 dark:text-zinc-300",
+    owner: "bg-indigo-500/10 text-indigo-700 ring-indigo-500/30",
+    admin: "bg-blue-500/10 text-blue-700 ring-blue-500/30",
+    member: "bg-zinc-500/10 text-zinc-600 ring-zinc-400/30",
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${styles[role]}`}>

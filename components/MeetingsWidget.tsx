@@ -56,10 +56,10 @@ export default function MeetingsWidget() {
   if (upcoming.length === 0 && followUpCount === 0) return null;
 
   return (
-    <div className="rounded-xl border border-indigo-400/30 bg-white dark:bg-zinc-900/60 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(129,140,248,0.35)]">
+    <div className="rounded-xl border border-indigo-400/30 bg-white bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent p-5 backdrop-blur-sm shadow-[0_0_24px_-8px_rgba(129,140,248,0.35)]">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-indigo-700 dark:text-indigo-300">🗓️ Meetings</h2>
-        <Link href="/meetings" className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+        <h2 className="text-lg font-semibold text-indigo-700">🗓️ Meetings</h2>
+        <Link href="/meetings" className="text-xs font-medium text-indigo-600 hover:underline">
           View all →
         </Link>
       </div>
@@ -67,31 +67,31 @@ export default function MeetingsWidget() {
       {followUpCount > 0 && (
         <Link
           href="/meetings"
-          className="mb-3 block rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-300 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/40"
+          className="mb-3 block rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 transition-colors hover:bg-amber-100"
         >
           {followUpCount} follow-up{followUpCount === 1 ? "" : "s"} waiting after recent meetings →
         </Link>
       )}
 
       {upcoming.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">No upcoming meetings with known contacts.</p>
+        <p className="text-sm text-zinc-400">No upcoming meetings with known contacts.</p>
       ) : (
         <ul className="space-y-1">
           {upcoming.map((m) => (
             <li key={m.id}>
               <Link
                 href="/meetings"
-                className="flex items-center justify-between gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                className="flex items-center justify-between gap-3 rounded-md px-2 py-2 transition-colors hover:bg-zinc-50"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  <span className="block truncate text-sm font-medium text-zinc-800">
                     {m.title}
                   </span>
-                  <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
+                  <span className="block truncate text-xs text-zinc-400">
                     with {m.matchedContacts.map((c) => c.name).join(", ")}
                   </span>
                 </span>
-                <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+                <span className="shrink-0 text-xs text-zinc-400">
                   {formatWhen(m.startsAt)}
                 </span>
               </Link>

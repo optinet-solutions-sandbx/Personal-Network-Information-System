@@ -43,10 +43,10 @@ export function NewConnectionBanner({
     <div className="mt-4 flex items-center gap-3 rounded-xl border border-indigo-400/30 bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent p-4 backdrop-blur-sm">
       <span className="text-xl" aria-hidden>🎉</span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+        <p className="text-sm font-semibold text-indigo-700">
           New connection
         </p>
-        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="truncate text-xs text-zinc-500">
           You recently added {contactName}. Break the ice with a quick hello.
         </p>
       </div>

@@ -39,10 +39,10 @@ const STAT_CARDS: {
     label: "Contacts",
     href: "/contacts",
     theme: {
-      border: "border-indigo-200/70 hover:border-indigo-400 dark:border-indigo-500/25 dark:hover:border-indigo-400/60",
+      border: "border-indigo-200/70 hover:border-indigo-400",
       glow: "bg-indigo-500/40 shadow-[0_0_30px_-6px_rgba(99,102,241,0.55)]",
       line: "from-transparent via-indigo-500 to-transparent",
-      iconBg: "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300",
+      iconBg: "bg-indigo-500/10 text-indigo-600",
       value: "from-indigo-600 to-violet-400",
     },
     icon: (
@@ -56,10 +56,10 @@ const STAT_CARDS: {
     label: "Connections",
     href: "/network",
     theme: {
-      border: "border-cyan-200/70 hover:border-cyan-400 dark:border-cyan-500/25 dark:hover:border-cyan-400/60",
+      border: "border-cyan-200/70 hover:border-cyan-400",
       glow: "bg-cyan-500/40 shadow-[0_0_30px_-6px_rgba(6,182,212,0.55)]",
       line: "from-transparent via-cyan-500 to-transparent",
-      iconBg: "bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-300",
+      iconBg: "bg-cyan-500/10 text-cyan-600",
       value: "from-cyan-500 to-sky-400",
     },
     icon: (
@@ -76,10 +76,10 @@ const STAT_CARDS: {
     label: "With notes",
     href: "/notes",
     theme: {
-      border: "border-emerald-200/70 hover:border-emerald-400 dark:border-emerald-500/25 dark:hover:border-emerald-400/60",
+      border: "border-emerald-200/70 hover:border-emerald-400",
       glow: "bg-emerald-500/40 shadow-[0_0_30px_-6px_rgba(16,185,129,0.55)]",
       line: "from-transparent via-emerald-500 to-transparent",
-      iconBg: "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300",
+      iconBg: "bg-emerald-500/10 text-emerald-600",
       value: "from-emerald-500 to-teal-400",
     },
     icon: (
@@ -94,10 +94,10 @@ const STAT_CARDS: {
     label: "With birthday",
     href: "/birthdays",
     theme: {
-      border: "border-amber-200/70 hover:border-amber-400 dark:border-amber-500/25 dark:hover:border-amber-400/60",
+      border: "border-amber-200/70 hover:border-amber-400",
       glow: "bg-amber-500/40 shadow-[0_0_30px_-6px_rgba(245,158,11,0.55)]",
       line: "from-transparent via-amber-500 to-transparent",
-      iconBg: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300",
+      iconBg: "bg-amber-500/10 text-amber-600",
       value: "from-amber-500 to-orange-400",
     },
     icon: (
@@ -147,24 +147,24 @@ export default function NetworkIntelPage() {
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Network Intelligence</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-zinc-500">
             Trends and shape of your professional network.
           </p>
         </div>
         <Link
           href="/network"
-          className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
         >
           ← Network map
         </Link>
       </div>
 
       {error ? (
-        <p className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-sm text-zinc-500">
+        <p className="rounded-xl border border-zinc-200 p-8 text-center text-sm text-zinc-500">
           Couldn&apos;t load network intelligence.
         </p>
       ) : !data ? (
-        <p className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-sm text-zinc-400">
+        <p className="rounded-xl border border-zinc-200 p-8 text-center text-sm text-zinc-400">
           Analyzing your network…
         </p>
       ) : (
@@ -184,12 +184,12 @@ export default function NetworkIntelPage() {
           </div>
 
           {/* AI narrative — loads independently of the stats above */}
-          <section className="rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 p-5">
+          <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-5">
             <div className="mb-2 flex items-center gap-2">
               <span aria-hidden>✨</span>
               <h2 className="font-semibold">AI read on your network</h2>
               {narrative && (
-                <span className="rounded-full bg-white/70 dark:bg-zinc-900/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
                   {narrative.model === "fallback" || narrative.model === "none"
                     ? "rule-based"
                     : narrative.model}
@@ -197,16 +197,16 @@ export default function NetworkIntelPage() {
               )}
             </div>
             {narrativeError ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              <p className="text-sm text-zinc-500">
                 Couldn&apos;t generate the AI read right now.
               </p>
             ) : !narrative ? (
-              <div className="flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500">
+              <div className="flex items-center gap-2 text-sm text-zinc-400">
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
                 Analyzing your network…
               </div>
             ) : (
-              <div className="prose-sm max-w-none text-sm text-zinc-700 dark:text-zinc-200">
+              <div className="prose-sm max-w-none text-sm text-zinc-700">
                 <Markdown content={narrative.narrative} />
               </div>
             )}
@@ -221,13 +221,13 @@ export default function NetworkIntelPage() {
           </div>
 
           {/* Relationship health */}
-          <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+          <section className="rounded-xl border border-zinc-200 bg-white p-5">
             <h2 className="mb-3 font-semibold">Relationship health</h2>
             <HealthBar tiers={data.stats.healthTiers} total={data.stats.totalContacts} />
           </section>
 
           {/* Growth */}
-          <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+          <section className="rounded-xl border border-zinc-200 bg-white p-5">
             <h2 className="mb-3 font-semibold">New contacts · last 12 months</h2>
             <GrowthChart items={data.stats.growthByMonth} />
           </section>
@@ -253,7 +253,7 @@ function StatCard({
   return (
     <Link
       href={href}
-      className={`group relative flex flex-col gap-2 overflow-hidden rounded-xl border bg-white/80 p-4 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 dark:bg-zinc-900/70 ${theme.border}`}
+      className={`group relative flex flex-col gap-2 overflow-hidden rounded-xl border bg-white/80 p-4 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 ${theme.border}`}
     >
       {/* Neon corner glow — intensifies on hover */}
       <span
@@ -269,7 +269,7 @@ function StatCard({
         <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${theme.iconBg}`}>
           {icon}
         </span>
-        <span className="text-zinc-300 opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100 dark:text-zinc-600">
+        <span className="text-zinc-300 opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -280,7 +280,7 @@ function StatCard({
       >
         {value}
       </p>
-      <p className="relative text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className="relative text-xs text-zinc-500">{label}</p>
     </Link>
   );
 }
@@ -298,10 +298,10 @@ function BarList({
 }) {
   const max = Math.max(1, ...items.map((i) => i.count));
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+    <section className="rounded-xl border border-zinc-200 bg-white p-5">
       <h2 className="mb-3 font-semibold">{title}</h2>
       {items.length === 0 ? (
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">No data yet.</p>
+        <p className="text-sm text-zinc-400">No data yet.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((it) => {
@@ -309,15 +309,15 @@ function BarList({
               <>
                 <div className="mb-0.5 flex items-center justify-between text-xs">
                   <span
-                    className={`truncate text-zinc-700 dark:text-zinc-200 ${
-                      searchable ? "group-hover/bar:text-indigo-600 dark:group-hover/bar:text-indigo-300" : ""
+                    className={`truncate text-zinc-700 ${
+                      searchable ? "group-hover/bar:text-indigo-600" : ""
                     }`}
                   >
                     {it.label}
                   </span>
                   <span className="tabular-nums text-zinc-400">{it.count}</span>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${accent} transition-all duration-300 ${
                       searchable ? "group-hover/bar:brightness-110" : ""
@@ -332,7 +332,7 @@ function BarList({
                 {searchable ? (
                   <Link
                     href={`/contacts?q=${encodeURIComponent(it.label)}`}
-                    className="group/bar block rounded-md px-1 py-0.5 -mx-1 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                    className="group/bar block rounded-md px-1 py-0.5 -mx-1 transition-colors hover:bg-zinc-50"
                     title={`View contacts matching “${it.label}”`}
                   >
                     {row}
@@ -367,7 +367,7 @@ function HealthBar({ tiers, total }: { tiers: Tally[]; total: number }) {
         {tiers.map((t) => (
           <span key={t.label} className="flex items-center gap-1.5">
             <span className={`h-2.5 w-2.5 rounded-full ${TIER_COLORS[t.label] ?? "bg-zinc-400"}`} />
-            <span className="text-zinc-600 dark:text-zinc-300">
+            <span className="text-zinc-600">
               {t.label} <span className="tabular-nums text-zinc-400">{t.count}</span>
             </span>
           </span>

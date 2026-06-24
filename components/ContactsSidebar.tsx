@@ -44,7 +44,7 @@ export default function ContactsSidebar() {
   // ── Collapsed: thin icon rail ───────────────────────────────────────────────
   if (collapsed) {
     return (
-      <aside className="group/sidebar flex w-14 flex-shrink-0 flex-col items-center border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-3">
+      <aside className="group/sidebar flex w-14 flex-shrink-0 flex-col items-center border-r border-zinc-200 bg-white py-3">
         <WorkspaceSwitcher collapsed />
         <nav className="flex flex-1 flex-col items-center gap-2">
           {NAV.map((item) => (
@@ -54,8 +54,8 @@ export default function ContactsSidebar() {
               title={item.label}
               className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
                 isActive(item.href)
-                  ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
-                  : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  ? "bg-indigo-50 text-indigo-600"
+                  : "text-zinc-500 hover:bg-zinc-100"
               }`}
             >
               {item.icon}
@@ -76,8 +76,8 @@ export default function ContactsSidebar() {
 
   // ── Expanded: full sidebar ──────────────────────────────────────────────────
   return (
-    <aside className="group/sidebar flex w-56 flex-shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-      <div className="border-b border-zinc-100 pt-3 dark:border-zinc-800">
+    <aside className="group/sidebar flex w-56 flex-shrink-0 flex-col border-r border-zinc-200 bg-white">
+      <div className="border-b border-zinc-100 pt-3">
         <WorkspaceSwitcher collapsed={false} />
       </div>
       <nav className="flex-1 px-2 pt-3">
@@ -88,7 +88,7 @@ export default function ContactsSidebar() {
         ))}
       </nav>
 
-      <div className="flex justify-end border-t border-zinc-100 dark:border-zinc-800 p-2 opacity-0 transition-opacity duration-150 group-hover/sidebar:opacity-100 focus-within:opacity-100">
+      <div className="flex justify-end border-t border-zinc-100 p-2 opacity-0 transition-opacity duration-150 group-hover/sidebar:opacity-100 focus-within:opacity-100">
         <CollapseToggle
           onClick={toggleCollapsed}
           label="Collapse navigation"
@@ -120,13 +120,13 @@ function CollapseToggle({
         onClick={onClick}
         title={label}
         aria-label={label}
-        className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/70 dark:hover:text-zinc-200"
+        className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
       >
         {icon}
       </button>
       <span
         role="tooltip"
-        className={`pointer-events-none absolute top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-md transition-opacity duration-100 group-hover/collapse:opacity-100 dark:bg-zinc-700 ${
+        className={`pointer-events-none absolute top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-md transition-opacity duration-100 group-hover/collapse:opacity-100 ${
           tooltipSide === "left" ? "right-full mr-2" : "left-full ml-2"
         }`}
       >
@@ -153,8 +153,8 @@ function NavLink({
       href={href}
       className={`group relative flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
         active
-          ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
-          : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/70"
+          ? "bg-indigo-50 text-indigo-700"
+          : "text-zinc-700 hover:bg-zinc-100"
       }`}
     >
       {active && (
