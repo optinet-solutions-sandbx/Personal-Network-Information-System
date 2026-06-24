@@ -1,12 +1,24 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Suspense, useActionState, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { authenticate, type AuthState } from "@/app/auth/actions";
 
 export default function LoginPage() {
+  // useSearchParams must sit under a Suspense boundary for prerendering.
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [showPassword, setShowPassword] = useState(false);
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "";
   const [state, formAction, pending] = useActionState<AuthState, FormData>(
     authenticate,
     undefined
@@ -38,6 +50,7 @@ export default function LoginPage() {
 
           <form action={formAction} className="mt-5 space-y-4">
             <input type="hidden" name="intent" value={mode} />
+            {next && <input type="hidden" name="next" value={next} />}
 
             <div>
               <label htmlFor="email" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">

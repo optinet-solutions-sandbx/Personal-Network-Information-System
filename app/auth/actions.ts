@@ -14,6 +14,10 @@ export async function authenticate(
   const intent = String(formData.get("intent") ?? "login");
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  // Where to land after auth. Only same-origin relative paths are allowed
+  // (must start with a single "/") to prevent open-redirects.
+  const nextRaw = String(formData.get("next") ?? "");
+  const dest = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/dashboard";
 
   if (!email || !password) {
     return { error: "Email and password are required." };
@@ -40,7 +44,7 @@ export async function authenticate(
   }
 
   // redirect() throws internally — keep it outside any try/catch.
-  redirect("/dashboard");
+  redirect(dest);
 }
 
 export async function signout() {

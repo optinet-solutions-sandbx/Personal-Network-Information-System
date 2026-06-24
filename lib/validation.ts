@@ -41,6 +41,11 @@ export const LIMITS = {
   attachmentMimeType: 150,
   attachmentStoragePath: 1024,
   attachmentMaxBytes: 25 * 1024 * 1024, // 25MB — mirror MAX_ATTACHMENT_BYTES in lib/attachments.ts and the bucket cap
+  // Workspaces (team workspace name in the sidebar switcher).
+  workspaceName: 100,
+  workspaceDescription: 500,
+  // Upper bound on an invite link's lifetime: 1 year (in minutes). null = never.
+  inviteMaxMinutes: 525600,
 } as const;
 
 // Loose, pragmatic email shape check (not full RFC). Empty is allowed upstream.
@@ -427,4 +432,122 @@ export function validateContactSource(
   if (!imgs.ok) return imgs;
 
   return { ok: true, data: { sourceText, sourceImages: imgs.data } };
+}
+
+// ── Workspaces ──────────────────────────────────────────────────────────────
+
+// Validate the body of POST /api/workspaces (create a new team workspace).
+export function validateWorkspaceCreate(
+  body: unknown
+): ValidationResult<{ name: string }> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "invalid body" };
+  }
+  const name = clean((body as Record<string, unknown>).name);
+  if (!name) return { ok: false, error: "name is required" };
+  if (name.length > LIMITS.workspaceName) {
+    return { ok: false, error: "name is too long" };
+  }
+  return { ok: true, data: { name } };
+}
+
+// Validate the body of POST /api/workspaces/switch. Membership is checked
+// against the DB in the route — this only validates shape.
+export function validateWorkspaceSwitch(
+  body: unknown
+): ValidationResult<{ workspaceId: string }> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "invalid body" };
+  }
+  const workspaceId = clean((body as Record<string, unknown>).workspaceId);
+  if (!workspaceId) return { ok: false, error: "workspaceId is required" };
+  return { ok: true, data: { workspaceId } };
+}
+
+export type CleanWorkspaceUpdate = {
+  name?: string;
+  description?: string | null;
+  avatar?: string | null;
+};
+
+// Validate a PATCH to /api/workspaces/[id] (workspace profile). Partial: only
+// the keys present in the body are validated and returned. Mirrors
+// validateProfile's avatar handling.
+export function validateWorkspaceUpdate(
+  body: unknown
+): ValidationResult<CleanWorkspaceUpdate> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "invalid body" };
+  }
+  const b = body as Record<string, unknown>;
+  const out: CleanWorkspaceUpdate = {};
+
+  if (b.name !== undefined) {
+    const name = clean(b.name);
+    if (!name) return { ok: false, error: "name is required" };
+    if (name.length > LIMITS.workspaceName) {
+      return { ok: false, error: "name is too long" };
+    }
+    out.name = name;
+  }
+
+  if (b.description !== undefined) {
+    if (b.description !== null && typeof b.description !== "string") {
+      return { ok: false, error: "description must be a string" };
+    }
+    const desc = clean(b.description);
+    if (desc && desc.length > LIMITS.workspaceDescription) {
+      return { ok: false, error: "description is too long" };
+    }
+    out.description = desc; // null clears it
+  }
+
+  if (b.avatar !== undefined) {
+    if (b.avatar === null || b.avatar === "") {
+      out.avatar = null;
+    } else if (typeof b.avatar !== "string" || !b.avatar.startsWith("data:image/")) {
+      return { ok: false, error: "avatar must be an image data URL" };
+    } else if (b.avatar.length > LIMITS.avatarChars) {
+      return { ok: false, error: "avatar image is too large" };
+    } else {
+      out.avatar = b.avatar;
+    }
+  }
+
+  if (Object.keys(out).length === 0) {
+    return { ok: false, error: "no fields to update" };
+  }
+  return { ok: true, data: out };
+}
+
+// Validate POST /api/workspaces/[id]/invites. role defaults to "member";
+// expiresInMinutes is null (never) or a positive integer up to the cap.
+export function validateInviteCreate(
+  body: unknown
+): ValidationResult<{ role: "member" | "admin"; expiresInMinutes: number | null }> {
+  const b = (body && typeof body === "object" && !Array.isArray(body)
+    ? body
+    : {}) as Record<string, unknown>;
+
+  let role: "member" | "admin" = "member";
+  if (b.role !== undefined) {
+    if (b.role !== "member" && b.role !== "admin") {
+      return { ok: false, error: 'role must be "member" or "admin"' };
+    }
+    role = b.role;
+  }
+
+  let expiresInMinutes: number | null = null;
+  if (b.expiresInMinutes !== undefined && b.expiresInMinutes !== null) {
+    const n = Number(b.expiresInMinutes);
+    if (!Number.isInteger(n) || n < 1 || n > LIMITS.inviteMaxMinutes) {
+      return {
+        ok: false,
+        error: `expiresInMinutes must be an integer 1–${LIMITS.inviteMaxMinutes} or null`,
+      };
+    }
+    expiresInMinutes = n;
+  }
+
+  return { ok: true, data: { role, expiresInMinutes } };
 }

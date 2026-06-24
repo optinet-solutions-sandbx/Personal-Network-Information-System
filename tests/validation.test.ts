@@ -6,6 +6,10 @@ import {
   validateNoteContent,
   validateNoteImages,
   validateAttachmentMeta,
+  validateWorkspaceCreate,
+  validateWorkspaceSwitch,
+  validateWorkspaceUpdate,
+  validateInviteCreate,
   LIMITS,
 } from "@/lib/validation";
 
@@ -219,5 +223,101 @@ describe("validateAttachmentMeta", () => {
   it("rejects a non-object body", () => {
     expect(validateAttachmentMeta(null).ok).toBe(false);
     expect(validateAttachmentMeta("nope").ok).toBe(false);
+  });
+});
+
+describe("validateWorkspaceCreate", () => {
+  it("requires a non-empty name", () => {
+    expect(validateWorkspaceCreate({}).ok).toBe(false);
+    expect(validateWorkspaceCreate({ name: "   " }).ok).toBe(false);
+  });
+
+  it("trims and returns the name", () => {
+    const res = validateWorkspaceCreate({ name: "  Acme Team  " });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.name).toBe("Acme Team");
+  });
+
+  it("rejects a name over the length cap", () => {
+    const res = validateWorkspaceCreate({ name: "x".repeat(LIMITS.workspaceName + 1) });
+    expect(res.ok).toBe(false);
+  });
+
+  it("rejects non-object bodies", () => {
+    expect(validateWorkspaceCreate(null).ok).toBe(false);
+    expect(validateWorkspaceCreate("nope").ok).toBe(false);
+    expect(validateWorkspaceCreate(["a"]).ok).toBe(false);
+  });
+});
+
+describe("validateWorkspaceSwitch", () => {
+  it("requires a workspaceId", () => {
+    expect(validateWorkspaceSwitch({}).ok).toBe(false);
+    expect(validateWorkspaceSwitch({ workspaceId: "  " }).ok).toBe(false);
+  });
+
+  it("trims and returns the workspaceId", () => {
+    const res = validateWorkspaceSwitch({ workspaceId: "  ws_123  " });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.workspaceId).toBe("ws_123");
+  });
+
+  it("rejects non-object bodies", () => {
+    expect(validateWorkspaceSwitch(null).ok).toBe(false);
+    expect(validateWorkspaceSwitch(["a"]).ok).toBe(false);
+  });
+});
+
+describe("validateWorkspaceUpdate", () => {
+  it("requires at least one field", () => {
+    expect(validateWorkspaceUpdate({}).ok).toBe(false);
+  });
+
+  it("trims name and rejects a blank or over-long name", () => {
+    const res = validateWorkspaceUpdate({ name: "  Acme  " });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.name).toBe("Acme");
+    expect(validateWorkspaceUpdate({ name: "   " }).ok).toBe(false);
+    expect(validateWorkspaceUpdate({ name: "x".repeat(LIMITS.workspaceName + 1) }).ok).toBe(false);
+  });
+
+  it("allows clearing description with null and caps its length", () => {
+    const cleared = validateWorkspaceUpdate({ description: null });
+    expect(cleared.ok).toBe(true);
+    if (cleared.ok) expect(cleared.data.description).toBeNull();
+    expect(validateWorkspaceUpdate({ description: "x".repeat(LIMITS.workspaceDescription + 1) }).ok).toBe(false);
+  });
+
+  it("accepts an image data URL avatar, clears on empty, rejects non-image", () => {
+    const ok = validateWorkspaceUpdate({ avatar: "data:image/jpeg;base64,abc" });
+    expect(ok.ok).toBe(true);
+    const cleared = validateWorkspaceUpdate({ avatar: "" });
+    expect(cleared.ok).toBe(true);
+    if (cleared.ok) expect(cleared.data.avatar).toBeNull();
+    expect(validateWorkspaceUpdate({ avatar: "http://x/y.png" }).ok).toBe(false);
+  });
+});
+
+describe("validateInviteCreate", () => {
+  it("defaults role to member and never-expires", () => {
+    const res = validateInviteCreate({});
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data).toEqual({ role: "member", expiresInMinutes: null });
+  });
+
+  it("accepts member/admin and rejects other roles", () => {
+    expect(validateInviteCreate({ role: "admin" }).ok).toBe(true);
+    expect(validateInviteCreate({ role: "owner" }).ok).toBe(false);
+    expect(validateInviteCreate({ role: "guest" }).ok).toBe(false);
+  });
+
+  it("validates expiresInMinutes bounds", () => {
+    const ok = validateInviteCreate({ expiresInMinutes: 60 });
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.data.expiresInMinutes).toBe(60);
+    expect(validateInviteCreate({ expiresInMinutes: 0 }).ok).toBe(false);
+    expect(validateInviteCreate({ expiresInMinutes: 1.5 }).ok).toBe(false);
+    expect(validateInviteCreate({ expiresInMinutes: LIMITS.inviteMaxMinutes + 1 }).ok).toBe(false);
+    expect(validateInviteCreate({ expiresInMinutes: null }).ok).toBe(true);
   });
 });

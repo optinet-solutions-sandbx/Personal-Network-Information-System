@@ -39,7 +39,11 @@ export default async function proxy(req: NextRequest) {
 
   // API routes enforce auth themselves (returning 401), so don't redirect them.
   if (!user && !isApi && !isPublic) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    // Preserve where they were headed (e.g. an /join/<token> invite link) so
+    // login can send them back there afterwards.
+    const login = new URL("/login", req.url);
+    login.searchParams.set("next", path + req.nextUrl.search);
+    return NextResponse.redirect(login);
   }
   // Signed-in users shouldn't see the login page.
   if (user && path === "/login") {

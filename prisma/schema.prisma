@@ -232,19 +232,46 @@ model User {
 }
 
 model Workspace {
-  id        String        @id @default(cuid())
-  name      String
-  type      WorkspaceType @default(personal)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id          String        @id @default(cuid())
+  name        String
+  type        WorkspaceType @default(personal)
+  // Optional workspace profile (team workspaces). `avatar` is a downscaled JPEG
+  // data URL (logo), same convention as User.avatar / Contact photos.
+  description String?
+  avatar      String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   members  WorkspaceMember[]
   contacts Contact[]
+  invites  WorkspaceInvite[]
 }
 
 enum WorkspaceType {
   personal
   team
+}
+
+// ---------------------------------------------------------------------------
+// Shareable invite links (Workspace Management epic). A link is MULTI-USE:
+// anyone who opens it while signed in joins the workspace with `role`, until it
+// expires (expiresAt) or is revoked (revokedAt). The token is an unguessable
+// random string (crypto.randomBytes; see lib/workspace.ts) carried in the
+// /join/<token> URL. Cascade-deletes with its workspace.
+// ---------------------------------------------------------------------------
+model WorkspaceInvite {
+  id              String     @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  token           String     @unique
+  role            MemberRole @default(member) // role granted on join (member | admin)
+  createdByUserId String? // who created the link (audit)
+  expiresAt       DateTime? // null = never expires
+  revokedAt       DateTime? // set when revoked
+  usedCount       Int        @default(0) // joins via this link, for the list view
+  createdAt       DateTime   @default(now())
+
+  @@index([workspaceId])
 }
 
 model WorkspaceMember {

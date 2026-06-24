@@ -15,8 +15,8 @@ const authEnabled = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // The login page gets a clean, chrome-free layout.
-  if (pathname === "/login") {
+  // The login and invite-landing pages get a clean, chrome-free layout.
+  if (pathname === "/login" || pathname.startsWith("/join/")) {
     return <main className="flex-1 overflow-y-auto">{children}</main>;
   }
 

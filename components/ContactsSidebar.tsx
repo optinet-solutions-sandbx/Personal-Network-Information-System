@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import WorkspaceSwitcher from "@/components/WorkspaceSwitcher";
 
 const COLLAPSE_KEY = "networky:sidebar-collapsed";
 
@@ -44,6 +45,7 @@ export default function ContactsSidebar() {
   if (collapsed) {
     return (
       <aside className="group/sidebar flex w-14 flex-shrink-0 flex-col items-center border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-3">
+        <WorkspaceSwitcher collapsed />
         <nav className="flex flex-1 flex-col items-center gap-2">
           {NAV.map((item) => (
             <Link
@@ -75,6 +77,9 @@ export default function ContactsSidebar() {
   // ── Expanded: full sidebar ──────────────────────────────────────────────────
   return (
     <aside className="group/sidebar flex w-56 flex-shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <div className="border-b border-zinc-100 pt-3 dark:border-zinc-800">
+        <WorkspaceSwitcher collapsed={false} />
+      </div>
       <nav className="flex-1 px-2 pt-3">
         {NAV.map((item) => (
           <NavLink key={item.href} href={item.href} active={isActive(item.href)} icon={item.icon}>
